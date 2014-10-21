@@ -85,6 +85,8 @@ class Matrix {
 		void translate(Vector transationVector);
 		void translate(GLfloat xTranslation, GLfloat yTranslation, GLfloat zTranslation);
 
+		void removeTranslation();
+
 		void quaternionRotate(Quaternion quaternion);
 		void transpose();
 		void invert();

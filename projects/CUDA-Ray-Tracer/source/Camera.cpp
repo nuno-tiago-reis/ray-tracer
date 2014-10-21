@@ -44,7 +44,7 @@ void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsed
 
 	this->eye[VX] = this->position[VX];// + this->zoom *  CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * cos(this->longitude * DEGREES_TO_RADIANS);
 	this->eye[VY] = this->position[VY] + CAMERA_RADIUS;// + this->zoom *  CAMERA_RADIUS * cos((this->latitude - 90.0f) * DEGREES_TO_RADIANS);
-	this->eye[VZ] = this->position[VZ];//d + this->zoom * -CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * sin(this->longitude * DEGREES_TO_RADIANS);
+	this->eye[VZ] = this->position[VZ] - CAMERA_RADIUS;//d + this->zoom * -CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * sin(this->longitude * DEGREES_TO_RADIANS);
 	this->eye[VW] = 1.0f;
 
 	this->target[VX] = this->position[VX];

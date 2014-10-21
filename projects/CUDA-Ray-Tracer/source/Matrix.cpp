@@ -120,6 +120,13 @@ void Matrix::translate(GLfloat xCoordinate, GLfloat yCoordinate, GLfloat zCoordi
 	(*this) *= translationMatrix;
 }
 
+void Matrix::removeTranslation() {
+
+	this->matrix[0][3] = 0.0f;
+	this->matrix[1][3] = 0.0f;
+	this->matrix[2][3] = 0.0f;
+}
+
 void Matrix::rotate(GLfloat angle, GLfloat xRotation, GLfloat yRotation, GLfloat zRotation) {
 
 	Matrix rotationMatrix;

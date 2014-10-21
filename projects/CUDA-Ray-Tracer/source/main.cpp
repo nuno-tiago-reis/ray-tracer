@@ -93,17 +93,17 @@ float deltaTime = 0.0f;
 int triangleTotal = 0;
 
 /* CudaDevicePointers to the uploaded Triangles Positions */
-float *cudaTrianglePositionsDP; 
+float *cudaTrianglePositionsDP = NULL; 
 /* CudaDevicePointers to the uploaded Triangles Normals and Tangents */
-float *cudaTriangleNormalsDP;
-float *cudaTriangleTangentsDP;
+float *cudaTriangleNormalsDP = NULL;
+float *cudaTriangleTangentsDP = NULL;
 /* CudaDevicePointers to the uploaded Triangles Texture Coordinates */
-float *cudaTriangleTextureCoordinatesDP;
+float *cudaTriangleTextureCoordinatesDP = NULL;
 /* CudaDevicePointers to the uploaded Triangles Materials */
-float *cudaTriangleAmbientPropertiesDP;
-float *cudaTriangleDiffusePropertiesDP;
-float *cudaTriangleSpecularPropertiesDP;
-float *cudaTriangleSpecularConstantsDP;
+float *cudaTriangleAmbientPropertiesDP = NULL;
+float *cudaTriangleDiffusePropertiesDP = NULL;
+float *cudaTriangleSpecularPropertiesDP = NULL;
+float *cudaTriangleSpecularConstantsDP = NULL;
 
 	// Lighting ---------------------------- TODO
 	float lightPosition[3] = { 0.0f, 5.0f, 0.0f };
@@ -166,19 +166,19 @@ void initObjects() {
 
 	/* Load Sphere0s Transform */
  	Transform* sphere0Transform = new Transform("Sphere 0 Transform");
-	sphere0Transform->setPosition(Vector(-20.0f, -2.5f, 20.0f, 1.0f));
+	sphere0Transform->setPosition(Vector(-10.0f, -2.5f, 10.0f, 1.0f));
 	sphere0Transform->setScale(Vector( 5.0f, 5.0f, 5.0f, 1.0f));
 	/* Load Sphere1s Transform */
 	Transform* sphere1Transform = new Transform("Sphere 1 Transform");
-	sphere1Transform->setPosition(Vector(-20.0f, -2.5f,-20.0f, 1.0f));
+	sphere1Transform->setPosition(Vector(-15.0f, -2.5f,-10.0f, 1.0f));
 	sphere1Transform->setScale(Vector( 5.0f, 5.0f, 5.0f, 1.0f));
 	/* Load Sphere2s Transform */
 	Transform* sphere2Transform = new Transform("Sphere 2 Transform");
-	sphere2Transform->setPosition(Vector( 20.0f, -2.5f,-20.0f, 1.0f));
+	sphere2Transform->setPosition(Vector( 15.0f, -2.5f,-10.0f, 1.0f));
 	sphere2Transform->setScale(Vector( 5.0f, 5.0f, 5.0f, 1.0f));
 	/* Load Sphere3s Transform */
 	Transform* sphere3Transform = new Transform("Sphere 3 Transform");
-	sphere3Transform->setPosition(Vector( 20.0f, -2.5f, 20.0f, 1.0f));
+	sphere3Transform->setPosition(Vector( 10.0f, -2.5f, 10.0f, 1.0f));
 	sphere3Transform->setScale(Vector( 5.0f, 5.0f, 5.0f, 1.0f));
 	/* Load Platforms Transform */
 	Transform* platformTransform = new Transform("Platform Transform");
@@ -207,17 +207,19 @@ bool initOpenGL() {
 
 	glewInit();
 
-	if(!glewIsSupported("GL_VERSION_2_0 " "GL_ARB_pixel_buffer_object " "GL_EXT_framebuffer_object ")) {
+	if(!glewIsSupported("GL_VERSION_2_0")) {
 
-			fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
-			fflush(stderr);
+		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
+		fflush(stderr);
 
-			exit(0);
+		exit(0);
 	}
 
+	/* Initialize the State */
 	glClearColor(0, 0, 0, 1.0);
 	glDisable(GL_DEPTH_TEST);
 
+	/* Initialize the Viewport */
 	glViewport(0, 0, windowWidth, windowHeight);
 
 	return true;
@@ -245,14 +247,13 @@ void initCUDAmemory() {
 
 	void *pixelBufferObjectData = malloc(pixelBufferObjectSize);
 
-	//cudaFree(0);
 	//size_t freeSize, totalSize;
 	//cuMemGetInfo(&freeSize,&totalSize);
 
 	// Create the PixelBufferObject.
 	glGenBuffers(1, &pixelBufferObjectID);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectID);
-	glBufferData(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectSize, pixelBufferObjectData, GL_DYNAMIC_DRAW);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectSize, 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 	free(pixelBufferObjectData);
@@ -296,8 +297,9 @@ void initCUDAmemory() {
 		Matrix modelMatrix = spheres[i]->getTransform()->getModelMatrix();
 		// Used for the normal transformations
 		Matrix modelMatrixInverseTranspose = modelMatrix;
-		modelMatrixInverseTranspose.invert();
+		modelMatrixInverseTranspose.removeTranslation();
 		modelMatrixInverseTranspose.transpose();
+		modelMatrixInverseTranspose.invert();
 
 		for(int j = 0; j < spheres[0]->getMesh()->getVertexCount(); j++)	{
 
@@ -309,12 +311,13 @@ void initCUDAmemory() {
 			float4 position = { modifiedPosition[VX], modifiedPosition[VY], modifiedPosition[VZ], 1.0f };
 			trianglePositions.push_back(position);
 
-			/*
 			// Normal: Multiply the original normal using the objects inverted transposed model matrix	
 			Vector modifiedNormal = modelMatrixInverseTranspose * Vector(originalVertex.normal[VX], originalVertex.normal[VY], originalVertex.normal[VZ], 0.0f);
+			modifiedNormal.normalize();
 			float4 normal = { modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ], 0.0f };
 			triangleNormals.push_back(normal);
 
+			/*
 			// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
 			Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], originalVertex.tangent[VW]);
 			float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
@@ -344,8 +347,9 @@ void initCUDAmemory() {
 	Matrix modelMatrix = platform->getTransform()->getModelMatrix();
 	// Used for the normal transformations
 	Matrix modelMatrixInverseTranspose = modelMatrix;
-	modelMatrixInverseTranspose.invert();
+	modelMatrixInverseTranspose.removeTranslation();
 	modelMatrixInverseTranspose.transpose();
+	modelMatrixInverseTranspose.invert();
 
 	for(int j = 0; j < platform->getMesh()->getVertexCount(); j++) {
 
@@ -357,12 +361,13 @@ void initCUDAmemory() {
 		float4 position = { modifiedPosition[VX], modifiedPosition[VY], modifiedPosition[VZ], 1.0f };
 		trianglePositions.push_back(position);
 
-		/*
 		// Normal: Multiply the original normal using the objects inverted transposed model matrix	
 		Vector modifiedNormal = modelMatrixInverseTranspose * Vector(originalVertex.normal[VX], originalVertex.normal[VY], originalVertex.normal[VZ], 0.0f);
+		modifiedNormal.normalize();
 		float4 normal = { modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ], 0.0f };
 		triangleNormals.push_back(normal);
 
+		/*
 		// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
 		Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], originalVertex.tangent[VW]);
 		float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
@@ -394,9 +399,9 @@ void initCUDAmemory() {
 	size_t trianglePositionsSize = trianglePositions.size() * sizeof(float4);
 	cout << "Triangle Positions Storage Size:" << trianglePositionsSize << "(" << trianglePositions.size() << " values)" << endl;
 
-	/*
 	size_t triangleNormalsSize = triangleNormals.size() * sizeof(float4);
 	cout << "Triangle Normals Storage Size:" << triangleNormalsSize << "(" << triangleNormals.size() << " values)" << endl;
+	/*
 	size_t triangleTangentsSize = triangleTangents.size() * sizeof(float4);
 	cout << "Triangle Tangents Storage Size:" << triangleTangentsSize << "(" << triangleTangents.size() << " values)" << endl;
 
@@ -424,7 +429,7 @@ void initCUDAmemory() {
 
 		bindTrianglePositions(cudaTrianglePositionsDP, triangleTotal);
 
-		/*// Load the Triangle Normals
+		// Load the Triangle Normals
 		cudaMalloc((void **)&cudaTriangleNormalsDP, triangleNormalsSize);
 		Utility::checkCUDAError("cudaMalloc");
 		cudaMemcpy(cudaTriangleNormalsDP, &triangleNormals[0], triangleNormalsSize, cudaMemcpyHostToDevice);
@@ -432,7 +437,7 @@ void initCUDAmemory() {
 
 		bindTriangleNormals(cudaTriangleNormalsDP, triangleTotal);
 
-		// Load the Triangle Tangents
+		/*// Load the Triangle Tangents
 		cudaMalloc((void **)&cudaTriangleTangentsDP, triangleTangentsSize);
 		Utility::checkCUDAError("cudaMalloc");
 		cudaMemcpy(cudaTriangleTangentsDP, &triangleTangents[0], triangleTangentsSize, cudaMemcpyHostToDevice);
@@ -529,16 +534,13 @@ void readMouse(GLfloat elapsedTime) {
 
 	MouseHandler* handler = MouseHandler::getInstance();
 
-	if(!handler->isMouseEnabled())
-		return;	
-
 	handler->disableMouse();
 
 	GLint zoom = handler->getMouseWheelPosition();
 	GLint longitude = handler->getLongitude(GLUT_RIGHT_BUTTON);
 	GLint latitude = handler->getLatitude(GLUT_RIGHT_BUTTON);
 
-	camera->update(zoom,longitude,latitude,elapsedTime);
+	//camera->update(zoom,longitude,latitude,elapsedTime);
 
 	handler->enableMouse();
 }
@@ -582,7 +584,10 @@ void display() {
 	lastFrameTime = currentTime;
 
 	/* Update the Scenes Objects */
-	camera->update(0, 0, 0, deltaTime);
+	readMouse(deltaTime);
+	readKeyboard(deltaTime);
+
+	camera->update(0,0,0,deltaTime); //TODO
 
 	glClearColor(0,0,0,0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -706,12 +711,12 @@ void rayTrace() {
 	Utility::checkCUDAError("cudaGLUnmapBufferObject()");
 
 	/* Copy the Output to the Texture */
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pixelBufferObjectID);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectID);
 
 		glBindTexture(GL_TEXTURE_2D, textureID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, imageWidth, imageHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 	Utility::checkOpenGLError("glTexSubImage2D()");
 }
