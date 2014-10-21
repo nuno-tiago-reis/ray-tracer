@@ -1,0 +1,164 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="output|Win32">
+      <Configuration>output</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\KeyboardHandler.cpp" />
+    <ClCompile Include="source\Matrix.cpp" />
+    <ClCompile Include="source\Mesh.cpp" />
+    <ClCompile Include="source\MouseHandler.cpp" />
+    <ClCompile Include="source\OBJ_Reader.cpp" />
+    <ClCompile Include="source\Quaternion.cpp" />
+    <ClCompile Include="source\Camera.cpp" />
+    <ClCompile Include="source\Object.cpp" />
+    <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\Transform.cpp" />
+    <ClCompile Include="source\Vector.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\Constants.h" />
+    <ClInclude Include="source\KeyboardHandler.h" />
+    <ClInclude Include="source\Matrix.h" />
+    <ClInclude Include="source\Mesh.h" />
+    <ClInclude Include="source\MouseHandler.h" />
+    <ClInclude Include="source\OBJ_Reader.h" />
+    <ClInclude Include="source\Quaternion.h" />
+    <ClInclude Include="source\Camera.h" />
+    <ClInclude Include="source\Object.h" />
+    <ClInclude Include="source\Transform.h" />
+    <ClInclude Include="source\Utility.h" />
+    <ClInclude Include="source\Vector.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="source\RayTracer.cu">
+      <FileType>Document</FileType>
+    </CudaCompile>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>raytracer</RootNamespace>
+    <ProjectName>CUDA Ray Tracer</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='output|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 6.5.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='output|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\cuda\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\cuda\lib\Win32;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(ProjectDir)\source</SourcePath>
+    <OutDir>$(SolutionDir)output\</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='output|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>C:\Users\Eduardo\Desktop\Ray Tracer\ray-tracer\dependencies\freeglut\include;C:\Users\Eduardo\Desktop\Ray Tracer\ray-tracer\dependencies\glew\include;$(IncludePath)</IncludePath>
+    <ReferencePath>C:\Users\Eduardo\Desktop\Ray Tracer\ray-tracer\dependencies;$(ReferencePath)</ReferencePath>
+    <LibraryPath>C:\Users\Eduardo\Desktop\Ray Tracer\ray-tracer\dependencies\freeglut\lib;C:\Users\Eduardo\Desktop\Ray Tracer\ray-tracer\dependencies\glew\lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>C:\Users\Eduardo\Desktop\Ray Tracer\ray-tracer\ray-tracer\source;$(SourcePath)</SourcePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)output\</OutDir>
+    <IncludePath>$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\cuda\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\cuda\lib\Win32;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(ProjectDir)\source</SourcePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>freeglut.lib;glew32.lib;cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='output|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>freeglut.lib;glew32.lib;cudart.lib;cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <CudaCompile>
+      <HostDebugInfo>false</HostDebugInfo>
+    </CudaCompile>
+    <CudaCompile>
+      <FastMath>false</FastMath>
+    </CudaCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 6.5.targets" />
+  </ImportGroup>
+</Project>

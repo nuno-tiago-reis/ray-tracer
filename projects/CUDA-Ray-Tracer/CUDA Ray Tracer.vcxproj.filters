@@ -1,0 +1,129 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\User Interaction">
+      <UniqueIdentifier>{f6464dbf-a0d7-4444-9916-ce5b7bcc5867}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\User Interaction\Keyboard">
+      <UniqueIdentifier>{8c68cf2b-472c-4930-9edb-17fc9f65a994}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\User Interaction\Mouse">
+      <UniqueIdentifier>{156b3bdd-6d45-4d44-8739-ab9727c8f375}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA">
+      <UniqueIdentifier>{83755cd2-dcfa-4c72-9932-77c738f10e4b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library">
+      <UniqueIdentifier>{71a4672b-ca0d-4578-9110-ca21a832c66d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Math">
+      <UniqueIdentifier>{cf0955d0-0a5a-48cb-89fa-66a34a69e366}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Math\Matrix">
+      <UniqueIdentifier>{27eb5fc8-0af8-4ea0-a01b-9681a59db916}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Math\Vector">
+      <UniqueIdentifier>{b8d2489e-c3ac-4d8c-a5b9-592dcfbf5598}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Math\Quaternion">
+      <UniqueIdentifier>{b107b3d6-3045-4a00-bf79-15929fcd012e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Camera">
+      <UniqueIdentifier>{6bc69f6b-0be9-4543-adf0-897c97706907}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Object">
+      <UniqueIdentifier>{925accb2-27d1-41b0-88b8-58c2cb5e58ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Object\Transform">
+      <UniqueIdentifier>{6baab3f4-d9ab-4946-be43-5debc27b02ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Object\Mesh">
+      <UniqueIdentifier>{339c22d1-fafe-465c-a5db-8c54314301ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility">
+      <UniqueIdentifier>{590226aa-0d6a-4a82-a66e-87d0b5bf0128}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Vector.cpp">
+      <Filter>Source Files\Library\Math\Vector</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Camera.cpp">
+      <Filter>Source Files\Library\Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Object.cpp">
+      <Filter>Source Files\Library\Object</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Matrix.cpp">
+      <Filter>Source Files\Library\Math\Matrix</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Quaternion.cpp">
+      <Filter>Source Files\Library\Math\Quaternion</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Transform.cpp">
+      <Filter>Source Files\Library\Object\Transform</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Mesh.cpp">
+      <Filter>Source Files\Library\Object\Mesh</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MouseHandler.cpp">
+      <Filter>Source Files\User Interaction\Mouse</Filter>
+    </ClCompile>
+    <ClCompile Include="source\KeyboardHandler.cpp">
+      <Filter>Source Files\User Interaction\Keyboard</Filter>
+    </ClCompile>
+    <ClCompile Include="source\OBJ_Reader.cpp">
+      <Filter>Source Files\Library\Utility</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\Vector.h">
+      <Filter>Source Files\Library\Math\Vector</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Camera.h">
+      <Filter>Source Files\Library\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Object.h">
+      <Filter>Source Files\Library\Object</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Matrix.h">
+      <Filter>Source Files\Library\Math\Matrix</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Quaternion.h">
+      <Filter>Source Files\Library\Math\Quaternion</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Transform.h">
+      <Filter>Source Files\Library\Object\Transform</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Mesh.h">
+      <Filter>Source Files\Library\Object\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MouseHandler.h">
+      <Filter>Source Files\User Interaction\Mouse</Filter>
+    </ClInclude>
+    <ClInclude Include="source\KeyboardHandler.h">
+      <Filter>Source Files\User Interaction\Keyboard</Filter>
+    </ClInclude>
+    <ClInclude Include="source\OBJ_Reader.h">
+      <Filter>Source Files\Library\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Constants.h">
+      <Filter>Source Files\Library\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Utility.h">
+      <Filter>Source Files\Library\Utility</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="source\RayTracer.cu">
+      <Filter>Source Files\CUDA</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>

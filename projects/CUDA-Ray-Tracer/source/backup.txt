@@ -1,0 +1,85 @@
+// If a Triangle was intersected
+		if(hitRecord.triangleIndex >= 0) {
+			
+			// create the normal
+			float4 v0 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3);
+			float4 e1 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 1);
+			e1 = e1 - v0;
+			float4 e2 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 2);
+			e2 = e2 - v0;
+
+			hitRecord.normal = cross(make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+			hitRecord.normal = normalize(hitRecord.normal);
+
+			// Blinn-Phong Shading - START
+			float3 hitPoint = ray.origin + ray.direction * hitRecord.time;
+
+			float3 lightDirection = lightPosition - hitPoint;
+
+			float lightDistance = length(lightDirection);
+			lightDirection = normalize(lightDirection);
+
+			/* Diffuse Factor */
+			float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0);
+			clamp(diffuseFactor, 0.0f, 1.0f);
+
+			if(diffuseFactor > 0.0) {
+
+				bool shadow = false;
+
+				Ray shadowRay(hitPoint + lightDirection * 0.001, lightDirection);
+			
+				/* Test Shadow Rays for each Triangle */
+				for(int i = 0; i < triangleTotal; i++) {
+
+					float4 v0 = tex1Dfetch(trianglePositionsTexture, i*3);
+					float4 e1 = tex1Dfetch(trianglePositionsTexture, i*3+1);		//should be v1
+					e1 = normalize(e1 - v0);
+					float4 e2 = tex1Dfetch(trianglePositionsTexture, i*3+2);		//should be v2
+					e2 = normalize(e2 - v0);
+
+					float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+
+					if(hitTime > 0.001) {
+
+						shadow = true;
+						break;
+					}
+				}
+
+				/* If there is no Triangle between the light source and the point hit */
+				if(shadow == false) {
+				
+					/* Blinn-Phong approximation Halfway Vector */
+					float3 halfwayVector = lightDirection -ray.direction;
+					halfwayVector = normalize(halfwayVector);
+
+					/* Light Attenuation */
+					float lightAttenuation = 16.0 / lightDistance;
+
+					/* Diffuse Component */
+					-hitRecord.color += make_float3(1.0,0.0,0.0) * lightColor * diffuseFactor * lightAttenuation * (4 - rayDepth) / 4;
+
+					/* Specular Factor */
+					float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), 25.0f);
+					clamp(specularFactor, 0.0f, 1.0f);
+
+					/* Specular Component */
+					if(specularFactor > 0.0)
+						hitRecord.color += make_float3(0.75,0.75,0.75) * lightColor * specularFactor * lightAttenuation * (4 - rayDepth) / 4;
+				}
+			}
+			// Blinn-Phong Shading - END
+
+			/* If the Object Hit is reflective */
+			if(true) { //TODO
+
+				rayDepth++;
+
+				hitRecord.resetTime();
+
+				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
+
+				ray = Ray(hitPoint + reflectedDirection * 0.001, reflectedDirection);
+			}
+		}
