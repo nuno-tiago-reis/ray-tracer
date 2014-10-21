@@ -219,9 +219,9 @@ __device__ float3 castray(	const Ray ray,
 			for(int i = 0; i < triangleTotal; i++) {
 
 				float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
-				float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);		//should be v1
+				float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);
 				e1 = e1 - v0;
-				float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);		//should be v2
+				float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);
 				e2 = e2 - v0;
 
 				float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
@@ -235,6 +235,11 @@ __device__ float3 castray(	const Ray ray,
 
 			/* If there is no Triangle between the light source and the point hit */
 			if(shadow == false) {
+
+				/* Triangle Material Properties */
+				float4 diffuseColor = tex1Dfetch(triangleDiffusePropertiesTexture, hitRecord.triangleIndex * 3);
+				float4 specularColor = tex1Dfetch(triangleSpecularPropertiesTexture, hitRecord.triangleIndex * 3);
+				float specularConstant = specularColor.w;
 				
 				/* Blinn-Phong approximation Halfway Vector */
 				float3 halfwayVector = lightDirection - ray.direction;
@@ -244,15 +249,15 @@ __device__ float3 castray(	const Ray ray,
 				float lightAttenuation = 16.0 / lightDistance;
 
 				/* Diffuse Component */
-				hitRecord.color += make_float3(1.0,0.0,0.0) * lightColor * diffuseFactor * lightAttenuation;// * (4 - rayDepth) / 4;
+				hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightAttenuation;
 
 				/* Specular Factor */
-				float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), 25.0f);
+				float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), specularConstant);
 				clamp(specularFactor, 0.0f, 1.0f);
 
 				/* Specular Component */
 				if(specularFactor > 0.0)
-					hitRecord.color += make_float3(0.75,0.75,0.75) * lightColor * specularFactor * lightAttenuation;// * (4 - rayDepth) / 4;
+					hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightAttenuation;
 			}
 		}
 		// Blinn-Phong Shading - END
@@ -386,18 +391,6 @@ extern "C" {
 		cudaBindTexture(0, triangleTextureCoordinatesTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 
-	void bindTriangleAmbientProperties(float *cudaDevicePointer, unsigned int triangleTotal) {
-
-		triangleAmbientPropertiesTexture.normalized = false;                      // access with normalized texture coordinates
-		triangleAmbientPropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
-		triangleAmbientPropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
-
-		size_t size = sizeof(float4) * triangleTotal * 3;
-
-		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
-		cudaBindTexture(0, triangleAmbientPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
-	}
-
 	void bindTriangleDiffuseProperties(float *cudaDevicePointer, unsigned int triangleTotal) {
 
 		triangleDiffusePropertiesTexture.normalized = false;                      // access with normalized texture coordinates
@@ -420,17 +413,5 @@ extern "C" {
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
 		cudaBindTexture(0, triangleSpecularPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
-	}
-
-	void bindTriangleSpecularConstants(float *cudaDevicePointer, unsigned int triangleTotal) {
-
-		triangleSpecularConstantsTexture.normalized = false;                      // access with normalized texture coordinates
-		triangleSpecularConstantsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
-		triangleSpecularConstantsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
-
-		size_t size = sizeof(float) * triangleTotal * 3;
-
-		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float>();
-		cudaBindTexture(0, triangleSpecularConstantsTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 }

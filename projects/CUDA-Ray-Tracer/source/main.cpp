@@ -58,14 +58,10 @@ extern "C" void bindTriangleNormals(float *cudaDevicePointer, unsigned int trian
 extern "C" void bindTriangleTangents(float *cudaDevicePointer, unsigned int triangleTotal);
 // the implementation of bindTriangleTextureCoordinates is in the "raytracer.cu" file
 extern "C" void bindTriangleTextureCoordinates(float *cudaDevicePointer, unsigned int triangleTotal);
-// the implementation of bindTriangleAmbientProperties is in the "raytracer.cu" file
-extern "C" void bindTriangleAmbientProperties(float *cudaDevicePointer, unsigned int triangleTotal);
 // the implementation of bindTriangleDiffuseProperties is in the "raytracer.cu" file
 extern "C" void bindTriangleDiffuseProperties(float *cudaDevicePointer, unsigned int triangleTotal);
 // the implementation of bindTriangleSpecularProperties is in the "raytracer.cu" file
 extern "C" void bindTriangleSpecularProperties(float *cudaDevicePointer, unsigned int triangleTotal);
-// the implementation of bindTriangleSpecularConstants is in the "raytracer.cu" file
-extern "C" void bindTriangleSpecularConstants(float *cudaDevicePointer, unsigned int triangleTotal);
 
 /* Global Variables */
 unsigned int windowWidth  = 1024;
@@ -113,10 +109,8 @@ float *cudaTriangleTangentsDP = NULL;
 /* CudaDevicePointers to the uploaded Triangles Texture Coordinates */
 float *cudaTriangleTextureCoordinatesDP = NULL;
 /* CudaDevicePointers to the uploaded Triangles Materials */
-float *cudaTriangleAmbientPropertiesDP = NULL;
 float *cudaTriangleDiffusePropertiesDP = NULL;
 float *cudaTriangleSpecularPropertiesDP = NULL;
-float *cudaTriangleSpecularConstantsDP = NULL;
 
 /* Initialization Declarations */
 void initCamera();
@@ -173,7 +167,10 @@ void initObjects() {
 	platform = new Object("Platform");
 
 	/* Load the Spheres Mesh from the OBJ file */
-	Mesh* sphereMesh = new Mesh("Sphere", "sphere.obj", "sphere.mtl");
+	Mesh* sphere0Mesh = new Mesh("Sphere", "emeraldsphere.obj", "emerald.mtl");
+	Mesh* sphere1Mesh = new Mesh("Sphere", "rubysphere.obj", "ruby.mtl");
+	Mesh* sphere2Mesh = new Mesh("Sphere", "goldsphere.obj", "gold.mtl");
+	Mesh* sphere3Mesh = new Mesh("Sphere", "silversphere.obj", "silver.mtl");
 	/* Load the Platforms Mesh from the OBJ file */
 	Mesh* platformMesh = new Mesh("Platform", "cube.obj", "cube.mtl");
 
@@ -196,19 +193,19 @@ void initObjects() {
 	/* Load Platforms Transform */
 	Transform* platformTransform = new Transform("Platform Transform");
 	platformTransform->setPosition(Vector( 0.0f,-15.0f, 0.0f, 1.0f));
-	platformTransform->setScale(Vector( 50.0f, 0.15f, 50.0f, 1.0f));
+	platformTransform->setScale(Vector( 50.0f, 0.75f, 50.0f, 1.0f));
 
 	/* Set the Mesh and Transform of the created Objects */
-	spheres[0]->setMesh(sphereMesh);
+	spheres[0]->setMesh(sphere0Mesh);
 	spheres[0]->setTransform(sphere0Transform);
 
-	spheres[1]->setMesh(sphereMesh);
+	spheres[1]->setMesh(sphere1Mesh);
 	spheres[1]->setTransform(sphere1Transform);
 
-	spheres[2]->setMesh(sphereMesh);
+	spheres[2]->setMesh(sphere2Mesh);
 	spheres[2]->setTransform(sphere2Transform);
 
-	spheres[3]->setMesh(sphereMesh);
+	spheres[3]->setMesh(sphere3Mesh);
 	spheres[3]->setTransform(sphere3Transform);
 
 	platform->setMesh(platformMesh);
@@ -352,10 +349,8 @@ void initCUDAmemory() {
 	vector<float4> triangleTangents;
 	vector<float2> triangleTextureCoordinates;
 
-	vector<float4> triangleAmbientProperties;
 	vector<float4> triangleDiffuseProperties;
 	vector<float4> triangleSpecularProperties;
-	vector<float> triangleSpecularConstants;
 
 	// Sphere Vertices
 	for(unsigned int i = 0; i < 4; i++) {
@@ -364,14 +359,14 @@ void initCUDAmemory() {
 		Matrix modelMatrix = spheres[i]->getTransform()->getModelMatrix();
 		// Used for the normal transformations
 		Matrix modelMatrixInverseTranspose = modelMatrix;
-		modelMatrixInverseTranspose.removeTranslation();
+		//modelMatrixInverseTranspose.removeTranslation();
 		modelMatrixInverseTranspose.transpose();
 		modelMatrixInverseTranspose.invert();
 
 		for(int j = 0; j < spheres[0]->getMesh()->getVertexCount(); j++)	{
 
 			// Get the original vertex from the mesh 
-			Vertex originalVertex = spheres[0]->getMesh()->getVertex(j);
+			Vertex originalVertex = spheres[i]->getMesh()->getVertex(j);
 
 			// Position: Multiply the original vertex using the objects model matrix
 			Vector modifiedPosition = modelMatrix * Vector(originalVertex.position[VX], originalVertex.position[VY], originalVertex.position[VZ], 1.0f);
@@ -385,7 +380,7 @@ void initCUDAmemory() {
 			triangleNormals.push_back(normal);
 
 			// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
-			Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], originalVertex.tangent[VW]);
+			Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], 0.0f);
 			float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
 			triangleTangents.push_back(tangent);
 
@@ -394,15 +389,11 @@ void initCUDAmemory() {
 			triangleTextureCoordinates.push_back(textureCoordinates);
 
 			// Material: Same as the original values
-			float4 ambientProperty = { originalVertex.ambient[VX], originalVertex.ambient[VY], originalVertex.ambient[VZ], 1.0f };
 			float4 diffuseProperty = { originalVertex.diffuse[VX], originalVertex.diffuse[VY], originalVertex.diffuse[VZ], 1.0f };
-			float4 specularProperty = { originalVertex.specular[VX], originalVertex.specular[VY], originalVertex.specular[VZ], 1.0f };
-			float specularConstant = { originalVertex.specularConstant };
+			float4 specularProperty = { originalVertex.specular[VX], originalVertex.specular[VY], originalVertex.specular[VZ], originalVertex.specularConstant };
 
-			triangleAmbientProperties.push_back(ambientProperty);
 			triangleDiffuseProperties.push_back(diffuseProperty);
 			triangleSpecularProperties.push_back(specularProperty);
-			triangleSpecularConstants.push_back(specularConstant);
 		}
 	}
 	
@@ -412,7 +403,7 @@ void initCUDAmemory() {
 	Matrix modelMatrix = platform->getTransform()->getModelMatrix();
 	// Used for the normal transformations
 	Matrix modelMatrixInverseTranspose = modelMatrix;
-	modelMatrixInverseTranspose.removeTranslation();
+	//modelMatrixInverseTranspose.removeTranslation();
 	modelMatrixInverseTranspose.transpose();
 	modelMatrixInverseTranspose.invert();
 
@@ -433,7 +424,7 @@ void initCUDAmemory() {
 		triangleNormals.push_back(normal);
 
 		// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
-		Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], originalVertex.tangent[VW]);
+		Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], 0.0f);
 		float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
 		triangleTangents.push_back(tangent);
 
@@ -442,15 +433,11 @@ void initCUDAmemory() {
 		triangleTextureCoordinates.push_back(textureCoordinates);
 
 		// Material: Same as the original values
-		float4 ambientProperty = { originalVertex.ambient[VX], originalVertex.ambient[VY], originalVertex.ambient[VZ], 1.0f };
 		float4 diffuseProperty = { originalVertex.diffuse[VX], originalVertex.diffuse[VY], originalVertex.diffuse[VZ], 1.0f };
-		float4 specularProperty = { originalVertex.specular[VX], originalVertex.specular[VY], originalVertex.specular[VZ], 1.0f };
-		float specularConstant = { originalVertex.specularConstant };
+		float4 specularProperty = { originalVertex.specular[VX], originalVertex.specular[VY], originalVertex.specular[VZ], originalVertex.specularConstant };
 
-		triangleAmbientProperties.push_back(ambientProperty);
 		triangleDiffuseProperties.push_back(diffuseProperty);
 		triangleSpecularProperties.push_back(specularProperty);
-		triangleSpecularConstants.push_back(specularConstant);
 	}
 
 	// Total number of Triangles should be the number of loaded vertices divided by 3
@@ -471,14 +458,10 @@ void initCUDAmemory() {
 	size_t triangleTextureCoordinatesSize = triangleTextureCoordinates.size() * sizeof(float2);
 	cout << "Triangle Texture Coordinates Storage Size:" << triangleTextureCoordinatesSize << "(" << triangleTextureCoordinates.size() << " values)" << endl;
 
-	size_t triangleAmbientPropertiesSize = triangleAmbientProperties.size() * sizeof(float4);
-	cout << "Triangle Ambient Properties Storage Size:" << triangleAmbientPropertiesSize << "(" << triangleAmbientProperties.size() << " values)" << endl;
 	size_t triangleDiffusePropertiesSize = triangleDiffuseProperties.size() * sizeof(float4);
 	cout << "Triangle Diffuse Properties Storage Size:" << triangleDiffusePropertiesSize << "(" << triangleDiffuseProperties.size() << " values)" << endl;
 	size_t triangleSpecularPropertiesSize = triangleSpecularProperties.size() * sizeof(float4);
 	cout << "Triangle Specular Properties Storage Size:" << triangleSpecularPropertiesSize << "(" << triangleSpecularProperties.size() << " values)" << endl;
-	size_t triangleSpecularConstantsSize = triangleSpecularConstants.size() * sizeof(float);
-	cout << "Triangle Specular Constant Properties Storage Size:" << triangleSpecularConstantsSize << "(" << triangleSpecularConstants.size() << " values)" << endl;
 
 	// Allocate the required CUDA Memory
 	if(triangleTotal > 0) {
@@ -513,15 +496,7 @@ void initCUDAmemory() {
 		cudaMemcpy(cudaTriangleTextureCoordinatesDP, &triangleTextureCoordinates[0], triangleTextureCoordinatesSize, cudaMemcpyHostToDevice);
 		Utility::checkCUDAError("cudaMemcpy()");
 
-		bindTriangleTextureCoordinates(cudaTriangleTextureCoordinatesDP, triangleTotal);
-
-		// Load the Triangle Ambient Properties
-		cudaMalloc((void **)&cudaTriangleAmbientPropertiesDP, triangleAmbientPropertiesSize);
-		Utility::checkCUDAError("cudaMalloc()");
-		cudaMemcpy(cudaTriangleAmbientPropertiesDP, &triangleAmbientProperties[0], triangleAmbientPropertiesSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy()");
-
-		bindTriangleAmbientProperties(cudaTriangleAmbientPropertiesDP, triangleTotal);
+		bindTriangleTextureCoordinates(cudaTriangleTextureCoordinatesDP, triangleTotal);*/
 
 		// Load the Triangle Diffuse Properties
 		cudaMalloc((void **)&cudaTriangleDiffusePropertiesDP, triangleDiffusePropertiesSize);
@@ -538,14 +513,6 @@ void initCUDAmemory() {
 		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleSpecularProperties(cudaTriangleSpecularPropertiesDP, triangleTotal);
-
-		// Load the Triangle Specular Constants
-		cudaMalloc((void **)&cudaTriangleSpecularConstantsDP, triangleSpecularConstantsSize);
-		Utility::checkCUDAError("cudaMalloc()");
-		cudaMemcpy(cudaTriangleSpecularConstantsDP, &triangleSpecularConstants[0], triangleSpecularConstantsSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy()");
-
-		bindTriangleSpecularConstants(cudaTriangleSpecularConstantsDP, triangleTotal);*/
 	}
 
 	/* Load a Sample Texture */
