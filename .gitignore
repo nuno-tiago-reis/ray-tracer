@@ -71,3 +71,5 @@ packages/
 #Test files
 *.testsettings
 debug
+/output/*.exe
+/output/*.pdb
