@@ -18,16 +18,6 @@ texture<float4, 1, cudaReadModeElementType> triangleDiffusePropertiesTexture;
 texture<float4, 1, cudaReadModeElementType> triangleSpecularPropertiesTexture;
 texture<float, 1, cudaReadModeElementType> triangleSpecularConstantsTexture;
 
-// convert floating point rgb color to 8-bit integer
-__device__ int rgbToInt(float red, float green, float blue) {
-
-	red		= clamp(red,	0.0f, 255.0f);
-	green	= clamp(green,	0.0f, 255.0f);
-	blue	= clamp(blue,	0.0f, 255.0f);
-
-	return (int(red)<<16) | (int(green)<<8) | int(blue); // notice switch red and blue to counter the GL_BGRA
-}
-
 // Ray structure
 struct Ray {
 
@@ -71,6 +61,16 @@ struct HitRecord {
 			triangleIndex = -1;
 	}
 };
+
+/* Convert floating point rgb color to 8-bit integer */
+__device__ int rgbToInt(float red, float green, float blue) {
+
+	red		= clamp(red,	0.0f, 255.0f);
+	green	= clamp(green,	0.0f, 255.0f);
+	blue	= clamp(blue,	0.0f, 255.0f);
+
+	return (int(red)<<16) | (int(green)<<8) | int(blue); // notice switch red and blue to counter the GL_BGRA
+}
 
 /* Ray - BoundingBox Intersection Code */
 __device__ int RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, const float3 &RayOrigin, const float3 &RayDirectionInverse, float &tmin, float &tmax) {
@@ -142,165 +142,182 @@ __device__ int RaySphereIntersection(const Ray &ray, const float3 sphereCenter, 
 	return 0;
 }
 
-__global__ void raytrace( unsigned int *outputPixelBufferObject,
-						   const int width, const int height,
-						   const int triangleTotal,
-						   const float3 cameraRight, const float3 cameraUp, const float3 cameraDirection, 
-						   const float3 cameraPosition,
-						   const float3 lightPosition,
-						   const float3 lightColor) {
+/* Casts a Ray and tests for intersections with the scenes geometry */
+__device__ float3 castray(	const Ray ray,
+							const int triangleTotal,
+							const int depth,
+							const float3 lightPosition,
+							const float3 lightColor) {
+
+	/* Hit Record used to store Ray-Triangle Hit information */
+	HitRecord hitRecord;
+		
+	// Search through the triangles and find the nearest hit point
+	for(int i = 0; i < triangleTotal; i++) {
+
+		float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
+		float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);
+		e1 = e1 - v0;
+		float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);
+		e2 = e2 - v0;
+
+		float hitTime = RayTriangleIntersection(ray, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+
+		if(hitTime < hitRecord.time && hitTime > 0.001) {
+
+			hitRecord.time = hitTime; 
+			hitRecord.triangleIndex = i;
+		}
+	}
+
+	// If no Triangle was intersected
+	if(hitRecord.time == UINT_MAX)	{
+
+		return make_float3(0.15,0.15,0.15); //Background Colour
+	}
+
+	// If any Triangle was intersected
+	if(hitRecord.triangleIndex >= 0) {
+			
+		/* Fetch the hit Triangles vertices */
+		float4 v0 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3);
+		float4 v1 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 1);
+		float4 v2 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 2);
+
+		/* Fetch the hit Triangles normals */
+		float4 n0 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3);
+		float4 n1 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 1);
+		float4 n2 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 2);
+
+		/* Calculate the hit Triangle point */
+		float3 hitPoint = ray.origin + ray.direction * hitRecord.time;
+
+		/* Normal calculation using Barycentric Interpolation */
+		float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
+		float areaPBC = length(cross(make_float3(v1) - hitPoint, make_float3(v2) - hitPoint));
+		float areaPCA = length(cross(make_float3(v0) - hitPoint, make_float3(v2) - hitPoint));
+
+		hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
+
+		// Blinn-Phong Shading - START
+		float3 lightDirection = lightPosition - hitPoint;
+
+		float lightDistance = length(lightDirection);
+		lightDirection = normalize(lightDirection);
+
+		/* Diffuse Factor */
+		float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0);
+		clamp(diffuseFactor, 0.0f, 1.0f);
+
+		if(diffuseFactor > 0.0) {
+
+			bool shadow = false;
+
+			Ray shadowRay(hitPoint + lightDirection * 0.001, lightDirection);
+			
+			/* Test Shadow Rays for each Triangle */
+			for(int i = 0; i < triangleTotal; i++) {
+
+				float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
+				float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);		//should be v1
+				e1 = e1 - v0;
+				float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);		//should be v2
+				e2 = e2 - v0;
+
+				float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+
+				if(hitTime > 0.001) {
+
+					shadow = true;
+					break;
+				}
+			}
+
+			/* If there is no Triangle between the light source and the point hit */
+			if(shadow == false) {
+				
+				/* Blinn-Phong approximation Halfway Vector */
+				float3 halfwayVector = lightDirection - ray.direction;
+				halfwayVector = normalize(halfwayVector);
+
+				/* Light Attenuation */
+				float lightAttenuation = 16.0 / lightDistance;
+
+				/* Diffuse Component */
+				hitRecord.color += make_float3(1.0,0.0,0.0) * lightColor * diffuseFactor * lightAttenuation;// * (4 - rayDepth) / 4;
+
+				/* Specular Factor */
+				float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), 25.0f);
+				clamp(specularFactor, 0.0f, 1.0f);
+
+				/* Specular Component */
+				if(specularFactor > 0.0)
+					hitRecord.color += make_float3(0.75,0.75,0.75) * lightColor * specularFactor * lightAttenuation;// * (4 - rayDepth) / 4;
+			}
+		}
+		// Blinn-Phong Shading - END
+
+		// If max depth wasn't reached yet
+		if(depth > 0)	{
+
+			/* If the Object Hit is reflective */
+			if(true) { //objectHit->getShininess() > 0.0f
+
+				/* Create the Reflected Ray */
+				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
+
+				Ray reflectedRay = Ray(hitPoint + reflectedDirection * 0.001, reflectedDirection);
+
+				/* Ray trace the Reflected Ray */
+				hitRecord.color += castray(reflectedRay, triangleTotal, depth-1, lightPosition, lightColor) * 0.25;
+			}
+
+			/* If the Object Hit is translucid */
+			if(false) { //objectHit->getTransmittance() > 0.0f
+
+				/*float newRefractionIndex;
+
+				if(ior == 1.0f)
+					newRefractionIndex = objectHit->getRefractionIndex();
+				else
+					newRefractionIndex = 1.0f;
+
+				Vector refractionDirection = Vector::refract(rayDirection,normalHit, ior / newRefractionIndex);
+				Vector refractionColor = rayTracing(pointHit + refractionDirection * EPSILON, refractionDirection,depth-1, newRefractionIndex);
+
+				color += refractionColor * objectHit->getTransmittance() * pow(0.95f,depth-MAX_DEPTH+1);*/
+			}
+		}
+	}
+
+	return hitRecord.color;
+}
+
+__global__ void raytrace(unsigned int *outputPixelBufferObject,
+							const int width, const int height,
+							const int triangleTotal,
+							const int depth,
+							const float3 cameraRight, const float3 cameraUp, const float3 cameraDirection, 
+							const float3 cameraPosition,
+							const float3 lightPosition,
+							const float3 lightColor) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	int rayDepth = 0;
-
+	/* Ray Creation */
 	float3 rayOrigin = cameraPosition;
 	float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
 	rayDirection = normalize(rayDirection);
 
 	/* Ray used for this pixel */
 	Ray ray(rayOrigin, rayDirection);
-	/* Hit Record used to store Ray-Triangle Hit information */
-	HitRecord hitRecord;
-	hitRecord.color = make_float3(0.0,0.0,0.0);
 
-	while(rayDepth < UINT_MAX) {
-		
-		// Search through the triangles and find the nearest hit point
-		for(int i = 0; i < triangleTotal; i++) {
+	/* Result of the Ray Tracing for this Pixel */
+	float3 color = castray(ray, triangleTotal, depth, lightPosition, lightColor);
 
-			//hitRecord.color += make_float3(0.1, 0.1, 0.1);
-
-			float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
-			float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);		//should be v1
-			e1 = e1 - v0;
-			float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);		//should be v2
-			e2 = e2 - v0;
-
-			float hitTime = RayTriangleIntersection(ray, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-
-			if(hitTime < hitRecord.time && hitTime > 0.001) {
-
-				hitRecord.time = hitTime; 
-				hitRecord.triangleIndex = i;
-			}
-		}
-
-		// If no Triangle and no Light were intersected
-		if(hitRecord.time == UINT_MAX)	{
-
-			hitRecord.color = make_float3(0.15,0.15,0.15);
-
-			break;
-		}
-
-		// If a Triangle was intersected
-		if(hitRecord.triangleIndex >= 0) {
-			
-			/* Fetch the hit Triangles vertices */
-			float4 v0 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3);
-			float4 v1 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 1);
-			float4 v2 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 2);
-
-			//float4 e1 = v1 - v0;
-			//float4 e2 = v2 - v0;
-			/* Fetch the hit Triangles normals */
-			float4 n0 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3);
-			float4 n1 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 1);
-			float4 n2 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 2);
-
-			/* Calculate the hit Triangle point */
-			float3 hitPoint = ray.origin + ray.direction * hitRecord.time;
-
-			/* Normal calculation using Face Normals */
-			//hitRecord.normal = cross(make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-			//hitRecord.normal = normalize(hitRecord.normal);
-
-			/* Normal calculation using Barycentric Interpolation */
-			float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
-			float areaPBC = length(cross(make_float3(v1) - hitPoint, make_float3(v2) - hitPoint));
-			float areaPCA = length(cross(make_float3(v0) - hitPoint, make_float3(v2) - hitPoint));
-
-			hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
-
-			// Blinn-Phong Shading - START
-			float3 lightDirection = lightPosition - hitPoint;
-
-			float lightDistance = length(lightDirection);
-			lightDirection = normalize(lightDirection);
-
-			/* Diffuse Factor */
-			float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0);
-			clamp(diffuseFactor, 0.0f, 1.0f);
-
-			if(diffuseFactor > 0.0) {
-
-				bool shadow = false;
-
-				Ray shadowRay(hitPoint + lightDirection * 0.001, lightDirection);
-			
-				/* Test Shadow Rays for each Triangle */
-				for(int i = 0; i < triangleTotal; i++) {
-
-					float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
-					float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);		//should be v1
-					e1 = e1 - v0;
-					float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);		//should be v2
-					e2 = e2 - v0;
-
-					float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-
-					if(hitTime > 0.001) {
-
-						shadow = true;
-						break;
-					}
-				}
-
-				/* If there is no Triangle between the light source and the point hit */
-				if(shadow == false) {
-				
-					/* Blinn-Phong approximation Halfway Vector */
-					float3 halfwayVector = lightDirection - ray.direction;
-					halfwayVector = normalize(halfwayVector);
-
-					/* Light Attenuation */
-					float lightAttenuation = 16.0 / lightDistance;
-
-					/* Diffuse Component */
-					hitRecord.color += make_float3(1.0,0.0,0.0) * lightColor * diffuseFactor * lightAttenuation;// * (4 - rayDepth) / 4;
-
-					/* Specular Factor */
-					float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), 25.0f);
-					clamp(specularFactor, 0.0f, 1.0f);
-
-					/* Specular Component */
-					if(specularFactor > 0.0)
-						hitRecord.color += make_float3(0.75,0.75,0.75) * lightColor * specularFactor * lightAttenuation;// * (4 - rayDepth) / 4;
-				}
-			}
-			// Blinn-Phong Shading - END
-
-			/* If the Object Hit is reflective */
-			/*if(true) { //TODO
-
-				rayDepth++;
-
-				hitRecord.resetTime();
-
-				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
-
-				ray = Ray(hitPoint + reflectedDirection * 0.001, reflectedDirection);
-			}*/
-		}
-
-		break;
-	}
-
-	int outputColor = rgbToInt(hitRecord.color.x * 255, hitRecord.color.y * 255, hitRecord.color.z * 255);
-
-	outputPixelBufferObject[y * width + x] = outputColor;
+	/* Output conversion */
+	outputPixelBufferObject[y * width + x] = rgbToInt(color.x * 255, color.y * 255, color.z * 255);
 }
 
 extern "C" {
@@ -311,20 +328,14 @@ extern "C" {
 								float3 cameraRight, float3 cameraUp, float3 cameraDirection,
 								float3 cameraPosition,
 								float3 lightPosition,
-								float3 lightColor)
-	{
+								float3 lightColor) {
 
-		/*size_t blockWidth = (size_t)ceilf( width / 16.0f );
-		size_t blockHeight = (size_t)ceilf( height / 16.0f );
-
-		dim3 block(blockWidth, blockHeight, 1);
-		dim3 grid(16, 16, 1);*/
-
+		int depth = 3;
 		
 		dim3 block(32,32,1);
 		dim3 grid(width/block.x,height/block.y, 1);
 
-		raytrace<<<grid, block>>>(outputPixelBufferObject, width, height, triangleTotal, cameraRight, cameraUp, cameraDirection, cameraPosition, lightPosition, lightColor);
+		raytrace<<<grid, block>>>(outputPixelBufferObject, width, height, triangleTotal, depth, cameraRight, cameraUp, cameraDirection, cameraPosition, lightPosition, lightColor);
 	}
 
 	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal) {

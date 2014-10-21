@@ -26,6 +26,9 @@
 /* Math Library */
 #include "Matrix.h"
 
+/* Texture Library */
+#include <soil.h>
+
 /* Error Checking */
 #include "Utility.h"
 
@@ -36,6 +39,7 @@
 using namespace std;
 
 // the interface between C++ and CUDA -----------
+#define DEPTH 3
 
 // the implementation of RayTraceImage is in the "raytracer.cu" file
 extern "C" void RayTraceImage(unsigned int *outputPixelBufferObject, 
@@ -73,21 +77,30 @@ unsigned int imageHeight  = 1024;
 int frameCount = 0;
 int windowHandle = 0;
 
-/* PixelBufferObjectID containing the resulting image */
-GLuint pixelBufferObjectID;
-/* TextureID of the texture where the Ray-Tracing result will be stored */
-GLuint textureID;
+/* Camera */
+Camera* camera;
 
 /* Objects */
 Object* spheres[4];
 Object* platform;
 
-/* Camera */
-Camera* camera;
+/* Object TextureIDs */
+GLuint chessTextureID;
+
+				// Lighting ---------------------------- TODO
+				float lightPosition[3] = { 0.0f, 5.0f, 0.0f };
+				float lightColor[3] = { 1.0f, 1.0f, 1.0f };
 
 /* Scene Time Management */
 int lastFrameTime = 0;
 float deltaTime = 0.0f;
+
+/* PixelBufferObjects ID and Cuda Resource */
+GLuint pixelBufferObjectID;
+cudaGraphicsResource *pixelBufferObjectResource = NULL;
+/* Screens Texture ID and Cuda Resource */
+GLuint screenTextureID;
+cudaGraphicsResource *screenTextureResource = NULL;
 
 /* Total number of Triangles - Used for the memory necessary to allocate */
 int triangleTotal = 0;
@@ -105,15 +118,14 @@ float *cudaTriangleDiffusePropertiesDP = NULL;
 float *cudaTriangleSpecularPropertiesDP = NULL;
 float *cudaTriangleSpecularConstantsDP = NULL;
 
-	// Lighting ---------------------------- TODO
-	float lightPosition[3] = { 0.0f, 5.0f, 0.0f };
-	float lightColor[3] = { 1.0f, 1.0f, 1.0f };
-
 /* Initialization Declarations */
 void initCamera();
 void initObjects();
 
+bool initGLUT(int argc, char **argv);
+bool initGLEW();
 bool initOpenGL();
+
 bool initCUDA(int argc, char **argv);
 void initCUDAmemory();
 
@@ -133,9 +145,10 @@ void readMouse(float elapsedTime);
 void readKeyboard(float elapsedTime);
 
 /* Run-time Function Declarations */
-void cleanup();
 void display();
+void displayFrames(int time);
 void reshape(int width, int height);
+void cleanup();
 
 void rayTrace();
 
@@ -201,19 +214,81 @@ void initObjects() {
 	platform->setMesh(platformMesh);
 	platform->setTransform(platformTransform);
 }
+/* Initialize GLUT */
+bool initGLUT(int argc, char** argv) {
+
+	glutInit(&argc, argv);
+
+	/* Setup the Minimum OpenGL version */
+	glutInitContextVersion(2,0);
+
+	/* Setup the Display */
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+	glutInitWindowSize(windowWidth,windowHeight);
+
+	/* Setup the Window */
+	windowHandle = glutCreateWindow("CUDA Ray Tracer");
+
+	if(windowHandle < 1) {
+
+		fprintf(stderr, "ERROR: Could not create a new rendering window.\n");
+		fflush(stderr);
+
+		exit(EXIT_FAILURE);
+	}
+
+	/* Setup the Callback Functions */
+	glutDisplayFunc(display);
+	glutTimerFunc(0, displayFrames, 0);
+		
+	glutReshapeFunc(reshape);
+
+	glutKeyboardFunc(normalKeyListener); 
+	glutKeyboardUpFunc(releasedNormalKeyListener); 
+	glutSpecialFunc(specialKeyListener);
+	glutSpecialUpFunc(releasedSpecialKeyListener);
+
+	glutMouseFunc(mouseEventListener);
+	glutMotionFunc(mouseMovementListener);
+	glutPassiveMotionFunc(mousePassiveMovementListener);
+	glutMouseWheelFunc(mouseWheelListener);
+
+	glutCloseFunc(cleanup);
+
+	return true;
+}
+
+/* Initialize GLEW */
+bool initGLEW() {
+
+	GLenum error = glewInit();
+
+	/* Check if the Initialization went ok. */
+	if(error != GLEW_OK) {
+
+		fprintf(stderr, "ERROR: %s\n", glewGetErrorString(error));
+		fflush(stderr);
+
+		exit(EXIT_FAILURE);
+	}
+
+
+	/* Check if OpenGL 2.0 is supported */
+	if(!glewIsSupported("GL_VERSION_2_0")) {
+
+		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.\n");
+		fflush(stderr);
+
+		exit(EXIT_FAILURE);
+	}
+
+	fprintf(stdout, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
+
+	return true;
+}
 
 /* Initialize OpenGL */
 bool initOpenGL() {
-
-	glewInit();
-
-	if(!glewIsSupported("GL_VERSION_2_0")) {
-
-		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
-		fflush(stderr);
-
-		exit(0);
-	}
 
 	/* Initialize the State */
 	glClearColor(0, 0, 0, 1.0);
@@ -221,6 +296,8 @@ bool initOpenGL() {
 
 	/* Initialize the Viewport */
 	glViewport(0, 0, windowWidth, windowHeight);
+
+	fprintf(stdout, "Status: Using OpenGL v%s",glGetString(GL_VERSION));
 
 	return true;
 }
@@ -231,9 +308,9 @@ bool initCUDA() {
 	int device = gpuGetMaxGflopsDeviceId();
 
 	cudaSetDevice(device);
-	Utility::checkCUDAError("cudaSetDevice");
+	Utility::checkCUDAError("cudaSetDevice()");
 	cudaGLSetGLDevice(device);
-	Utility::checkCUDAError("cudaGLSetGLDevice");
+	Utility::checkCUDAError("cudaGLSetGLDevice()");
 
 	return true;
 }
@@ -245,28 +322,19 @@ void initCUDAmemory() {
 	unsigned int texelNumber = imageWidth * imageHeight;
 	unsigned int pixelBufferObjectSize = sizeof(GLubyte) * texelNumber * 4;
 
-	void *pixelBufferObjectData = malloc(pixelBufferObjectSize);
-
-	//size_t freeSize, totalSize;
-	//cuMemGetInfo(&freeSize,&totalSize);
-
 	// Create the PixelBufferObject.
 	glGenBuffers(1, &pixelBufferObjectID);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectID);
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectSize, 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-	free(pixelBufferObjectData);
-
 	// Register the PixelBufferObject with CUDA.
-	cudaGLRegisterBufferObject(pixelBufferObjectID);
-	//cudaGraphicsResource *pixelBufferObjectResource[1];
-	//cudaGraphicsGLRegisterBuffer(pixelBufferObjectResource, pixelBufferObjectID, cudaGraphicsRegisterFlagsWriteDiscard);
-	Utility::checkCUDAError("cudaGLRegisterBufferObject");
+	cudaGraphicsGLRegisterBuffer(&pixelBufferObjectResource, pixelBufferObjectID, cudaGraphicsRegisterFlagsWriteDiscard);
+	Utility::checkCUDAError("cudaGraphicsGLRegisterBuffer()");
 
 	// Create the Texture to output the Ray-Tracing result.
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_2D, textureID);
+	glGenTextures(1, &screenTextureID);
+	glBindTexture(GL_TEXTURE_2D, screenTextureID);
 
 	// Set the basic Texture parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -276,8 +344,7 @@ void initCUDAmemory() {
 
 	// Define the basic Texture parameters
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-	Utility::checkOpenGLError("ERROR: Texture Generation failed.");
+	Utility::checkOpenGLError("glTexImage2D()");
 
 	/* Load the Triangles to an Array */
 	vector<float4> trianglePositions;
@@ -317,7 +384,6 @@ void initCUDAmemory() {
 			float4 normal = { modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ], 0.0f };
 			triangleNormals.push_back(normal);
 
-			/*
 			// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
 			Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], originalVertex.tangent[VW]);
 			float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
@@ -337,7 +403,6 @@ void initCUDAmemory() {
 			triangleDiffuseProperties.push_back(diffuseProperty);
 			triangleSpecularProperties.push_back(specularProperty);
 			triangleSpecularConstants.push_back(specularConstant);
-			*/
 		}
 	}
 	
@@ -367,7 +432,6 @@ void initCUDAmemory() {
 		float4 normal = { modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ], 0.0f };
 		triangleNormals.push_back(normal);
 
-		/*
 		// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
 		Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], originalVertex.tangent[VW]);
 		float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
@@ -387,7 +451,6 @@ void initCUDAmemory() {
 		triangleDiffuseProperties.push_back(diffuseProperty);
 		triangleSpecularProperties.push_back(specularProperty);
 		triangleSpecularConstants.push_back(specularConstant);
-		*/
 	}
 
 	// Total number of Triangles should be the number of loaded vertices divided by 3
@@ -401,7 +464,7 @@ void initCUDAmemory() {
 
 	size_t triangleNormalsSize = triangleNormals.size() * sizeof(float4);
 	cout << "Triangle Normals Storage Size:" << triangleNormalsSize << "(" << triangleNormals.size() << " values)" << endl;
-	/*
+	
 	size_t triangleTangentsSize = triangleTangents.size() * sizeof(float4);
 	cout << "Triangle Tangents Storage Size:" << triangleTangentsSize << "(" << triangleTangents.size() << " values)" << endl;
 
@@ -416,76 +479,89 @@ void initCUDAmemory() {
 	cout << "Triangle Specular Properties Storage Size:" << triangleSpecularPropertiesSize << "(" << triangleSpecularProperties.size() << " values)" << endl;
 	size_t triangleSpecularConstantsSize = triangleSpecularConstants.size() * sizeof(float);
 	cout << "Triangle Specular Constant Properties Storage Size:" << triangleSpecularConstantsSize << "(" << triangleSpecularConstants.size() << " values)" << endl;
-	*/
 
 	// Allocate the required CUDA Memory
 	if(triangleTotal > 0) {
 
 		// Load the Triangle Positions
 		cudaMalloc((void **)&cudaTrianglePositionsDP, trianglePositionsSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTrianglePositionsDP, &trianglePositions[0], trianglePositionsSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTrianglePositions(cudaTrianglePositionsDP, triangleTotal);
 
 		// Load the Triangle Normals
 		cudaMalloc((void **)&cudaTriangleNormalsDP, triangleNormalsSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleNormalsDP, &triangleNormals[0], triangleNormalsSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleNormals(cudaTriangleNormalsDP, triangleTotal);
 
 		/*// Load the Triangle Tangents
 		cudaMalloc((void **)&cudaTriangleTangentsDP, triangleTangentsSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleTangentsDP, &triangleTangents[0], triangleTangentsSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleTangents(cudaTriangleTangentsDP, triangleTotal);
 
 		// Load the Triangle Texture Coordinates
 		cudaMalloc((void **)&cudaTriangleTextureCoordinatesDP, triangleTextureCoordinatesSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleTextureCoordinatesDP, &triangleTextureCoordinates[0], triangleTextureCoordinatesSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleTextureCoordinates(cudaTriangleTextureCoordinatesDP, triangleTotal);
 
 		// Load the Triangle Ambient Properties
 		cudaMalloc((void **)&cudaTriangleAmbientPropertiesDP, triangleAmbientPropertiesSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleAmbientPropertiesDP, &triangleAmbientProperties[0], triangleAmbientPropertiesSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleAmbientProperties(cudaTriangleAmbientPropertiesDP, triangleTotal);
 
 		// Load the Triangle Diffuse Properties
 		cudaMalloc((void **)&cudaTriangleDiffusePropertiesDP, triangleDiffusePropertiesSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleDiffusePropertiesDP, &triangleDiffuseProperties[0], triangleDiffusePropertiesSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleDiffuseProperties(cudaTriangleDiffusePropertiesDP, triangleTotal);
 
 		// Load the Triangle Specular Properties
 		cudaMalloc((void **)&cudaTriangleSpecularPropertiesDP, triangleSpecularPropertiesSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleSpecularPropertiesDP, &triangleSpecularProperties[0], triangleSpecularPropertiesSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
 		bindTriangleSpecularProperties(cudaTriangleSpecularPropertiesDP, triangleTotal);
 
 		// Load the Triangle Specular Constants
 		cudaMalloc((void **)&cudaTriangleSpecularConstantsDP, triangleSpecularConstantsSize);
-		Utility::checkCUDAError("cudaMalloc");
+		Utility::checkCUDAError("cudaMalloc()");
 		cudaMemcpy(cudaTriangleSpecularConstantsDP, &triangleSpecularConstants[0], triangleSpecularConstantsSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy");
+		Utility::checkCUDAError("cudaMemcpy()");
 
-		bindTriangleSpecularConstants(cudaTriangleSpecularConstantsDP, triangleTotal);
-		*/
+		bindTriangleSpecularConstants(cudaTriangleSpecularConstantsDP, triangleTotal);*/
 	}
+
+	/* Load a Sample Texture */
+	//chessTextureID = SOIL_load_OGL_texture("textures/fieldstone_diffuse.jpg", SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_MIPMAPS | SOIL_FLAG_INVERT_Y);
+
+	/* Check for an error during the load process */
+	//if(chessTextureID == 0)
+		//cout << "SOIL loading error (\"" << "textures/fieldstone_diffuse.jpg" << "\": " << SOIL_last_result() << std::endl;
+
+	//Utility::checkOpenGLError("SOIL_load_OGL_texture()");
+
+	/* Register the necessary Textures */
+	/*cudaGraphicsGLRegisterImage(cudaTextureHandle, chessTextureID, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly);
+	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()");
+
+	cudaGraphicsMapResources(1,cudaTextureHandle,0);*/
 }
 
 /* User Input Functions */
@@ -549,12 +625,6 @@ void readMouse(GLfloat elapsedTime) {
 void readKeyboard(GLfloat elapsedTime) {
 
 	elapsedTime;
-}
-
-/* Callback function called by GLUT when the program exits */
-void cleanup() {
-
-    //glDeleteBuffers(1, &pixelBufferObjectID);
 }
 
 void displayFrames(int time) {
@@ -656,6 +726,22 @@ void reshape(int width, int height) {
 	imageHeight = height;
 }
 
+/* Callback function called by GLUT when the program exits */
+void cleanup() {
+
+	/* Delete the PixelBufferObject from CUDA */
+	cudaGraphicsUnregisterResource(pixelBufferObjectResource);
+	Utility::checkCUDAError("cudaGraphicsUnregisterResource()");
+
+	/* Delete the PixelBufferObject from OpenGL */
+    glBindBuffer(1, pixelBufferObjectID);
+    glDeleteBuffers(1, &pixelBufferObjectID);
+	Utility::checkOpenGLError("glDeleteBuffers()");
+
+	/* Force CUDA to flush profiling information */
+	cudaDeviceReset();
+}
+
 void rayTrace() {
 
 	/* Camera defining Vectors */
@@ -698,22 +784,24 @@ void rayTrace() {
 	unsigned int* outData;
 
 	/* Map the PixelBufferObject and Ray-Trace */
-	cudaGLMapBufferObject((void**)&outData, pixelBufferObjectID);
-	Utility::checkCUDAError("cudaGLMapBufferObject()");
+    cudaGraphicsMapResources(1, &pixelBufferObjectResource, 0);
+	Utility::checkCUDAError("cudaGraphicsMapResources()");
+    cudaGraphicsResourceGetMappedPointer((void **)&outData, NULL, pixelBufferObjectResource);
+	Utility::checkCUDAError("cudaGraphicsResourceGetMappedPointer()");
 
 	RayTraceImage(outData, imageWidth, imageHeight, triangleTotal, 
 		cameraRight, cameraUp, cameraDirection, 
-		cameraPosition, 
+		cameraPosition,
 		make_float3(lightPosition[0], lightPosition[1], lightPosition[2]),
 		make_float3(lightColor[0], lightColor[1], lightColor[2]));
 
-	cudaGLUnmapBufferObject(pixelBufferObjectID);
-	Utility::checkCUDAError("cudaGLUnmapBufferObject()");
+	cudaGraphicsUnmapResources(1, &pixelBufferObjectResource, 0);
+	Utility::checkCUDAError("cudaGraphicsUnmapResources()");
 
 	/* Copy the Output to the Texture */
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pixelBufferObjectID);
 
-		glBindTexture(GL_TEXTURE_2D, textureID);
+		glBindTexture(GL_TEXTURE_2D, screenTextureID);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, imageWidth, imageHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -723,41 +811,18 @@ void rayTrace() {
 
 int main(int argc, char** argv) {
 
-	// Create GL context
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
-	glutInitWindowSize(windowWidth,windowHeight);
-
-	windowHandle = glutCreateWindow("CUDA Ray Tracer");
-
 	/* Initialize the Scene */
 	initCamera();
 	initObjects();
 
-	/* Initialize OpenGL */
+	/* Initialize GLUT, GLEW and OpenGL */
+	initGLUT(argc,argv);
+	initGLEW();
 	initOpenGL();
 
 	/* Initialize CUDA */
 	initCUDA();
 	initCUDAmemory();
-
-	// register callbacks
-	glutCloseFunc(cleanup);
-
-	glutDisplayFunc(display);
-	glutTimerFunc(0, displayFrames, 0);
-
-	glutReshapeFunc(reshape);
-
-	glutKeyboardFunc(normalKeyListener); 
-	glutKeyboardUpFunc(releasedNormalKeyListener); 
-	glutSpecialFunc(specialKeyListener);
-	glutSpecialUpFunc(releasedSpecialKeyListener);
-
-	glutMouseFunc(mouseEventListener);
-	glutMotionFunc(mouseMovementListener);
-	glutPassiveMotionFunc(mousePassiveMovementListener);
-	glutMouseWheelFunc(mouseWheelListener);
 
 	// start rendering main-loop
 	glutMainLoop();
