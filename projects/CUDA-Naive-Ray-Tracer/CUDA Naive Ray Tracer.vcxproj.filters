@@ -14,9 +14,6 @@
     <Filter Include="Source Files\User Interaction\Mouse">
       <UniqueIdentifier>{156b3bdd-6d45-4d44-8739-ab9727c8f375}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\CUDA">
-      <UniqueIdentifier>{83755cd2-dcfa-4c72-9932-77c738f10e4b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\Library">
       <UniqueIdentifier>{71a4672b-ca0d-4578-9110-ca21a832c66d}</UniqueIdentifier>
     </Filter>
@@ -46,6 +43,9 @@
     </Filter>
     <Filter Include="Source Files\Library\Utility">
       <UniqueIdentifier>{590226aa-0d6a-4a82-a66e-87d0b5bf0128}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA Kernel">
+      <UniqueIdentifier>{83755cd2-dcfa-4c72-9932-77c738f10e4b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -123,7 +123,7 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="source\RayTracer.cu">
-      <Filter>Source Files\CUDA</Filter>
+      <Filter>Source Files\CUDA Kernel</Filter>
     </CudaCompile>
   </ItemGroup>
 </Project>

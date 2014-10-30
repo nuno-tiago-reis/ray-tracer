@@ -64,9 +64,6 @@ extern "C" void bindTextureArray(cudaArray *cudaArray);
 
 // Global Variables
 
-unsigned int* screenTextureDP = NULL;
-size_t screenTextureSize = 0;
-
 // Window
 unsigned int windowWidth  = 640;
 unsigned int windowHeight = 640;
@@ -93,19 +90,23 @@ Object* objects[5];
 int lastFrameTime = 0;
 float deltaTime = 0.0f;
 
-cudaGraphicsResource *resourceArray[2];
-
 //  PixelBufferObjects ID and Cuda Resource
 GLuint pixelBufferObjectID;
 cudaGraphicsResource *pixelBufferObjectResource = NULL;
 
 // Object TextureIDs and  and Cuda Resources
-GLuint chessTextureID;
+unsigned int chessTextureID;
 cudaArray *chessTextureArray = NULL;
 cudaGraphicsResource *chessTextureResource = NULL;
 
+int chessTextureWidth;
+int chessTextureHeight;
+
 //  Screens Texture ID
 GLuint screenTextureID;
+
+unsigned int* screenTextureDP = NULL;
+size_t screenTextureSize = 0;
 
 // Total number of Triangles - Used for the memory necessary to allocate
 int triangleTotal = 0;
@@ -187,6 +188,7 @@ void initObjects() {
 	Mesh* sphere2Mesh = new Mesh("Sphere", "goldsphere.obj", "gold.mtl");
 	Mesh* sphere3Mesh = new Mesh("Sphere", "silversphere.obj", "silver.mtl");
 	// Load the Platforms Mesh from the OBJ file 
+	//Mesh* platformMesh = new Mesh("Platform", "surface.obj", "surface.mtl");
 	Mesh* platformMesh = new Mesh("Platform", "cube.obj", "cube.mtl");
 
 	// Load Sphere0s Transform 
@@ -369,8 +371,6 @@ void initCUDAmemory() {
 	Utility::checkCUDAError("cudaGraphicsGLRegisterBuffer()", cudaGraphicsGLRegisterBuffer(&pixelBufferObjectResource, pixelBufferObjectID, cudaGraphicsMapFlagsWriteDiscard));
 
 	// Create the Texture to output the Ray-Tracing result.
-	glActiveTexture(GL_TEXTURE0);
-
 	glGenTextures(1, &screenTextureID);
 	glBindTexture(GL_TEXTURE_2D, screenTextureID);
 
@@ -484,7 +484,7 @@ void initCUDAmemory() {
 		cudaMemcpy(cudaTriangleTangentsDP, &triangleTangents[0], triangleTangentsSize, cudaMemcpyHostToDevice);
 		Utility::checkCUDAError("cudaMemcpy()");*/
 
-		bindTriangleTangents(cudaTriangleTangentsDP, triangleTotal);
+		//bindTriangleTangents(cudaTriangleTangentsDP, triangleTotal);
 
 		// Load the Triangle Texture Coordinates
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleTextureCoordinatesDP, triangleTextureCoordinatesSize));
@@ -505,10 +505,11 @@ void initCUDAmemory() {
 		bindTriangleSpecularProperties(cudaTriangleSpecularPropertiesDP, triangleTotal);
 	}
 
-	/*glActiveTexture(GL_TEXTURE0 + 1);
+	// Create the Texture to store the Chess Image.
+	glGenTextures(1, &chessTextureID);
 
 	// Load a Sample Texture
-	chessTextureID = SOIL_load_OGL_texture("textures/fieldstone_diffuse.jpg", SOIL_LOAD_RGBA, SOIL_CREATE_NEW_ID, SOIL_FLAG_MIPMAPS | SOIL_FLAG_INVERT_Y);
+	chessTextureID = SOIL_load_OGL_texture("textures/fieldstone_diffuse.jpg", SOIL_LOAD_RGBA, chessTextureID, SOIL_FLAG_MIPMAPS | SOIL_FLAG_INVERT_Y);
 
 	// Check for an error during the loading process
 	if(chessTextureID == 0) {
@@ -520,8 +521,20 @@ void initCUDAmemory() {
 
 	Utility::checkOpenGLError("SOIL_load_OGL_texture()");
 
+	glBindTexture(GL_TEXTURE_2D, chessTextureID);
+
+		// Set the basic Texture parameters
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		Utility::checkOpenGLError("glTexImage2D()");
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
 	// Register the Textures with CUDA.
-	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&chessTextureResource, chessTextureID, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));*/
+	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&chessTextureResource, chessTextureID, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
 
 	cout << "[Initialization] CUDA Memory Initialization Successfull" << endl << endl;
 }
@@ -770,15 +783,15 @@ void rayTrace() {
 	//resourceArray[1] = chessTextureResource;
 
 	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &pixelBufferObjectResource, 0));
-	//Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &chessTextureResource, 0));
+	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &chessTextureResource, 0));
 
 	// Map the PixelBufferObject and Textures
 	//Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(2, resourceArray, 0));
 	Utility::checkCUDAError("cudaGraphicsResourceGetMappedPointer()", cudaGraphicsResourceGetMappedPointer((void**)&screenTextureDP, &screenTextureSize, pixelBufferObjectResource));
-	//Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&chessTextureArray, chessTextureResource, 0, 0));
+	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&chessTextureArray, chessTextureResource, 0, 0));
 
-	//bindTextureArray(chessTextureArray);
-	
+	bindTextureArray(chessTextureArray);
+
 	// Kernel Launch
 	RayTraceWrapper(screenTextureDP,
 		imageWidth, imageHeight, 
@@ -788,17 +801,17 @@ void rayTrace() {
 
 	// Unmap the used CUDA Resources
 	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &pixelBufferObjectResource, 0));
-	//Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &chessTextureResource, 0));
+	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &chessTextureResource, 0));
 	//Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(2, resourceArray, 0));
 
 	// Copy the Output to the Texture 
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, screenTextureID);Utility::checkOpenGLError("glTexSubImage2D0()");
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, screenTextureID);
 
 		glActiveTexture(GL_TEXTURE0);
 
-		glBindTexture(GL_TEXTURE_2D, screenTextureID);Utility::checkOpenGLError("glTexSubImage2D1()");
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, imageWidth, imageHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);Utility::checkOpenGLError("glTexSubImage2D2()");
-		glBindTexture(GL_TEXTURE_2D, 0);Utility::checkOpenGLError("glTexSubImage2D3()");
+		glBindTexture(GL_TEXTURE_2D, screenTextureID);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, imageWidth, imageHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+		glBindTexture(GL_TEXTURE_2D, 0);
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 

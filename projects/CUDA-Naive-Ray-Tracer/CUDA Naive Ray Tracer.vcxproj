@@ -100,6 +100,13 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>freeglut.lib;glew32.lib;cudart.lib;cuda.lib;soil.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <CudaCompile>
+      <FastMath>true</FastMath>
+    </CudaCompile>
+    <CudaCompile>
+      <Optimization>O3</Optimization>
+      <GenerateLineInfo>true</GenerateLineInfo>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -119,12 +126,13 @@
       <AdditionalDependencies>freeglut.lib;freeimage.lib;glew32.lib;cudart.lib;cuda.lib;soil.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CudaCompile>
-      <HostDebugInfo>true</HostDebugInfo>
+      <HostDebugInfo>false</HostDebugInfo>
     </CudaCompile>
     <CudaCompile>
-      <FastMath>false</FastMath>
-      <GPUDebugInfo>true</GPUDebugInfo>
-      <GenerateLineInfo>true</GenerateLineInfo>
+      <FastMath>true</FastMath>
+      <GPUDebugInfo>false</GPUDebugInfo>
+      <GenerateLineInfo>false</GenerateLineInfo>
+      <Optimization>O3</Optimization>
     </CudaCompile>
     <CudaLink>
       <GPUDebugInfo>false</GPUDebugInfo>

@@ -241,6 +241,10 @@ __device__ float3 RayCast(	Ray ray,
 		// Calculate the hit Triangle point
 		hitRecord.point = ray.origin + ray.direction * hitRecord.time;
 
+		float areaABC;
+		float areaPBC;
+		float areaPCA;
+
 		// Calculate the hit Normal
 		if(hitRecord.triangleIndex >= 0) {
 			
@@ -255,9 +259,9 @@ __device__ float3 RayCast(	Ray ray,
 			float4 n2 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 2);
 
 			// Normal calculation using Barycentric Interpolation
-			float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
-			float areaPBC = length(cross(make_float3(v1) - hitRecord.point, make_float3(v2) - hitRecord.point));
-			float areaPCA = length(cross(make_float3(v0) - hitRecord.point, make_float3(v2) - hitRecord.point));
+			areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
+			areaPBC = length(cross(make_float3(v1) - hitRecord.point, make_float3(v2) - hitRecord.point));
+			areaPCA = length(cross(make_float3(v0) - hitRecord.point, make_float3(v2) - hitRecord.point));
 
 			hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
 		}
@@ -332,6 +336,19 @@ __device__ float3 RayCast(	Ray ray,
 
 					specularConstant = specularColor.w;
 					refractionConstant = diffuseColor.w;
+
+					/* If using Textures
+
+					float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
+					float2 uv1 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 1);
+					float2 uv2 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 2);
+
+					float2 uv = (areaPBC / areaABC) * uv0 + (areaPCA / areaABC) * uv1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * uv2;
+
+					uchar4 textureColor = tex2D(chessTexture, uv.x, uv.y);
+
+					diffuseColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
+					*/
 				}
 				else {
 				
@@ -374,7 +391,7 @@ __device__ float3 RayCast(	Ray ray,
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
 				// Cast the Reflected Ray
-				//hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * 0.001f, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25;	//TODO
+				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * 0.001f, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25;
 			}
 
 			// If the Object Hit is translucid
@@ -391,12 +408,21 @@ __device__ float3 RayCast(	Ray ray,
 				float3 refractedDirection = refract(ray.direction, hitRecord.normal, refractionIndex / newRefractionIndex);
 
 				// Cast the Refracted Ray
-				//hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * 0.001f, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f * pow(0.95f,depth-3);
+				hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * 0.001f, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f * pow(0.95f,depth-3);	//TODO
 			}
 		}
 	}
 
 	return hitRecord.color;
+}
+
+__device__ float3 test(unsigned int x, unsigned int y) {
+
+	uchar4 pixelColor = tex2D(chessTexture, x, y);
+
+	printf("Texture [%d,%d] = %d - %d - %d\n", x, y, pixelColor.x, pixelColor.y, pixelColor.z);
+
+	return make_float3((float)pixelColor.x / 255.0f, (float)pixelColor.y / 255.0f, (float)pixelColor.z / 255.0f);
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -427,8 +453,12 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	Ray ray(rayOrigin, rayDirection);
 
 	float3 pixelColor = RayCast(ray, triangleTotal, depth, refractionIndex);
-	
+
 	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
+
+	//float3 pixelColor = test(x,y);
+
+	//pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
 }
 
 extern "C" {
@@ -438,11 +468,6 @@ extern "C" {
 								int triangleTotal,
 								float3 cameraRight, float3 cameraUp, float3 cameraDirection,
 								float3 cameraPosition) {
-
-		/*outputPixelBufferObject[y * width + x] = rgbToInt(
-			(float)((float)(width - x) / (float)width) * 255, 
-			(float)((float)(height - y) / (float)height) * 255, 
-			(float)((float)(width + height - x - y) / (float)(width + height)) * 255);*/
 
 		dim3 block(16,16,1);
 		dim3 grid(width/block.x,height/block.y, 1);
@@ -531,10 +556,11 @@ extern "C" {
 	void bindTextureArray(cudaArray *cudaArray) {
 
 		chessTexture.normalized = true;                     // access with normalized texture coordinates
-		chessTexture.filterMode = cudaFilterModeLinear;		// Point mode, so no 
+		chessTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
 		chessTexture.addressMode[0] = cudaAddressModeWrap;  // wrap texture coordinates
+		chessTexture.addressMode[1] = cudaAddressModeWrap;  // wrap texture coordinates
 
-		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<uchar4>();
 		cudaBindTextureToArray(chessTexture, cudaArray, channelDescriptor);
 	}
 }
