@@ -8,8 +8,8 @@ Camera::Camera(int width, int height) {
 	this->fieldOfView = 0.0f;
 
 	this->zoom = 1.0f;
-	this->longitude = 90.0f;
-	this->latitude = 89.99f;
+	this->longitude = 180.0f;
+	this->latitude = 45.00f;
 }
 
 Camera::~Camera() {
@@ -42,9 +42,9 @@ void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsed
 	else if(this->latitude < -360.0f) 
 		this->latitude += 360.0f;
 
-	this->eye[VX] = this->position[VX];// + this->zoom *  CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * cos(this->longitude * DEGREES_TO_RADIANS);
-	this->eye[VY] = this->position[VY] + CAMERA_RADIUS;// + this->zoom *  CAMERA_RADIUS * cos((this->latitude - 90.0f) * DEGREES_TO_RADIANS);
-	this->eye[VZ] = this->position[VZ] - CAMERA_RADIUS;//d + this->zoom * -CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * sin(this->longitude * DEGREES_TO_RADIANS);
+	this->eye[VX] = this->position[VX] + this->zoom * (CAMERA_RADIUS * cos(this->longitude * DEGREES_TO_RADIANS) - CAMERA_RADIUS * sin(this->longitude * DEGREES_TO_RADIANS));
+	this->eye[VY] = this->position[VY] + this->zoom *  CAMERA_RADIUS * cos(this->latitude * DEGREES_TO_RADIANS);
+	this->eye[VZ] = this->position[VZ] + this->zoom * (CAMERA_RADIUS * sin(this->longitude * DEGREES_TO_RADIANS) + CAMERA_RADIUS * cos(this->longitude * DEGREES_TO_RADIANS));
 	this->eye[VW] = 1.0f;
 
 	this->target[VX] = this->position[VX];
@@ -53,8 +53,8 @@ void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsed
 	this->target[VW] = 1.0f;
 
 	this->up[VX] = 0.0f;
-	this->up[VY] = 0.0f;
-	this->up[VZ] = 1.0f;
+	this->up[VY] = 1.0f;
+	this->up[VZ] = 0.0f;
 	this->up[VW] = 1.0f;
 }
 

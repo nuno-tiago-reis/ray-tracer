@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+#include "cuda_runtime.h"
+
 #include "math_functions.h"
 
 #include "helper_math.h"
@@ -13,10 +15,38 @@ texture<float4, 1, cudaReadModeElementType> triangleTangentsTexture;
 
 texture<float2, 1, cudaReadModeElementType> triangleTextureCoordinatesTexture;
 
-texture<float4, 1, cudaReadModeElementType> triangleAmbientPropertiesTexture;
 texture<float4, 1, cudaReadModeElementType> triangleDiffusePropertiesTexture;
 texture<float4, 1, cudaReadModeElementType> triangleSpecularPropertiesTexture;
-texture<float, 1, cudaReadModeElementType> triangleSpecularConstantsTexture;
+
+texture<uchar4, cudaTextureType2D, cudaReadModeElementType> chessTexture;
+
+const int initialDepth = 3;
+
+const float initialRefractionIndex = 1.0f;
+
+__device__ const int sphereTotal = 4;
+
+__device__ const float sphereRadius = 5.0f;
+
+// Hard coded for testing purposes
+__device__ const float3 lightPosition =	{ 0.0f, 5.0f, 0.0f };
+__device__ const float3 lightColor =	{ 1.0f, 1.0f, 1.0f };
+
+// Hard coded for testing purposes
+__device__ const float4 sphereDiffuses[] = {	{ 0.50754000f, 0.50754000f, 0.50754000f, 0.00f }, 
+												{ 0.75164000f, 0.60648000f, 0.22648000f, 0.00f }, 
+												{ 0.61424000f, 0.04136000f, 0.04136000f, 0.75f }, 
+												{ 0.07568000f, 0.61424000f, 0.07568000f, 0.75f } };
+
+__device__ const float4 sphereSpeculars[] = {	{ 0.50827300f, 0.50827300f, 0.50827300f, 102.0f }, 
+												{ 0.62828100f, 0.55580200f, 0.36606500f, 102.0f }, 
+												{ 0.72781100f, 0.62695900f, 0.62695900f, 152.0f }, 
+												{ 0.63300000f, 0.72781100f, 0.63300000f, 152.0f } };
+
+__device__ const float3 spherePositions[] = {	{  10.0f, -2.5f,  10.0f }, 
+												{ -10.0f, -2.5f,  10.0f }, 
+												{ -10.0f, -2.5f, -10.0f }, 
+												{  10.0f, -2.5f, -10.0f } };
 
 // Ray structure
 struct Ray {
@@ -40,17 +70,23 @@ struct HitRecord {
 	float time;
 
 	float3 color;
+
+	float3 point;
 	float3 normal;
 
+	int sphereIndex;
 	int triangleIndex;
 
-	__device__ HitRecord() {
+	__device__ HitRecord(const float3 &c) {
 
 			time = UINT_MAX;
 
-			color = make_float3(0,0,0);
+			color = c;
+
+			point = make_float3(0,0,0);
 			normal = make_float3(0,0,0);
 
+			sphereIndex = -1;
 			triangleIndex = -1; 
 	}
 
@@ -58,11 +94,15 @@ struct HitRecord {
 		
 			time = UINT_MAX;
 
+			point = make_float3(0,0,0);
+			normal = make_float3(0,0,0);
+
+			sphereIndex = -1;
 			triangleIndex = -1;
 	}
 };
 
-/* Convert floating point rgb color to 8-bit integer */
+// Converts floating point rgb color to 8-bit integer
 __device__ int rgbToInt(float red, float green, float blue) {
 
 	red		= clamp(red,	0.0f, 255.0f);
@@ -72,7 +112,7 @@ __device__ int rgbToInt(float red, float green, float blue) {
 	return (int(red)<<16) | (int(green)<<8) | int(blue); // notice switch red and blue to counter the GL_BGRA
 }
 
-/* Ray - BoundingBox Intersection Code */
+// Ray - BoundingBox Intersection Code
 __device__ int RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, const float3 &RayOrigin, const float3 &RayDirectionInverse, float &tmin, float &tmax) {
 
 	float l1   = (BBMin.x - RayOrigin.x) * RayDirectionInverse.x;
@@ -93,7 +133,7 @@ __device__ int RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, cons
 	return ((tmax >= tmin) && (tmax >= 0.0f));
 }
 
-/* Ray - Triangle Intersection Code */
+// Ray - Triangle Intersection Code
 __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, const float3 &edge1, const float3 &edge2) {  
 
 	float3 tvec = ray.origin - vertex0;  
@@ -102,12 +142,12 @@ __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, 
 	float  determinant  = dot(edge1, pvec);  
 	determinant = __fdividef(1.0f, determinant);  
 
-	/* First Test */
+	// First Test
 	float u = dot(tvec, pvec) * determinant;  
 	if (u < 0.0f || u > 1.0f)  
 		return -1.0f;  
 
-	/* Second Test */
+	// Second Test
 	float3 qvec = cross(tvec, edge1);  
 
 	float v = dot(ray.direction, qvec) * determinant;  
@@ -117,14 +157,16 @@ __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, 
 	return dot(edge2, qvec) * determinant;  
 }  
 
-/* Ray - Sphere Intersection Code */
-__device__ int RaySphereIntersection(const Ray &ray, const float3 sphereCenter, const float sphereRadius, float &time) {
+// Ray - Sphere Intersection Code
+__device__ float RaySphereIntersection(const Ray &ray, const float3 sphereCenter, const float sphereRadius) {
 
 	float3 sr = ray.origin - sphereCenter;
 
 	float b = dot(sr, ray.direction);
 	float c = dot(sr, sr) - (sphereRadius * sphereRadius);
 	float d = b * b - c;
+
+	float time;
 
 	if(d > 0) {
 
@@ -136,21 +178,23 @@ __device__ int RaySphereIntersection(const Ray &ray, const float3 sphereCenter, 
 		else
 			time = min(-b-e,-b+e);
 
-		return 1;
+		return time;
 	}
 
-	return 0;
+	return -1.0f;
 }
 
-/* Casts a Ray and tests for intersections with the scenes geometry */
-__device__ float3 castray(	const Ray ray,
+// Casts a Ray and tests for intersections with the scenes geometry
+__device__ float3 RayCast(	Ray ray,								
+							// Triangle Dimensions
 							const int triangleTotal,
+							// Ray Bounce Depth
 							const int depth,
-							const float3 lightPosition,
-							const float3 lightColor) {
+							// Medium Refraction Index
+							const float refractionIndex) {
 
-	/* Hit Record used to store Ray-Triangle Hit information */
-	HitRecord hitRecord;
+	// Hit Record used to store Ray-Triangle Hit information - Initialized with Background Colour
+	HitRecord hitRecord(make_float3(0.15f,0.15f,0.15f));
 		
 	// Search through the triangles and find the nearest hit point
 	for(int i = 0; i < triangleTotal; i++) {
@@ -163,59 +207,87 @@ __device__ float3 castray(	const Ray ray,
 
 		float hitTime = RayTriangleIntersection(ray, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
 
-		if(hitTime < hitRecord.time && hitTime > 0.001) {
+		if(hitTime < hitRecord.time && hitTime > 0.001f) {
 
 			hitRecord.time = hitTime; 
+			hitRecord.sphereIndex = -1;
 			hitRecord.triangleIndex = i;
 		}
 	}
+	// Search through the spheres and find the nearest hit point
+	for(int i = 0; i < sphereTotal; i++) {
 
-	// If no Triangle was intersected
-	if(hitRecord.time == UINT_MAX)	{
+		float hitTime = RaySphereIntersection(ray, spherePositions[i], sphereRadius);
 
-		return make_float3(0.15,0.15,0.15); //Background Colour
+		if(hitTime < hitRecord.time && hitTime > 0.001f) {
+
+			hitRecord.time = hitTime; 
+			hitRecord.sphereIndex = i;
+			hitRecord.triangleIndex = -1;
+		}
 	}
 
 	// If any Triangle was intersected
-	if(hitRecord.triangleIndex >= 0) {
+	if(hitRecord.triangleIndex >= 0 || hitRecord.sphereIndex >= 0) {
+
+		// Needed for Ray Reflections
+		float specularConstant;
+		// Needed for Ray Refractions
+		float refractionConstant;
+
+		// Initialize the hit Color
+		hitRecord.color = make_float3(0.0f, 0.0f, 0.0f);
+
+		// Calculate the hit Triangle point
+		hitRecord.point = ray.origin + ray.direction * hitRecord.time;
+
+		// Calculate the hit Normal
+		if(hitRecord.triangleIndex >= 0) {
 			
-		/* Fetch the hit Triangles vertices */
-		float4 v0 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3);
-		float4 v1 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 1);
-		float4 v2 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 2);
+			// Fetch the hit Triangles vertices
+			float4 v0 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3);
+			float4 v1 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 1);
+			float4 v2 = tex1Dfetch(trianglePositionsTexture, hitRecord.triangleIndex * 3 + 2);
 
-		/* Fetch the hit Triangles normals */
-		float4 n0 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3);
-		float4 n1 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 1);
-		float4 n2 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 2);
+			// Fetch the hit Triangles normals
+			float4 n0 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3);
+			float4 n1 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 1);
+			float4 n2 = tex1Dfetch(triangleNormalsTexture, hitRecord.triangleIndex * 3 + 2);
 
-		/* Calculate the hit Triangle point */
-		float3 hitPoint = ray.origin + ray.direction * hitRecord.time;
+			// Normal calculation using Barycentric Interpolation
+			float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
+			float areaPBC = length(cross(make_float3(v1) - hitRecord.point, make_float3(v2) - hitRecord.point));
+			float areaPCA = length(cross(make_float3(v0) - hitRecord.point, make_float3(v2) - hitRecord.point));
 
-		/* Normal calculation using Barycentric Interpolation */
-		float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
-		float areaPBC = length(cross(make_float3(v1) - hitPoint, make_float3(v2) - hitPoint));
-		float areaPCA = length(cross(make_float3(v0) - hitPoint, make_float3(v2) - hitPoint));
+			hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
+		}
+		else { //if(hitRecord.sphereIndex >= 0) {
+		
+			hitRecord.normal = hitRecord.point - spherePositions[hitRecord.sphereIndex];
 
-		hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
+			if(length(ray.origin - spherePositions[hitRecord.sphereIndex]) < sphereRadius)
+				hitRecord.normal = -hitRecord.normal;
+
+			hitRecord.normal = normalize(hitRecord.normal);
+		}
 
 		// Blinn-Phong Shading - START
-		float3 lightDirection = lightPosition - hitPoint;
+		float3 lightDirection = lightPosition - hitRecord.point;
 
 		float lightDistance = length(lightDirection);
 		lightDirection = normalize(lightDirection);
 
-		/* Diffuse Factor */
-		float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0);
+		// Diffuse Factor
+		float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0f);
 		clamp(diffuseFactor, 0.0f, 1.0f);
 
-		if(diffuseFactor > 0.0) {
+		if(diffuseFactor > 0.0f) {
 
 			bool shadow = false;
 
-			Ray shadowRay(hitPoint + lightDirection * 0.001, lightDirection);
+			Ray shadowRay(hitRecord.point + lightDirection * 0.001, lightDirection);
 			
-			/* Test Shadow Rays for each Triangle */
+			// Test Shadow Rays for each Triangle
 			for(int i = 0; i < triangleTotal; i++) {
 
 				float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
@@ -226,37 +298,67 @@ __device__ float3 castray(	const Ray ray,
 
 				float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
 
-				if(hitTime > 0.001) {
+				if(hitTime > 0.001f) {
 
 					shadow = true;
 					break;
 				}
 			}
 
-			/* If there is no Triangle between the light source and the point hit */
+			// Test Shadow Rays for each Sphere
+			for(int i = 0; i < sphereTotal; i++) {
+
+				float hitTime = RaySphereIntersection(shadowRay, spherePositions[i], sphereRadius);
+
+				if(hitTime > 0.001f) {
+
+					shadow = true;
+					break;
+				}
+			}
+
+			// If there is no Triangle between the light source and the point hit
 			if(shadow == false) {
 
-				/* Triangle Material Properties */
-				float4 diffuseColor = tex1Dfetch(triangleDiffusePropertiesTexture, hitRecord.triangleIndex * 3);
-				float4 specularColor = tex1Dfetch(triangleSpecularPropertiesTexture, hitRecord.triangleIndex * 3);
-				float specularConstant = specularColor.w;
+				// Material Properties
+				float4 diffuseColor;
+				float4 specularColor;
+
+				if(hitRecord.triangleIndex >= 0) {
+
+					// Triangle Material Properties
+					diffuseColor = tex1Dfetch(triangleDiffusePropertiesTexture, hitRecord.triangleIndex * 3);
+					specularColor = tex1Dfetch(triangleSpecularPropertiesTexture, hitRecord.triangleIndex * 3);
+
+					specularConstant = specularColor.w;
+					refractionConstant = diffuseColor.w;
+				}
+				else {
 				
-				/* Blinn-Phong approximation Halfway Vector */
+					// Sphere Material Properties
+					diffuseColor = sphereDiffuses[hitRecord.sphereIndex];
+					specularColor = sphereSpeculars[hitRecord.sphereIndex];
+
+					specularConstant = specularColor.w;
+					refractionConstant = diffuseColor.w;
+				}
+				
+				// Blinn-Phong approximation Halfway Vector
 				float3 halfwayVector = lightDirection - ray.direction;
 				halfwayVector = normalize(halfwayVector);
 
-				/* Light Attenuation */
-				float lightAttenuation = 16.0 / lightDistance;
+				// Light Attenuation
+				float lightAttenuation = 16.0f / lightDistance;
 
-				/* Diffuse Component */
+				// Diffuse Component
 				hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightAttenuation;
 
-				/* Specular Factor */
+				// Specular Factor
 				float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), specularConstant);
 				clamp(specularFactor, 0.0f, 1.0f);
 
-				/* Specular Component */
-				if(specularFactor > 0.0)
+				// Specular Component
+				if(specularFactor > 0.0f)
 					hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightAttenuation;
 			}
 		}
@@ -265,32 +367,31 @@ __device__ float3 castray(	const Ray ray,
 		// If max depth wasn't reached yet
 		if(depth > 0)	{
 
-			/* If the Object Hit is reflective */
-			if(true) { //objectHit->getShininess() > 0.0f
+			// If the Object Hit is reflective
+			if(specularConstant > 0.0f) {
 
-				/* Create the Reflected Ray */
+				// Calculate the Reflected Rays Direction
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
-				Ray reflectedRay = Ray(hitPoint + reflectedDirection * 0.001, reflectedDirection);
-
-				/* Ray trace the Reflected Ray */
-				hitRecord.color += castray(reflectedRay, triangleTotal, depth-1, lightPosition, lightColor) * 0.25;
+				// Cast the Reflected Ray
+				//hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * 0.001f, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25;	//TODO
 			}
 
-			/* If the Object Hit is translucid */
-			if(false) { //objectHit->getTransmittance() > 0.0f
+			// If the Object Hit is translucid
+			if(refractionConstant > 0.0f) {
 
-				/*float newRefractionIndex;
+				float newRefractionIndex;
 
-				if(ior == 1.0f)
-					newRefractionIndex = objectHit->getRefractionIndex();
+				if(refractionIndex == 1.0f)
+					newRefractionIndex = 0.75f;
 				else
 					newRefractionIndex = 1.0f;
 
-				Vector refractionDirection = Vector::refract(rayDirection,normalHit, ior / newRefractionIndex);
-				Vector refractionColor = rayTracing(pointHit + refractionDirection * EPSILON, refractionDirection,depth-1, newRefractionIndex);
+				// Calculate the Refracted Rays Direction
+				float3 refractedDirection = refract(ray.direction, hitRecord.normal, refractionIndex / newRefractionIndex);
 
-				color += refractionColor * objectHit->getTransmittance() * pow(0.95f,depth-MAX_DEPTH+1);*/
+				// Cast the Refracted Ray
+				//hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * 0.001f, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f * pow(0.95f,depth-3);
 			}
 		}
 	}
@@ -298,14 +399,22 @@ __device__ float3 castray(	const Ray ray,
 	return hitRecord.color;
 }
 
-__global__ void raytrace(unsigned int *outputPixelBufferObject,
-							const int width, const int height,
-							const int triangleTotal,
-							const int depth,
-							const float3 cameraRight, const float3 cameraUp, const float3 cameraDirection, 
-							const float3 cameraPosition,
-							const float3 lightPosition,
-							const float3 lightColor) {
+// Implementation of Whitteds Ray-Tracing Algorithm
+__global__ void RayTracePixel(	unsigned int* pixelBufferObject,
+								// Screen Dimensions
+								const int width, 
+								const int height, 
+								// Triangle Dimensions
+								const int triangleTotal,
+								// Ray Bounce Depth
+								const int depth,
+								// Medium Refraction Index
+								const float refractionIndex,
+								// Camera Definitions
+								const float3 cameraRight, 
+								const float3 cameraUp, 
+								const float3 cameraDirection,
+								const float3 cameraPosition) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -313,34 +422,38 @@ __global__ void raytrace(unsigned int *outputPixelBufferObject,
 	/* Ray Creation */
 	float3 rayOrigin = cameraPosition;
 	float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
-	rayDirection = normalize(rayDirection);
 
-	/* Ray used for this pixel */
+	// Ray used to store Origin and Direction information
 	Ray ray(rayOrigin, rayDirection);
 
-	/* Result of the Ray Tracing for this Pixel */
-	float3 color = castray(ray, triangleTotal, depth, lightPosition, lightColor);
-
-	/* Output conversion */
-	outputPixelBufferObject[y * width + x] = rgbToInt(color.x * 255, color.y * 255, color.z * 255);
+	float3 pixelColor = RayCast(ray, triangleTotal, depth, refractionIndex);
+	
+	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
 }
 
 extern "C" {
 
-	void RayTraceImage(unsigned int *outputPixelBufferObject, 
+	void RayTraceWrapper(unsigned int *outputPixelBufferObject,
 								int width, int height, 
 								int triangleTotal,
 								float3 cameraRight, float3 cameraUp, float3 cameraDirection,
-								float3 cameraPosition,
-								float3 lightPosition,
-								float3 lightColor) {
+								float3 cameraPosition) {
 
-		int depth = 3;
-		
-		dim3 block(32,32,1);
+		/*outputPixelBufferObject[y * width + x] = rgbToInt(
+			(float)((float)(width - x) / (float)width) * 255, 
+			(float)((float)(height - y) / (float)height) * 255, 
+			(float)((float)(width + height - x - y) / (float)(width + height)) * 255);*/
+
+		dim3 block(16,16,1);
 		dim3 grid(width/block.x,height/block.y, 1);
 
-		raytrace<<<grid, block>>>(outputPixelBufferObject, width, height, triangleTotal, depth, cameraRight, cameraUp, cameraDirection, cameraPosition, lightPosition, lightColor);
+		RayTracePixel<<<grid, block>>>(	outputPixelBufferObject, 
+										width, height,
+										triangleTotal,
+										initialDepth,
+										initialRefractionIndex,
+										cameraRight, cameraUp, cameraDirection,
+										cameraPosition);
 	}
 
 	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal) {
@@ -413,5 +526,15 @@ extern "C" {
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
 		cudaBindTexture(0, triangleSpecularPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindTextureArray(cudaArray *cudaArray) {
+
+		chessTexture.normalized = true;                     // access with normalized texture coordinates
+		chessTexture.filterMode = cudaFilterModeLinear;		// Point mode, so no 
+		chessTexture.addressMode[0] = cudaAddressModeWrap;  // wrap texture coordinates
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTextureToArray(chessTexture, cudaArray, channelDescriptor);
 	}
 }

@@ -28,7 +28,7 @@ vector<int> split(const string &s, char delim);
 
 void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* mesh) {
 
-	cout << "OBJ_Reader::loadMesh(" << meshFilename << "," << materialFilename << "," << mesh->getName() << ");" << endl;
+	cout << "[Initialization] LoadMesh(" << meshFilename << "," << materialFilename << "," << mesh->getName() << ")" << endl;
 
 	string line;
 
@@ -362,6 +362,8 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 	
 	delete[] bufferVertices;
 	delete[] bufferVerticesID;
+
+	cout << "[Initialization] LoadMesh(" << meshFilename << "," << materialFilename << "," << mesh->getName() << ") Successfull!" << endl;
 
 }
 

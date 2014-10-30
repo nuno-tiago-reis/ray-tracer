@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CUDA Ray Tracer", "projects\CUDA-Ray-Tracer\CUDA Ray Tracer.vcxproj", "{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CUDA Ray Tracer", "projects\CUDA-Naive-Ray-Tracer\CUDA Naive Ray Tracer.vcxproj", "{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,8 +12,6 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Debug|Win32.ActiveCfg = Debug|Win32
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Debug|Win32.Build.0 = Debug|Win32
-		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.output|Win32.ActiveCfg = Release|Win32
-		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.output|Win32.Build.0 = Release|Win32
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Release|Win32.ActiveCfg = Release|Win32
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection

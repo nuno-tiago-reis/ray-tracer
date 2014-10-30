@@ -1414,6 +1414,24 @@ inline __host__ __device__ float3 reflect(float3 i, float3 n)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// refract
+// - returns refraction of incident ray I around surface normal N
+// - N should be normalized, reflected vector's length is equal to length of I
+////////////////////////////////////////////////////////////////////////////////
+
+inline __host__ __device__ float3 refract(float3 i, float3 n, float ior)
+{
+
+	float k = 1.0f - pow(ior,2) * (1.0f - pow(dot(i, n),2));
+
+	if (k < 0.0f)
+		return make_float3(0.0f);
+
+	return normalize( i * ior - n * (ior * dot(i, n) + sqrtf(k)));
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 // cross product
 ////////////////////////////////////////////////////////////////////////////////
 
