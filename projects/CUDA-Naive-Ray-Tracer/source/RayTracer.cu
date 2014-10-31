@@ -24,19 +24,15 @@ const int initialDepth = 3;
 
 const float initialRefractionIndex = 1.0f;
 
+// Hard coded for testing purposes
 __device__ const int sphereTotal = 4;
 
 __device__ const float sphereRadius = 5.0f;
 
-// Hard coded for testing purposes
-__device__ const float3 lightPosition =	{ 0.0f, 5.0f, 0.0f };
-__device__ const float3 lightColor =	{ 1.0f, 1.0f, 1.0f };
-
-// Hard coded for testing purposes
 __device__ const float4 sphereDiffuses[] = {	{ 0.50754000f, 0.50754000f, 0.50754000f, 0.00f }, 
 												{ 0.75164000f, 0.60648000f, 0.22648000f, 0.00f }, 
-												{ 0.61424000f, 0.04136000f, 0.04136000f, 0.75f }, 
-												{ 0.07568000f, 0.61424000f, 0.07568000f, 0.75f } };
+												{ 0.61424000f, 0.04136000f, 0.04136000f, 1.00f }, 
+												{ 0.07568000f, 0.61424000f, 0.07568000f, 1.00f } };
 
 __device__ const float4 sphereSpeculars[] = {	{ 0.50827300f, 0.50827300f, 0.50827300f, 102.0f }, 
 												{ 0.62828100f, 0.55580200f, 0.36606500f, 102.0f }, 
@@ -47,6 +43,34 @@ __device__ const float3 spherePositions[] = {	{  10.0f, -2.5f,  10.0f },
 												{ -10.0f, -2.5f,  10.0f }, 
 												{ -10.0f, -2.5f, -10.0f }, 
 												{  10.0f, -2.5f, -10.0f } };
+
+// Hard coded for testing purposes
+__device__ const float3 lightPosition =	{ 0.0f, 5.0f, 0.0f };
+__device__ const float3 lightColor =	{ 1.0f, 1.0f, 1.0f };
+
+// Ray testing Constant
+__device__ const float epsilon = 0.01f;
+
+__device__  const float constantAttenuation = 1.00f;
+__device__  const float linearAttenuation = 0.0025f;
+__device__  const float quadraticAttenuation = 0.0000025f;
+
+// Shadow Grid Dimensions and pre-calculated Values
+__device__ const int shadowGridWidth = 5;
+__device__ const int shadowGridHeight = 5;
+
+__device__ const int shadowGridHalfWidth = 2;
+__device__ const int shadowGridHalfHeight = 2;
+
+//__device__ const int shadowGridDimension = 25;
+__device__ const float shadowGridDimensionInverse = 1.0f/25.0f;
+
+__device__ const float shadowCellSize = 0.20f;
+
+// Anti-Aliasing Constants
+/*__device__ const int antiAliasingGridDimension = 4;
+__device__ const float antiAliasingAperture = 0.1f;
+__device__ const float antiAliasingHalfAperture = 0.05f;*/
 
 // Ray structure
 struct Ray {
@@ -184,6 +208,37 @@ __device__ float RaySphereIntersection(const Ray &ray, const float3 sphereCenter
 	return -1.0f;
 }
 
+__device__ float RaySphereIntersection2(const Ray &ray, const float3 sphereCenter, const float sphereRadius) {
+
+	float3 distance = sphereCenter - ray.origin;
+
+	float d = pow(sphereCenter.x - ray.origin.x,2) + pow(sphereCenter.y - ray.origin.y,2) + pow(sphereCenter.z - ray.origin.z,2);
+	
+	if(d == pow(sphereRadius,2))
+		return -1.0f;
+	
+	float B = dot(distance, ray.direction);
+
+	if(d > pow(sphereRadius,2) && B < 0.0f)
+		return -1.0f;
+
+	float C = d - pow(sphereRadius,2);
+
+	float R = pow(B,2) - C;
+
+	if(R < 0.0f)
+		return -1.0f;
+
+	float Ti = 0.0f;
+
+	if(d > pow(sphereRadius,2))
+		Ti = B - sqrt(R);
+	else if(d < pow(sphereRadius,2))
+		Ti = B + sqrt(R);
+
+	return Ti;
+}
+
 // Casts a Ray and tests for intersections with the scenes geometry
 __device__ float3 RayCast(	Ray ray,								
 							// Triangle Dimensions
@@ -207,19 +262,20 @@ __device__ float3 RayCast(	Ray ray,
 
 		float hitTime = RayTriangleIntersection(ray, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
 
-		if(hitTime < hitRecord.time && hitTime > 0.001f) {
+		if(hitTime < hitRecord.time && hitTime > epsilon) {
 
 			hitRecord.time = hitTime; 
 			hitRecord.sphereIndex = -1;
 			hitRecord.triangleIndex = i;
 		}
 	}
+
 	// Search through the spheres and find the nearest hit point
 	for(int i = 0; i < sphereTotal; i++) {
 
 		float hitTime = RaySphereIntersection(ray, spherePositions[i], sphereRadius);
 
-		if(hitTime < hitRecord.time && hitTime > 0.001f) {
+		if(hitTime < hitRecord.time && hitTime > epsilon) {
 
 			hitRecord.time = hitTime; 
 			hitRecord.sphereIndex = i;
@@ -237,7 +293,6 @@ __device__ float3 RayCast(	Ray ray,
 
 		// Initialize the hit Color
 		hitRecord.color = make_float3(0.0f, 0.0f, 0.0f);
-
 		// Calculate the hit Triangle point
 		hitRecord.point = ray.origin + ray.direction * hitRecord.time;
 
@@ -275,111 +330,147 @@ __device__ float3 RayCast(	Ray ray,
 			hitRecord.normal = normalize(hitRecord.normal);
 		}
 
-		// Blinn-Phong Shading - START
+		// Blinn-Phong Shading (Soft Shadows - START)
+
+		// Material Properties
+		float4 diffuseColor;
+		float4 specularColor;
+
+		if(hitRecord.triangleIndex >= 0) {
+
+			// Triangle Material Properties
+			diffuseColor = tex1Dfetch(triangleDiffusePropertiesTexture, hitRecord.triangleIndex * 3);
+			specularColor = tex1Dfetch(triangleSpecularPropertiesTexture, hitRecord.triangleIndex * 3);
+
+			specularConstant = specularColor.w;
+			refractionConstant = diffuseColor.w;
+
+			//If using Textures
+
+			//float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
+			//float2 uv1 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 1);
+			//float2 uv2 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 2);
+
+			//float2 uv = (areaPBC / areaABC) * uv0 + (areaPCA / areaABC) * uv1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * uv2;
+
+			//uchar4 textureColor = tex2D(chessTexture, uv.x, uv.y);
+
+			//diffuseColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
+		}
+		else { //if(hitRecord.sphereIndex >= 0) {
+				
+			// Sphere Material Properties
+			diffuseColor = sphereDiffuses[hitRecord.sphereIndex];
+			specularColor = sphereSpeculars[hitRecord.sphereIndex];
+
+			specularConstant = specularColor.w;
+			refractionConstant = diffuseColor.w;
+		}
+
+		// Light Direction and Distance
 		float3 lightDirection = lightPosition - hitRecord.point;
 
 		float lightDistance = length(lightDirection);
 		lightDirection = normalize(lightDirection);
 
-		// Diffuse Factor
-		float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0f);
-		clamp(diffuseFactor, 0.0f, 1.0f);
+		// Light Direction perpendicular plane base vectors 
+		float3 lightPlaneAxisA;
+		float3 lightPlaneAxisB;
+		float3 w;
 
-		if(diffuseFactor > 0.0f) {
+		// Check which is the component with the smallest coeficient
+		float m = min(abs(lightDirection.x),max(abs(lightDirection.y),abs(lightDirection.z)));
 
-			bool shadow = false;
+		if(abs(lightDirection.x) == m) {
 
-			Ray shadowRay(hitRecord.point + lightDirection * 0.001, lightDirection);
+			w = make_float3(1.0f,0.0f,0.0f);
+		}
+		else if(abs(lightDirection.y) == m) {
+
+			w = make_float3(0.0f,1.0f,0.0f);
+		}
+		else { //if(abs(lightDirection.z) == m) {
+
+			w = make_float3(0.0f,0.0f,1.0f);
+		}
+
+		// Calculate the perpendicular plane base vectors
+		lightPlaneAxisA = cross(w, lightDirection);
+		lightPlaneAxisB = cross(lightDirection,lightPlaneAxisA);
+
+		// Shadow Grid for Soft Shadows
+		for(int i=0; i<shadowGridWidth; i++) {
+			for(int j=0; j<shadowGridHeight; j++) {
+
+				float3 interpolatedPosition = lightPosition + lightPlaneAxisA * (i-shadowGridHalfWidth) * shadowCellSize + lightPlaneAxisB * (j-shadowGridHalfHeight) * shadowCellSize;
+
+				float3 interpolatedDirection = interpolatedPosition - hitRecord.point;
+				interpolatedDirection = normalize(interpolatedDirection);
+
+				// Diffuse Factor
+				float diffuseFactor = max(dot(interpolatedDirection, hitRecord.normal), 0.0f);
+				clamp(diffuseFactor, 0.0f, 1.0f);
+
+				if(diffuseFactor > 0.0f) {
+
+					bool shadow = false;
+
+					Ray shadowRay(hitRecord.point + interpolatedDirection * epsilon, interpolatedDirection);
 			
-			// Test Shadow Rays for each Triangle
-			for(int i = 0; i < triangleTotal; i++) {
+					// Test Shadow Rays for each Triangle
+					for(int k = 0; k < triangleTotal; k++) {
 
-				float4 v0 = tex1Dfetch(trianglePositionsTexture, i * 3);
-				float4 e1 = tex1Dfetch(trianglePositionsTexture, i * 3 + 1);
-				e1 = e1 - v0;
-				float4 e2 = tex1Dfetch(trianglePositionsTexture, i * 3 + 2);
-				e2 = e2 - v0;
+						float4 v0 = tex1Dfetch(trianglePositionsTexture, k * 3);
+						float4 e1 = tex1Dfetch(trianglePositionsTexture, k * 3 + 1);
+						e1 = e1 - v0;
+						float4 e2 = tex1Dfetch(trianglePositionsTexture, k * 3 + 2);
+						e2 = e2 - v0;
 
-				float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+						float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
 
-				if(hitTime > 0.001f) {
+						if(hitTime > epsilon) {
 
-					shadow = true;
-					break;
+							shadow = true;
+							break;
+						}
+					}
+
+					// Test Shadow Rays for each Sphere
+					for(int k = 0; k < sphereTotal; k++) {
+
+						float hitTime = RaySphereIntersection(shadowRay, spherePositions[k], sphereRadius);
+
+						if(hitTime > epsilon) {
+
+							shadow = true;
+							break;
+						}
+					}
+
+					if(shadow == false) {
+
+						// Blinn-Phong approximation Halfway Vector
+						float3 halfwayVector = interpolatedDirection - ray.direction;
+						halfwayVector = normalize(halfwayVector);
+
+						// Light Attenuation
+						float lightAttenuation = 1.0f / (constantAttenuation + lightDistance * linearAttenuation + lightDistance * lightDistance * quadraticAttenuation);
+
+						// Diffuse Component
+						hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightAttenuation * shadowGridDimensionInverse;
+
+						// Specular Factor
+						float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0f), specularConstant);
+						clamp(specularFactor, 0.0f, 1.0f);
+
+						// Specular Component
+						if(specularFactor > 0.0f)
+							hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightAttenuation * shadowGridDimensionInverse;
+					}
 				}
-			}
-
-			// Test Shadow Rays for each Sphere
-			for(int i = 0; i < sphereTotal; i++) {
-
-				float hitTime = RaySphereIntersection(shadowRay, spherePositions[i], sphereRadius);
-
-				if(hitTime > 0.001f) {
-
-					shadow = true;
-					break;
-				}
-			}
-
-			// If there is no Triangle between the light source and the point hit
-			if(shadow == false) {
-
-				// Material Properties
-				float4 diffuseColor;
-				float4 specularColor;
-
-				if(hitRecord.triangleIndex >= 0) {
-
-					// Triangle Material Properties
-					diffuseColor = tex1Dfetch(triangleDiffusePropertiesTexture, hitRecord.triangleIndex * 3);
-					specularColor = tex1Dfetch(triangleSpecularPropertiesTexture, hitRecord.triangleIndex * 3);
-
-					specularConstant = specularColor.w;
-					refractionConstant = diffuseColor.w;
-
-					/* If using Textures
-
-					float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
-					float2 uv1 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 1);
-					float2 uv2 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 2);
-
-					float2 uv = (areaPBC / areaABC) * uv0 + (areaPCA / areaABC) * uv1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * uv2;
-
-					uchar4 textureColor = tex2D(chessTexture, uv.x, uv.y);
-
-					diffuseColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
-					*/
-				}
-				else {
-				
-					// Sphere Material Properties
-					diffuseColor = sphereDiffuses[hitRecord.sphereIndex];
-					specularColor = sphereSpeculars[hitRecord.sphereIndex];
-
-					specularConstant = specularColor.w;
-					refractionConstant = diffuseColor.w;
-				}
-				
-				// Blinn-Phong approximation Halfway Vector
-				float3 halfwayVector = lightDirection - ray.direction;
-				halfwayVector = normalize(halfwayVector);
-
-				// Light Attenuation
-				float lightAttenuation = 16.0f / lightDistance;
-
-				// Diffuse Component
-				hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightAttenuation;
-
-				// Specular Factor
-				float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0), specularConstant);
-				clamp(specularFactor, 0.0f, 1.0f);
-
-				// Specular Component
-				if(specularFactor > 0.0f)
-					hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightAttenuation;
 			}
 		}
-		// Blinn-Phong Shading - END
+		// Blinn-Phong Shading - END		
 
 		// If max depth wasn't reached yet
 		if(depth > 0)	{
@@ -391,7 +482,7 @@ __device__ float3 RayCast(	Ray ray,
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
 				// Cast the Reflected Ray
-				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * 0.001f, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25;
+				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25f;
 			}
 
 			// If the Object Hit is translucid
@@ -400,7 +491,7 @@ __device__ float3 RayCast(	Ray ray,
 				float newRefractionIndex;
 
 				if(refractionIndex == 1.0f)
-					newRefractionIndex = 0.75f;
+					newRefractionIndex = 1.50f;
 				else
 					newRefractionIndex = 1.0f;
 
@@ -408,21 +499,13 @@ __device__ float3 RayCast(	Ray ray,
 				float3 refractedDirection = refract(ray.direction, hitRecord.normal, refractionIndex / newRefractionIndex);
 
 				// Cast the Refracted Ray
-				hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * 0.001f, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f * pow(0.95f,depth-3);	//TODO
+				//if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
+					//hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.25f;
 			}
 		}
 	}
 
 	return hitRecord.color;
-}
-
-__device__ float3 test(unsigned int x, unsigned int y) {
-
-	uchar4 pixelColor = tex2D(chessTexture, x, y);
-
-	printf("Texture [%d,%d] = %d - %d - %d\n", x, y, pixelColor.x, pixelColor.y, pixelColor.z);
-
-	return make_float3((float)pixelColor.x / 255.0f, (float)pixelColor.y / 255.0f, (float)pixelColor.z / 255.0f);
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -445,7 +528,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	/* Ray Creation */
+	// Ray Creation
 	float3 rayOrigin = cameraPosition;
 	float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
 
@@ -456,9 +539,27 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
 
-	//float3 pixelColor = test(x,y);
+	//pixelBufferObject[y * width + x] = rgbToInt(0,0,0);
 
-	//pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
+	//Anti-Aliasing - 4x Super Sampling
+	/*for(int i=0; i<antiAliasingGridDimension; i++) {
+
+		for(int j=0; j<antiAliasingGridDimension; j++) {
+
+			// Ray Creation
+			float3 rayOrigin = cameraPosition - cameraRight * antiAliasingHalfAperture - cameraUp * antiAliasingHalfAperture;
+			rayOrigin += cameraRight * (i * antiAliasingAperture / antiAliasingGridDimension) + cameraUp * (j * antiAliasingAperture / antiAliasingGridDimension);
+
+			float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
+
+			// Ray used to store Origin and Direction information
+			Ray ray(rayOrigin, rayDirection);
+
+			float3 pixelColor = RayCast(ray, triangleTotal, depth, refractionIndex);
+
+			pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
+		}
+	}*/
 }
 
 extern "C" {

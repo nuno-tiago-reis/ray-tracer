@@ -101,11 +101,14 @@
       <AdditionalDependencies>freeglut.lib;glew32.lib;cudart.lib;cuda.lib;soil.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CudaCompile>
-      <FastMath>true</FastMath>
+      <FastMath>false</FastMath>
     </CudaCompile>
     <CudaCompile>
-      <Optimization>O3</Optimization>
+      <Optimization>Od</Optimization>
       <GenerateLineInfo>true</GenerateLineInfo>
+      <TargetMachinePlatform>32</TargetMachinePlatform>
+      <RuntimeChecks>RTC1</RuntimeChecks>
+      <TypeInfo>true</TypeInfo>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -1427,7 +1427,7 @@ inline __host__ __device__ float3 refract(float3 i, float3 n, float ior)
 	if (k < 0.0f)
 		return make_float3(0.0f);
 
-	return normalize( i * ior - n * (ior * dot(i, n) + sqrtf(k)));
+	return i * ior - n * (ior * dot(i, n) + sqrtf(k));
 }
 
 

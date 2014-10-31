@@ -15,7 +15,7 @@
 #include "Vector.h"
 
 /* Camera Radius */
-#define CAMERA_RADIUS 50.0f
+#define CAMERA_RADIUS 10.0f
 
 class Camera {
 
