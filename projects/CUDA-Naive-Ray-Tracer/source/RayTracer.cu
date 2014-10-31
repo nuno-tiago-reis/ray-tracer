@@ -31,13 +31,13 @@ __device__ const float sphereRadius = 5.0f;
 
 __device__ const float4 sphereDiffuses[] = {	{ 0.50754000f, 0.50754000f, 0.50754000f, 0.00f }, 
 												{ 0.75164000f, 0.60648000f, 0.22648000f, 0.00f }, 
-												{ 0.61424000f, 0.04136000f, 0.04136000f, 1.00f }, 
-												{ 0.07568000f, 0.61424000f, 0.07568000f, 1.00f } };
+												{ 0.61424000f, 0.04136000f, 0.04136000f, 0.00f }, 
+												{ 0.07568000f, 0.61424000f, 0.07568000f, 0.00f } };
 
-__device__ const float4 sphereSpeculars[] = {	{ 0.50827300f, 0.50827300f, 0.50827300f, 102.0f }, 
-												{ 0.62828100f, 0.55580200f, 0.36606500f, 102.0f }, 
-												{ 0.72781100f, 0.62695900f, 0.62695900f, 152.0f }, 
-												{ 0.63300000f, 0.72781100f, 0.63300000f, 152.0f } };
+__device__ const float4 sphereSpeculars[] = {	{ 0.50827300f, 0.50827300f, 0.50827300f, 155.0f }, 
+												{ 0.62828100f, 0.55580200f, 0.36606500f, 155.0f }, 
+												{ 0.72781100f, 0.62695900f, 0.62695900f, 155.0f }, 
+												{ 0.63300000f, 0.72781100f, 0.63300000f, 155.0f } };
 
 __device__ const float3 spherePositions[] = {	{  10.0f, -2.5f,  10.0f }, 
 												{ -10.0f, -2.5f,  10.0f }, 
@@ -68,9 +68,13 @@ __device__ const float shadowGridDimensionInverse = 1.0f/25.0f;
 __device__ const float shadowCellSize = 0.20f;
 
 // Anti-Aliasing Constants
-/*__device__ const int antiAliasingGridDimension = 4;
-__device__ const float antiAliasingAperture = 0.1f;
-__device__ const float antiAliasingHalfAperture = 0.05f;*/
+__device__ const int antiAliasingGridWidth = 2;
+__device__ const int antiAliasingGridHeight = 2;
+
+__device__ const int antiAliasingGridHalfWidth = 1;
+__device__ const int antiAliasingGridHalfHeight = 1;
+
+__device__ const float antiAliasingGridDimensionInverse = 1.0f/5.0f; //account for the center of the pixel too
 
 // Ray structure
 struct Ray {
@@ -500,7 +504,7 @@ __device__ float3 RayCast(	Ray ray,
 
 				// Cast the Refracted Ray
 				//if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
-					//hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.25f;
+					//hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f;
 			}
 		}
 	}
@@ -528,7 +532,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	// Ray Creation
+	/*// Ray Creation
 	float3 rayOrigin = cameraPosition;
 	float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
 
@@ -537,29 +541,37 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 	float3 pixelColor = RayCast(ray, triangleTotal, depth, refractionIndex);
 
-	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
+	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);*/
 
-	//pixelBufferObject[y * width + x] = rgbToInt(0,0,0);
+	float3 pixelColor = make_float3(0.0f);
 
 	//Anti-Aliasing - 4x Super Sampling
-	/*for(int i=0; i<antiAliasingGridDimension; i++) {
+	for(int i=0; i<antiAliasingGridWidth; i++) {
 
-		for(int j=0; j<antiAliasingGridDimension; j++) {
+		for(int j=0; j<antiAliasingGridHeight; j++) {
 
 			// Ray Creation
-			float3 rayOrigin = cameraPosition - cameraRight * antiAliasingHalfAperture - cameraUp * antiAliasingHalfAperture;
-			rayOrigin += cameraRight * (i * antiAliasingAperture / antiAliasingGridDimension) + cameraUp * (j * antiAliasingAperture / antiAliasingGridDimension);
-
-			float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
+			float3 rayOrigin = cameraPosition;
+			float3 rayDirection = cameraDirection + 
+				cameraRight * ((float)(x + i * 2 - antiAliasingGridHalfWidth) / (float)width - 0.5f) + cameraUp * ((float)(y + j * 2 - antiAliasingGridHalfHeight) / (float)height - 0.5f);
 
 			// Ray used to store Origin and Direction information
 			Ray ray(rayOrigin, rayDirection);
 
-			float3 pixelColor = RayCast(ray, triangleTotal, depth, refractionIndex);
-
-			pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
+			pixelColor += RayCast(ray, triangleTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
 		}
-	}*/
+	}
+
+	// Ray Creation
+	float3 rayOrigin = cameraPosition;
+	float3 rayDirection = cameraDirection + cameraRight * ((float)x / (float)width - 0.5f) + cameraUp * ((float)y / (float)height - 0.5f);
+
+	// Ray used to store Origin and Direction information
+	Ray ray(rayOrigin, rayDirection);
+
+	pixelColor += RayCast(ray, triangleTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
+
+	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
 }
 
 extern "C" {
