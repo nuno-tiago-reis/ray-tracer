@@ -18,7 +18,7 @@ string Mesh::getName() {
 	return this->name;
 }
 
-GLint Mesh::getVertexCount() {
+int Mesh::getVertexCount() {
 
 	return this->vertexCount;
 }
@@ -28,7 +28,7 @@ Vertex* Mesh::getVertices() {
 	return this->vertices;
 }
 
-Vertex Mesh::getVertex(GLint vertexID) {
+Vertex Mesh::getVertex(int vertexID) {
 
 	return this->vertices[vertexID];
 }
@@ -38,12 +38,12 @@ void Mesh::setName(string name) {
 	this->name = name;
 }
 
-void Mesh::setVertexCount(GLint vertexCount) {
+void Mesh::setVertexCount(int vertexCount) {
 
 	this->vertexCount = vertexCount;
 }
 
-void Mesh::setVertices(Vertex* vertices, GLint vertexCount) {
+void Mesh::setVertices(Vertex* vertices, int vertexCount) {
 
 	this->vertexCount = vertexCount;
 

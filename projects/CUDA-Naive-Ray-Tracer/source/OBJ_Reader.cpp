@@ -141,7 +141,7 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 
 	/* Final GPU-ready Structure */
 	Vertex *bufferVertices = new Vertex[faceNumber * 3];
-	GLint *bufferVerticesID = new GLint[faceNumber * 3];
+	int *bufferVerticesID = new int[faceNumber * 3];
 
 	/* Index Trackers */
 	int currentFace = 0;

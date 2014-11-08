@@ -1,6 +1,6 @@
 #include "Camera.h"
 
-Camera::Camera(int width, int height) {
+Camera::Camera(unsigned int width, unsigned int height) {
 
 	this->width = width;
 	this->height = height;
@@ -15,7 +15,7 @@ Camera::Camera(int width, int height) {
 Camera::~Camera() {
 }
 
-void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime) {
+void Camera::update(int zoom, int longitude, int latitude, float elapsedTime) {
 
 	/* Update the Zoom */
 	this->zoom -= zoom * 0.05f;
@@ -39,97 +39,111 @@ void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsed
 	else if(this->latitude < -360.0f) 
 		this->latitude += 360.0f;
 
+	// Re-Calculate the Cameras Eye Vector
 	this->eye[VX] = this->position[VX] + this->zoom * (CAMERA_RADIUS * cos(this->longitude * DEGREES_TO_RADIANS) - CAMERA_RADIUS * sin(this->longitude * DEGREES_TO_RADIANS));
 	this->eye[VY] = this->position[VY] + this->zoom *  CAMERA_RADIUS * cos(this->latitude * DEGREES_TO_RADIANS);
 	this->eye[VZ] = this->position[VZ] + this->zoom * (CAMERA_RADIUS * sin(this->longitude * DEGREES_TO_RADIANS) + CAMERA_RADIUS * cos(this->longitude * DEGREES_TO_RADIANS));
 	this->eye[VW] = 1.0f;
+	this->eye.clean();
 
+	// Re-Calculate the Cameras Target Vector
 	this->target[VX] = this->position[VX];
 	this->target[VY] = this->position[VY];
 	this->target[VZ] = this->position[VZ];
 	this->target[VW] = 1.0f;
+	this->target.clean();
 
+	// Re-Calculate the Cameras Up Vector
 	this->up[VX] = 0.0f;
 	this->up[VY] = 1.0f;
 	this->up[VZ] = 0.0f;
 	this->up[VW] = 1.0f;
-}
+	this->up.clean();
 
-void Camera::reshape(GLint width, GLint height) {
+	// Images Aspect Ratio 
+	float aspectRatio = (float)this->width / (float)this->height;
+	// Cameras distance to the target 
+	float distance = (this->target - this->eye).length();
 
-	this->width = width;
-	this->height = height;
-}
+	// Cameras Field of View 
+	float fieldOfView = this->fieldOfView;
+	// Projection Frustum Half-Width 
+	float theta = (fieldOfView * 0.5f) * DEGREES_TO_RADIANS;
+	float halfHeight = 2.0f * distance * tanf(theta);
+	float halfWidth = halfHeight * aspectRatio;
 
-Vector Camera::getPrimaryRay(GLfloat x, GLfloat y) {
-
-	Vector ze = target - eye;
-	GLfloat d =  ze.length();
-
-	GLfloat h = 2.0f * d * tan(fieldOfView * DEGREES_TO_RADIANS /2.0f);
-
-	GLfloat w = ((GLfloat)width / (GLfloat)height) * h;
-
-	ze.normalize();
-
-	Vector xe = Vector::crossProduct(ze,up);
-	xe.normalize();
-
-	Vector ye = Vector::crossProduct(xe, ze);
-	ye.normalize();
-
-	Vector direction =  ze * d + ye * h * (y / ((GLfloat)height) - 1.0f/2.0f)  + xe * w * (x / ((GLfloat)width) - 1.0f/2.0f);
+	// Re-Calculate the Cameras Direction Vector
+	direction = Vector(target[VX] - eye[VX], target[VY] - eye[VY], target[VZ] - eye[VZ], 1.0f);
 	direction.normalize();
+	direction = direction * distance;
 
-	return direction;
+	// Re-Calculate the Cameras Right Vector
+	right = Vector::crossProduct(direction, up);
+	right.normalize();
+	right = right * halfWidth;
+
+	// Re-Calculate the Cameras Up Vector
+	up = Vector::crossProduct(right, direction);
+	up.normalize();
+	up = up * halfHeight;
 }
 
-GLint Camera::getWidth() {
+unsigned int Camera::getWidth() {
 
 	return width;
 }
 
-GLint Camera::getHeight() {
+unsigned int Camera::getHeight() {
 
-	return height;
+	return this->height;
 }
 
-GLfloat Camera::getFieldOfView() {
+float Camera::getFieldOfView() {
 
-	return fieldOfView;
+	return this->fieldOfView;
 }
 
 Vector Camera::getPosition() {
 
-	return position;
+	return this->position;
 }
 
 Vector Camera::getTarget() {
 
-	return target;
+	return this->target;
 }
 
 Vector Camera::getEye() {
 
-	return eye;
+	return this->eye;
 }
 
 Vector Camera::getUp() {
 
-	return up;
+	return this->up;
 }
 
-void Camera::setWidth(GLint width) {
+Vector Camera::getRight() {
+
+	return this->right;
+}
+
+Vector Camera::getDirection() {
+
+		return this->direction;
+}
+
+void Camera::setWidth(unsigned int width) {
 	
 	this->width = width;
 }
 
-void Camera::setHeight(GLint height) {
+void Camera::setHeight(unsigned int height) {
 
 	this->height = height;
 }
 
-void Camera::setFieldOfView(GLfloat fieldOfView) {
+void Camera::setFieldOfView(float fieldOfView) {
 
 	this->fieldOfView = fieldOfView;
 }
@@ -154,16 +168,36 @@ void Camera::setUp(Vector up) {
 	this->up = up;
 }
 
+void Camera::setRight(Vector right) {
+
+	this->right = right;
+}
+
+void Camera::setDirection(Vector direction) {
+
+	this->direction = direction;
+}
+
 void Camera::dump() {
 
-	cout << "Debugging Camera" << endl;
+	cout << "<Camera Dump>" << endl;
  
-	cout << "\tWidth = " << width << endl;
-	cout << "\tHeight = " << height << endl;
+	/* Viewports Dimensions */
+	cout << "<Camera Width> = " << width << endl;
+	cout << "<Camera Height> = " << height << endl;
 
+	/* Cameras Field of View */
 	cout << "\tField of View = " << fieldOfView << endl;
- 
-	cout << "Target = "; target.dump();
-	cout << "Eye = "; eye.dump();
-	cout << "Up = "; up.dump();
+
+	/* Cameras Position Vector */
+	cout << "<Camera Position > = "; position.dump();
+
+	/* Cameras Direction Vectors */
+	cout << "<Camera Target > = "; target.dump();
+	cout << "<Camera Eye > = "; eye.dump();
+
+	/* Cameras Plane Vectors */
+	cout << "<Camera Up > = "; up.dump();
+	cout << "<Camera Right > = "; right.dump();
+	cout << "<Camera Direction > = "; direction.dump();
 }

@@ -1,6 +1,6 @@
 #include "Matrix.h"
 
-const GLfloat Matrix::threshold = (GLfloat)1.0e-5;
+const float Matrix::threshold = (float)1.0e-5;
 
 Matrix::Matrix() {
 
@@ -11,17 +11,17 @@ Matrix::Matrix(Quaternion quaternion) {
 	
 	quaternion.normalize();
 
-	GLfloat xt = quaternion[QX] * quaternion[QT];
-	GLfloat xx = quaternion[QX] * quaternion[QX];
-	GLfloat xy = quaternion[QX] * quaternion[QY];
-	GLfloat xz = quaternion[QX] * quaternion[QZ];
+	float xt = quaternion[QX] * quaternion[QT];
+	float xx = quaternion[QX] * quaternion[QX];
+	float xy = quaternion[QX] * quaternion[QY];
+	float xz = quaternion[QX] * quaternion[QZ];
 	
-	GLfloat yt = quaternion[QY] * quaternion[QT];
-	GLfloat yy = quaternion[QY] * quaternion[QY];
-	GLfloat yz = quaternion[QY] * quaternion[QZ];
+	float yt = quaternion[QY] * quaternion[QT];
+	float yy = quaternion[QY] * quaternion[QY];
+	float yz = quaternion[QY] * quaternion[QZ];
 
-	GLfloat zt = quaternion[QZ] * quaternion[QT];
-	GLfloat zz = quaternion[QZ] * quaternion[QZ];
+	float zt = quaternion[QZ] * quaternion[QT];
+	float zz = quaternion[QZ] * quaternion[QZ];
 
 	this->matrix[0][0] = 1.0f - 2.0f * (yy + zz);
 	this->matrix[0][1] = 2.0f * (xy + zt);
@@ -46,21 +46,21 @@ Matrix::Matrix(Quaternion quaternion) {
 	clean();
 }
 
-Matrix::Matrix(GLfloat initialValue) {
+Matrix::Matrix(float initialValue) {
 
 	for(int i=0; i<4; i++)
 		for(int j=0; j<4; j++)
 			this->matrix[i][j] = initialValue;
 }
 
-Matrix::Matrix(const GLfloat initialValue[16]) {
+Matrix::Matrix(const float initialValue[16]) {
 
 	for(int i=0; i<16; i++)
 		this->matrix[i/4][i%4] = initialValue[i];
 }
 
 
-Matrix::Matrix(const GLfloat initialValue[4][4]) {
+Matrix::Matrix(const float initialValue[4][4]) {
 
 	for(int i=0; i<4; i++)
 		for(int j=0; j<4; j++)
@@ -93,7 +93,7 @@ void Matrix::scale(Vector scaleVector) {
 	scale(scaleVector[VX], scaleVector[VY], scaleVector[VZ]);
 }
 
-void Matrix::scale(GLfloat xScale, GLfloat yScale, GLfloat zScale) {
+void Matrix::scale(float xScale, float yScale, float zScale) {
 
 	Matrix scaleMatrix;
 
@@ -109,7 +109,7 @@ void Matrix::translate(Vector translationVector) {
 	translate(translationVector[VX], translationVector[VY], translationVector[VZ]);
 }
 
-void Matrix::translate(GLfloat xCoordinate, GLfloat yCoordinate, GLfloat zCoordinate) {
+void Matrix::translate(float xCoordinate, float yCoordinate, float zCoordinate) {
 
 	Matrix translationMatrix;
 
@@ -127,15 +127,15 @@ void Matrix::removeTranslation() {
 	this->matrix[2][3] = 0.0f;
 }
 
-void Matrix::rotate(GLfloat angle, GLfloat xRotation, GLfloat yRotation, GLfloat zRotation) {
+void Matrix::rotate(float angle, float xRotation, float yRotation, float zRotation) {
 
 	Matrix rotationMatrix;
 	Matrix xRotationMatrix;
 	Matrix yRotationMatrix;
 	Matrix zRotationMatrix;
 
-	GLfloat cos_angle = cos(angle * (GLfloat)DEGREES_TO_RADIANS);
-	GLfloat sin_angle = sin(angle * (GLfloat)DEGREES_TO_RADIANS);
+	float cos_angle = cos(angle * (float)DEGREES_TO_RADIANS);
+	float sin_angle = sin(angle * (float)DEGREES_TO_RADIANS);
 
 	if(xRotation > 0) {
 
@@ -194,8 +194,8 @@ void Matrix::transpose() {
 
 void Matrix::invert() {
 
-	GLfloat determinant;
-	GLfloat inverseMatrix[16];
+	float determinant;
+	float inverseMatrix[16];
 
 	inverseMatrix[0] =	(*this)[5]  * (*this)[10] * (*this)[15] - 
 						(*this)[5]  * (*this)[11] * (*this)[14] - 
@@ -353,7 +353,7 @@ void Matrix::setView(Vector eye, Vector target, Vector userUp) {
 	(*this) *= view;
 }
 
-void Matrix::setOrthogonalProjection(GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat nearZ, GLfloat farZ) {
+void Matrix::setOrthogonalProjection(float left, float right, float top, float bottom, float nearZ, float farZ) {
 
 	Matrix orthogonalProjection;
 
@@ -368,12 +368,12 @@ void Matrix::setOrthogonalProjection(GLfloat left, GLfloat right, GLfloat top, G
 	(*this) *= orthogonalProjection;
 }
 
-void Matrix::setPerspectiveProjection(GLfloat fieldOfView, GLfloat aspectRatio, GLfloat nearZ, GLfloat farZ) {
+void Matrix::setPerspectiveProjection(float fieldOfView, float aspectRatio, float nearZ, float farZ) {
 
 	Matrix perspectiveProjection;
 
-	GLfloat fieldOfViewRad = (GLfloat)(fieldOfView*DEGREES_TO_RADIANS);
-	GLfloat cotangent = 1/tan(fieldOfViewRad/2.0f);
+	float fieldOfViewRad = (float)(fieldOfView*DEGREES_TO_RADIANS);
+	float cotangent = 1/tan(fieldOfViewRad/2.0f);
 
 	perspectiveProjection.setValue(0,0, cotangent/aspectRatio);
 	perspectiveProjection.setValue(1,1, cotangent);
@@ -386,30 +386,30 @@ void Matrix::setPerspectiveProjection(GLfloat fieldOfView, GLfloat aspectRatio, 
 	(*this) *= perspectiveProjection;
 }
 
-void Matrix::getValue(GLfloat* matrix) {
+void Matrix::getValue(float* matrix) {
 	
 	for(int i=0; i<4; i++)
 		for(int j=0; j<4; j++)
 			matrix[i*4+j] = this->matrix[i][j];
 }
 
-GLfloat Matrix::getValue(int row, int column) {
+float Matrix::getValue(int row, int column) {
 
 	return this->matrix[row][column];
 }
 
-void Matrix::setValue(const GLfloat value[16]) {
+void Matrix::setValue(const float value[16]) {
 
 	for(int i=0; i<16; i++)
 		this->matrix[i/4][i%4] = value[i];
 }
 
-void Matrix::setValue(int row, int column, GLfloat value) {
+void Matrix::setValue(int row, int column, float value) {
 
 	this->matrix[row][column] = value;
 }
 
-GLfloat& Matrix::operator [] (int position) {
+float& Matrix::operator [] (int position) {
 
 	return this->matrix[position/4][position%4];
 }
@@ -442,7 +442,7 @@ Matrix Matrix::operator * (Matrix matrix) {
 	
 	Matrix multiplication;
 
-	GLfloat accumulator = 0.0f;
+	float accumulator = 0.0f;
 
 	for(int i=0; i<16; i++) {
 
@@ -461,7 +461,7 @@ Matrix Matrix::operator *= (Matrix matrix){
 
 	Matrix multiplication;
 
-	GLfloat accumulator = 0.0f;
+	float accumulator = 0.0f;
 
 	for(int i=0; i<16; i++) {
 
@@ -482,7 +482,7 @@ Vector Matrix::operator * (Vector vector) {
 
 	Vector temporary = vector;
 
-	GLfloat accumulator = 0.0f;
+	float accumulator = 0.0f;
 
 	for(int i=0; i<4; i++) {
 

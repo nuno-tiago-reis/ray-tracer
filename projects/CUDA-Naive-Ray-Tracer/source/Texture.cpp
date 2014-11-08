@@ -33,7 +33,7 @@ void Texture::setName(string name) {
 	this->name = name;
 }
 
-void Texture::setHandler(GLuint handler) {
+void Texture::setHandler(unsigned int handler) {
 
 	this->handler = handler;
 }

@@ -111,7 +111,7 @@ bool MouseHandler::wasButtonPressed(int button) {
 
 int MouseHandler::getLongitude(int button) {
 
-	GLint longitude = this->currentLongitudeMap[button] - this->oldLongitudeMap[button];
+	int longitude = this->currentLongitudeMap[button] - this->oldLongitudeMap[button];
 
 	this->oldLongitudeMap[button] = this->currentLongitudeMap[button];
 
@@ -120,7 +120,7 @@ int MouseHandler::getLongitude(int button) {
 
 int MouseHandler::getLatitude(int button) {
 
-	GLint latitude =  this->currentLatitudeMap[button] - this->oldLatitudeMap[button];
+	int latitude =  this->currentLatitudeMap[button] - this->oldLatitudeMap[button];
 
 	this->oldLatitudeMap[button] = this->currentLatitudeMap[button];
 
@@ -129,7 +129,7 @@ int MouseHandler::getLatitude(int button) {
 
 int MouseHandler::getMouseWheelPosition() { 
 
-	GLint position = this->mouseWheelPosition;
+	int position = this->mouseWheelPosition;
 
 	this->mouseWheelPosition = 0;
 
@@ -138,7 +138,7 @@ int MouseHandler::getMouseWheelPosition() {
 
 int* MouseHandler::getMouseClickPosition(int button) {
 
-	GLint *position = new int[2];
+	int *position = new int[2];
 
 	position[0] = this->currentLongitudeMap[button];
 	position[1] = this->currentLatitudeMap[button];

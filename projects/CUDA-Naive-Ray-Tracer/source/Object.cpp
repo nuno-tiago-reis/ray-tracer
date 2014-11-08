@@ -24,7 +24,7 @@ void Object::update() {
 	this->transform->update();
 }
 
-void Object::update(GLfloat elapsedTime) {
+void Object::update(float elapsedTime) {
 
 	this->transform->update(elapsedTime);
 }

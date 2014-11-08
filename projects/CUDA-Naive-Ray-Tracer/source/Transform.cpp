@@ -18,9 +18,9 @@ Transform::Transform(string name) {
 	/* Initialize the Transforms Rotation and Rotation Quaternion */
 	this->rotation = Vector(0.0f, 0.0f, 0.0f, 1.0f);
 
-	GLfloat xAxis[] = { 1.0f, 0.0f, 0.0f, 1.0f };
-	GLfloat yAxis[] = { 0.0f, 1.0f, 0.0f, 1.0f };
-	GLfloat zAxis[] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	float xAxis[] = { 1.0f, 0.0f, 0.0f, 1.0f };
+	float yAxis[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+	float zAxis[] = { 0.0f, 0.0f, 1.0f, 1.0f };
 
 	Quaternion xQuaternion(this->rotation[0],xAxis);
 	Quaternion yQuaternion(this->rotation[1],yAxis);
@@ -46,7 +46,7 @@ void Transform::update() {
 	this->modelMatrix.scale(this->scale);
 }
 
-void Transform::update(GLfloat elapsedTime) {
+void Transform::update(float elapsedTime) {
 
 	/* Update Position */
 	for(int i=0; i<3; i++)
@@ -129,9 +129,9 @@ void Transform::setRotation(Vector rotation) {
 
 	this->rotation = rotation;
 
-	GLfloat xAxis[] = { 1.0f, 0.0f, 0.0f, 1.0f };
-	GLfloat yAxis[] = { 0.0f, 1.0f, 0.0f, 1.0f };
-	GLfloat zAxis[] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	float xAxis[] = { 1.0f, 0.0f, 0.0f, 1.0f };
+	float yAxis[] = { 0.0f, 1.0f, 0.0f, 1.0f };
+	float zAxis[] = { 0.0f, 0.0f, 1.0f, 1.0f };
 
 	Quaternion xQuaternion(this->rotation[0],xAxis);
 	Quaternion yQuaternion(this->rotation[1],yAxis);

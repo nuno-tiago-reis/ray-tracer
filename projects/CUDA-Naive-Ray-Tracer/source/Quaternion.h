@@ -34,21 +34,21 @@ class Quaternion {
 	private:
 
 		/* Quaternion Content */
-		GLfloat quaternion[4];
+		float quaternion[4];
 
 	public:
 
-		static const GLfloat threshold;
+		static const float threshold;
 		
 		/* Constructors & Destructors */
 		Quaternion();
-		Quaternion(GLfloat* initialValue);
-		Quaternion(GLfloat theta, Vector axis);
+		Quaternion(float* initialValue);
+		Quaternion(float theta, Vector axis);
 
 		~Quaternion();
 
 		/* Quaternion Conversions */
-		void toAngle(GLfloat* theta, Vector* axis);		
+		void toAngle(float* theta, Vector* axis);		
 
 		/* Quaternion Transformations */
 		void clean();
@@ -59,29 +59,29 @@ class Quaternion {
 
 		void normalize();
 
-		GLfloat norm();
+		float norm();
 
-		GLfloat quadrance();
+		float quadrance();
 
 		/* Getters */
-		void getValue(GLfloat* quaternion);
+		void getValue(float* quaternion);
 
 		/* Setters */
-		void setValue(const GLfloat value[4]);
+		void setValue(const float value[4]);
 
 		/* Quaternion Operations */
-		void lerp(Quaternion quaternion, GLfloat k);
-		void slerp(Quaternion quaternion, GLfloat k);
+		void lerp(Quaternion quaternion, float k);
+		void slerp(Quaternion quaternion, float k);
 
-		GLfloat& operator[] (int position);
+		float& operator[] (int position);
 
 		Quaternion operator +  (Quaternion quaternion);
 		Quaternion operator += (Quaternion quaternion);
 		Quaternion operator *  (Quaternion quaternion);
 		Quaternion operator *= (Quaternion quaternion);
 
-		Quaternion operator *  (GLfloat scalar);
-		Quaternion operator *= (GLfloat scalar);
+		Quaternion operator *  (float scalar);
+		Quaternion operator *= (float scalar);
 
 		bool operator == (Quaternion quaternion);
 

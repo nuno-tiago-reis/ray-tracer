@@ -18,7 +18,7 @@ texture<float2, 1, cudaReadModeElementType> triangleTextureCoordinatesTexture;
 texture<float4, 1, cudaReadModeElementType> triangleDiffusePropertiesTexture;
 texture<float4, 1, cudaReadModeElementType> triangleSpecularPropertiesTexture;
 
-texture<uchar4, cudaTextureType2D, cudaReadModeElementType> chessTexture;
+texture<uchar4, cudaTextureType2D, cudaReadModeElementType> shadingTexture;
 
 const int initialDepth = 3;
 
@@ -359,7 +359,7 @@ __device__ float3 RayCast(	Ray ray,
 
 			//float2 uv = (areaPBC / areaABC) * uv0 + (areaPCA / areaABC) * uv1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * uv2;
 
-			//uchar4 textureColor = tex2D(chessTexture, uv.x, uv.y);
+			//uchar4 textureColor = tex2D(shadingTexture, uv.x, uv.y);
 
 			//diffuseColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
 		}
@@ -526,10 +526,8 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 								// Medium Refraction Index
 								const float refractionIndex,
 								// Camera Definitions
-								const float3 cameraRight, 
-								const float3 cameraUp, 
-								const float3 cameraDirection,
-								const float3 cameraPosition) {
+								const float3 cameraPosition, 
+								const float3 cameraUp, const float3 cameraRight, const float3 cameraDirection) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -582,8 +580,9 @@ extern "C" {
 	void RayTraceWrapper(unsigned int *outputPixelBufferObject,
 								int width, int height, 
 								int triangleTotal,
-								float3 cameraRight, float3 cameraUp, float3 cameraDirection,
-								float3 cameraPosition) {
+								float3 cameraPosition,
+								float3 cameraUp, float3 cameraRight, float3 cameraDirection
+								) {
 
 		dim3 block(8,8,1);
 		dim3 grid(width/block.x,height/block.y, 1);
@@ -593,8 +592,8 @@ extern "C" {
 										triangleTotal,
 										initialDepth,
 										initialRefractionIndex,
-										cameraRight, cameraUp, cameraDirection,
-										cameraPosition);
+										cameraPosition,
+										cameraUp, cameraRight, cameraDirection);
 	}
 
 	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal) {
@@ -671,12 +670,12 @@ extern "C" {
 
 	void bindTextureArray(cudaArray *cudaArray) {
 
-		chessTexture.normalized = true;                     // access with normalized texture coordinates
-		chessTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
-		chessTexture.addressMode[0] = cudaAddressModeWrap;  // wrap texture coordinates
-		chessTexture.addressMode[1] = cudaAddressModeWrap;  // wrap texture coordinates
+		shadingTexture.normalized = true;						// access with normalized texture coordinates
+		shadingTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		shadingTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		shadingTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<uchar4>();
-		cudaBindTextureToArray(chessTexture, cudaArray, channelDescriptor);
+		cudaBindTextureToArray(shadingTexture, cudaArray, channelDescriptor);
 	}
 }

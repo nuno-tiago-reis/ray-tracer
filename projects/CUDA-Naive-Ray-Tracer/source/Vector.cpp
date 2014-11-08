@@ -1,6 +1,6 @@
 #include "Vector.h"
 
-const GLfloat Vector::threshold = (GLfloat)1.0e-5;
+const float Vector::threshold = (float)1.0e-5;
 
 Vector::Vector() {
 
@@ -10,7 +10,7 @@ Vector::Vector() {
 	this->vector[VW] = 1.0f;
 }
 
-Vector::Vector(GLfloat initialValue) {
+Vector::Vector(float initialValue) {
 
 	for(int i=0; i<3; i++)
 		this->vector[i] = initialValue;
@@ -18,13 +18,13 @@ Vector::Vector(GLfloat initialValue) {
 	this->vector[VW] = 1.0f;
 }
 
-Vector::Vector(const GLfloat initialValue[4]) {
+Vector::Vector(const float initialValue[4]) {
 
 	for(int i=0; i<4; i++)
 		this->vector[i] = initialValue[i];
 }
 
-Vector::Vector(GLfloat x, GLfloat y, GLfloat z, GLfloat w) {
+Vector::Vector(float x, float y, float z, float w) {
 
 	this->vector[VX] = x;
 	this->vector[VY] = y;
@@ -62,7 +62,7 @@ void Vector::negate() {
 
 void Vector::normalize() {
 	
-	GLfloat magnitude = sqrt(dotProduct(*this,*this));
+	float magnitude = sqrt(dotProduct(*this,*this));
 
 	if(magnitude == 0)
 		return;
@@ -73,7 +73,7 @@ void Vector::normalize() {
 	this->vector[VW] = 1.0f;
 }
 
-GLfloat Vector::length() {
+float Vector::length() {
 
 	return sqrt(dotProduct(*this,*this));
 }
@@ -102,9 +102,9 @@ Vector Vector::crossProduct(Vector u, Vector v) {
 	return crossProduct; 
 }
 
-GLfloat Vector::dotProduct(Vector u, Vector v) {
+float Vector::dotProduct(Vector u, Vector v) {
 
-	GLfloat internalProduct = 0.0f;
+	float internalProduct = 0.0f;
 
 	for(int i=0; i<3; i++)
 		internalProduct += u[i] * v[i];
@@ -112,19 +112,19 @@ GLfloat Vector::dotProduct(Vector u, Vector v) {
 	return internalProduct; 
 }
 
-void Vector::getValue(GLfloat* vector) {
+void Vector::getValue(float* vector) {
 
 	for(int i=0; i<4; i++)
 		vector[i] = this->vector[i];
 }
 
-void Vector::setValue(const GLfloat value[4]) {
+void Vector::setValue(const float value[4]) {
 
 	for(int i=0; i<3; i++)
 		this->vector[i] = value[i];
 }
 
-GLfloat& Vector::operator [] (int position){
+float& Vector::operator [] (int position){
 
 	return this->vector[position];
 }
@@ -185,7 +185,7 @@ Vector Vector::operator-= (Vector vector) {
 	return (*this);
 }
 
-Vector Vector::operator * (GLfloat scalar) {
+Vector Vector::operator * (float scalar) {
 
 	Vector result;
 
@@ -197,7 +197,7 @@ Vector Vector::operator * (GLfloat scalar) {
 	return result;
 }
 
-Vector Vector::operator *= (GLfloat scalar) {
+Vector Vector::operator *= (float scalar) {
 
 	for(int i=0; i<3; i++)
 		this->vector[i] *= scalar;

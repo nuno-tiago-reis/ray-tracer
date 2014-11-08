@@ -54,21 +54,21 @@ class Matrix {
 	private:
 
 		/* Matrix Content */
-		GLfloat matrix[4][4];
+		float matrix[4][4];
 
 	public:
 
-		static const GLfloat threshold;
+		static const float threshold;
 		
 		/* Constructors & Destructors */
 		Matrix();
 		Matrix(Quaternion quaternion);
-		Matrix(GLfloat initialValue);
-		Matrix(const GLfloat initialValue[16]);
-		Matrix(const GLfloat initialValue[4][4]);
+		Matrix(float initialValue);
+		Matrix(const float initialValue[16]);
+		Matrix(const float initialValue[4][4]);
 
 		/* View Matrix Constructor */
-		Matrix(const GLfloat xAxis[3], const GLfloat yAxis[3], const GLfloat zAxis[3]);	
+		Matrix(const float xAxis[3], const float yAxis[3], const float zAxis[3]);	
 
 		~Matrix();
 
@@ -78,12 +78,12 @@ class Matrix {
 
 		/* Graphical Transformations */
 		void scale(Vector scaleVector);
-		void scale(GLfloat xScale, GLfloat yScale, GLfloat zScale);
+		void scale(float xScale, float yScale, float zScale);
 
-		void rotate(GLfloat angle, GLfloat xRotation, GLfloat yRotation, GLfloat zRotation);
+		void rotate(float angle, float xRotation, float yRotation, float zRotation);
 
 		void translate(Vector transationVector);
-		void translate(GLfloat xTranslation, GLfloat yTranslation, GLfloat zTranslation);
+		void translate(float xTranslation, float yTranslation, float zTranslation);
 
 		void removeTranslation();
 
@@ -93,19 +93,19 @@ class Matrix {
 
 		/* Camera Transformations */
 		void setView(Vector eye, Vector center, Vector userUp);
-		void setOrthogonalProjection(GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat nearZ, GLfloat farZ);
-		void setPerspectiveProjection(GLfloat fieldOfView, GLfloat aspectRatio, GLfloat nearZ, GLfloat farZ);
+		void setOrthogonalProjection(float left, float right, float top, float bottom, float nearZ, float farZ);
+		void setPerspectiveProjection(float fieldOfView, float aspectRatio, float nearZ, float farZ);
 
 		/* Getters */
-		void getValue(GLfloat* matrix);
-		GLfloat getValue(int row, int column);
+		void getValue(float* matrix);
+		float getValue(int row, int column);
 
 		/* Setters */
-		void setValue(const GLfloat value[16]);
-		void setValue(int row, int column, GLfloat value);
+		void setValue(const float value[16]);
+		void setValue(int row, int column, float value);
 
 		/* Operators */
-		GLfloat& operator[] (int position);
+		float& operator[] (int position);
 
 		Matrix operator +  (Matrix matrix);
 		Matrix operator += (Matrix matrix);

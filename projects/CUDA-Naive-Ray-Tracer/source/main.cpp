@@ -48,8 +48,8 @@ using namespace std;
 extern "C" void RayTraceWrapper(unsigned int *outputPixelBufferObject, 
 								int width, int height, 
 								int triangleTotal,
-								float3 cameraRight, float3 cameraUp, float3 cameraDirection,
-								float3 cameraPosition);
+								float3 cameraPosition,
+								float3 cameraUp, float3 cameraRight, float3 cameraDirection);
 
 // Implementation of bindTrianglePositions is in the "RayTracer.cu" file
 extern "C" void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal);
@@ -521,7 +521,7 @@ void mouseWheelListener(int button, int direction, int x, int y)  {
 } 
 
 // Manages the Mouse Input 
-void readMouse(GLfloat elapsedTime) {
+void readMouse(float elapsedTime) {
 
 	MouseHandler* handler = MouseHandler::getInstance();
 
@@ -534,7 +534,7 @@ void readMouse(GLfloat elapsedTime) {
 }
 
 // Manages the Keyboard Input 
-void readKeyboard(GLfloat elapsedTime) {
+void readKeyboard(float elapsedTime) {
 
 	KeyboardHandler* handler = KeyboardHandler::getInstance();
 
@@ -543,9 +543,9 @@ void readKeyboard(GLfloat elapsedTime) {
 
 	handler->disableKeyboard();
 
-	GLint zoom = 0;
-	GLint longitude = 0;
-	GLint latitude = 0;
+	int zoom = 0;
+	int longitude = 0;
+	int latitude = 0;
 
 	/* Camera Buttons */
 	if(handler->isSpecialKeyPressed(GLUT_KEY_LEFT) && handler->wasSpecialKeyPressed(GLUT_KEY_LEFT) == true) {
@@ -688,42 +688,11 @@ void cleanup() {
 
 void rayTrace() {
 
-	// Camera defining Vectors 
+	Vector position = camera->getEye();
+	
 	Vector up = camera->getUp();
-	up.clean();
-	Vector eye = camera->getEye();
-	eye.clean();
-	Vector target = camera->getTarget();
-	target.clean();
-
-	// Images Aspect Ratio 
-	float aspectRatio = (float)windowWidth / (float)windowHeight;
-	// Cameras distance to the target 
-	float distance = (target - eye).length();
-	// Cameras Field of View 
-	float fieldOfView = camera->getFieldOfView();
-	// Projection Frustum Half-Width 
-	float theta = (fieldOfView * 0.5f) * DEGREES_TO_RADIANS;
-	float halfHeight = 2.0f * distance * tanf(theta);
-	float halfWidth = halfHeight * aspectRatio;
-
-	// Camera Position and Direction 
-	float3 cameraPosition = make_float3(eye[VX], eye[VY], eye[VZ]);
-	float3 cameraDirection = make_float3(target[VX] - eye[VX], target[VY] - eye[VY], target[VZ] - eye[VZ]);
-	cameraDirection = normalize(cameraDirection);
-	cameraDirection = distance * cameraDirection;
-
-	// Camera Right and Up 
-	float3 cameraUp = make_float3(up[VX], up[VY], up[VZ]);
-	cameraUp = normalize(cameraUp);
-
-	float3 cameraRight = cross(cameraDirection, cameraUp);
-	cameraRight = normalize(cameraRight);
-	cameraRight = halfWidth * cameraRight;
-
-	cameraUp = cross(cameraRight, cameraDirection);
-	cameraUp = normalize(cameraUp);
-	cameraUp = halfHeight * cameraUp;
+	Vector right = camera->getRight();
+	Vector direction = camera->getDirection();
 
 	// Map the necessary CUDA Resources
 	bufferObject->mapCudaResource();
@@ -740,8 +709,8 @@ void rayTrace() {
 	RayTraceWrapper(bufferObjectDevicePointer,
 		windowWidth, windowHeight, 
 		triangleTotal,
-		cameraRight, cameraUp, cameraDirection, 
-		cameraPosition);
+		make_float3(position[VX], position[VY], position[VZ]),
+		make_float3(up[VX], up[VY], up[VZ]), make_float3(right[VX], right[VY], right[VZ]), make_float3(direction[VX], direction[VY], direction[VZ]));
 
 	// Unmap the used CUDA Resources
 	bufferObject->unmapCudaResource();

@@ -34,26 +34,26 @@
 
 typedef struct {
 
-	GLfloat ambient[3];
-	GLfloat diffuse[3];
-	GLfloat specular[3];
+	float ambient[3];
+	float diffuse[3];
+	float specular[3];
 
-	GLfloat specularConstant;
+	float specularConstant;
 
 } MaterialStruct;
 
 typedef struct {
 
-	GLfloat x;
-	GLfloat y;
-	GLfloat z;
+	float x;
+	float y;
+	float z;
 
 } Coordinate3D;
 
 typedef struct {
 
-	GLfloat u;
-	GLfloat v;
+	float u;
+	float v;
 
 } Coordinate2D;
 

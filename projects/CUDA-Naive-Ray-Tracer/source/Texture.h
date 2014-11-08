@@ -54,7 +54,7 @@ class Texture {
 		/* Setters */
 		void setName(string name);
 
-		void setHandler(GLuint handler);
+		void setHandler(unsigned int handler);
 
 		/* Debug Methods */
 		void dump();

@@ -21,65 +21,69 @@ class Camera {
 
 	private:
 
-		/* Viewport Width & Height */
-		GLint width;
-		GLint height;
+		/* Viewports Dimensions */
+		unsigned int width;
+		unsigned int height;
 
-		/* Camera Position */
-		GLfloat fieldOfView;
+		/* Cameras Field of View */
+		float fieldOfView;
 
-		/* Camera Zoom */
-		GLfloat zoom;
-
+		/* Cameras Zoom */
+		float zoom;
 		/* Camera Spherical Coordinates */
-		GLfloat longitude;
-		GLfloat latitude;
+		float longitude;
+		float latitude;
 
 		/* Camera Position */
 		Vector position;
 
-		/* Look At Vectors */
+		/* Camera Direction Vectors */
 		Vector target;
 		Vector eye;
+
+		/* Camera Plane Vectors */
 		Vector up;
+		Vector right;
+		Vector direction;
 
 	public:
 
 		/* Constructors & Destructors */
-		Camera(int width, int height);
+		Camera(unsigned int  width, unsigned int  height);
 		~Camera();
 
 		/* Camera Methods */
-		void update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime);
-
-		void reshape(GLint width, GLint height);
-
-		/* Ray-Tracing Methods */
-		Vector getPrimaryRay(GLfloat x, GLfloat y);
+		void update(int zoom, int longitude, int latitude, float elapsedTime);
 
 		/* Getters */
-		GLint getWidth();
-		GLint getHeight();
+		unsigned int getWidth();
+		unsigned int getHeight();
 
-		GLfloat getFieldOfView();
+		float getFieldOfView();
 
 		Vector getPosition();
 
 		Vector getTarget();
 		Vector getEye();
+
 		Vector getUp();
+		Vector getRight();
+		Vector getDirection();
 
 		/* Setters */
-		void setWidth(GLint width);
-		void setHeight(GLint height);
+		void setWidth(unsigned int width);
+		void setHeight(unsigned int height);
 
-		void setFieldOfView(GLfloat fov);
+		void setFieldOfView(float fieldOfView);
 
 		void setPosition(Vector position);
 
 		void setTarget(Vector target);
 		void setEye(Vector eye);
+
 		void setUp(Vector up);
+		void setRight(Vector right);
+		void setDirection(Vector direction);
 
 		/* Debug Methods */
 		void dump();

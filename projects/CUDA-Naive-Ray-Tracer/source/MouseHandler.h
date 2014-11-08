@@ -28,7 +28,7 @@ class MouseHandler {
 		bool mouseEnabled;
 
 		/* Mouse Wheel Position */
-		GLint mouseWheelPosition;
+		int mouseWheelPosition;
 
 		/* Pressed Button Maps */
 		map<int, bool> currentButtonMap;

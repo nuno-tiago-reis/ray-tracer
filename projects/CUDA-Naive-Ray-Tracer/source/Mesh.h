@@ -19,16 +19,16 @@
 
 typedef struct {
 
-	GLfloat position[4];
+	float position[4];
 	
-	GLfloat normal[4];
-	GLfloat tangent[4];
-	GLfloat textureUV[2];
+	float normal[4];
+	float tangent[4];
+	float textureUV[2];
 
-	GLfloat ambient[4];
-	GLfloat diffuse[4];
-	GLfloat specular[4];
-	GLfloat specularConstant;
+	float ambient[4];
+	float diffuse[4];
+	float specular[4];
+	float specularConstant;
 
 } Vertex;
 
@@ -42,7 +42,7 @@ class Mesh {
 		string name;
 
 		/* Meshes Vertex Attributes */
-		GLint vertexCount;
+		int vertexCount;
 		Vertex* vertices;
 
 	public:
@@ -58,16 +58,16 @@ class Mesh {
 		/* Getters */
 		string getName();
 
-		GLint getVertexCount();
+		int getVertexCount();
 		Vertex* getVertices();
 
-		Vertex getVertex(GLint vertexID);
+		Vertex getVertex(int vertexID);
 
 		/* Setters */
 		void setName(string name);
 
-		void setVertexCount(GLint vertexCount);
-		void setVertices(Vertex* vertices, GLint vertexCount);
+		void setVertexCount(int vertexCount);
+		void setVertices(Vertex* vertices, int vertexCount);
 
 		/* Debug Methods */
 		void dump();

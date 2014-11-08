@@ -42,7 +42,7 @@ class Object {
 
 		/* Scene Methods */
 		virtual void update();
-		virtual void update(GLfloat elapsedTime);
+		virtual void update(float elapsedTime);
 
 		/* Getters */
 		string getName();

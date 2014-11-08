@@ -1,6 +1,6 @@
 #include "Quaternion.h"
 
-const GLfloat Quaternion::threshold = (GLfloat)1.0e-5;
+const float Quaternion::threshold = (float)1.0e-5;
 
 Quaternion::Quaternion() {
 
@@ -10,7 +10,7 @@ Quaternion::Quaternion() {
 	this->quaternion[QZ] = 0.0f;
 }
 
-Quaternion::Quaternion(GLfloat* initialValue) {
+Quaternion::Quaternion(float* initialValue) {
 
 	for(int i=0; i<4; i++)
 		this->quaternion[i] = initialValue[i];
@@ -19,12 +19,12 @@ Quaternion::Quaternion(GLfloat* initialValue) {
 	normalize();
 }
 
-Quaternion::Quaternion(GLfloat theta, Vector axis) {
+Quaternion::Quaternion(float theta, Vector axis) {
 
 	axis.normalize();
 
-	GLfloat a = theta * (GLfloat)DEGREES_TO_RADIANS;
-	GLfloat scalar = sin(a / 2.0f);
+	float a = theta * (float)DEGREES_TO_RADIANS;
+	float scalar = sin(a / 2.0f);
 
 	this->quaternion[QT] = cos(a / 2.0f);
 
@@ -39,13 +39,13 @@ Quaternion::Quaternion(GLfloat theta, Vector axis) {
 Quaternion::~Quaternion() {
 }
 
-void Quaternion::toAngle(GLfloat* theta, Vector* axis) {		//const void qToAngleAxix(const Quaternion& q, float& theta, Vector& axis);
+void Quaternion::toAngle(float* theta, Vector* axis) {		//const void qToAngleAxix(const Quaternion& q, float& theta, Vector& axis);
 
 	normalize();
 
-	*theta = 2.0f * (GLfloat)acos((GLfloat)this->quaternion[QT]) * (GLfloat)RADIANS_TO_DEGREES;
+	*theta = 2.0f * (float)acos((float)this->quaternion[QT]) * (float)RADIANS_TO_DEGREES;
 
-	GLfloat s = sqrt(1.0f - this->quaternion[QT] * this->quaternion[QT]);
+	float s = sqrt(1.0f - this->quaternion[QT] * this->quaternion[QT]);
 
 	if(s < threshold) {
 
@@ -80,7 +80,7 @@ void Quaternion::clean() {
 
 void Quaternion::invert() {		
 
-	GLfloat q = quadrance();
+	float q = quadrance();
 
 	conjugate();
 
@@ -101,14 +101,14 @@ void Quaternion::normalize() {
 	(*this) *= scalar;
 }
 
-GLfloat Quaternion::norm() {								
+float Quaternion::norm() {								
 
 	return sqrt(quadrance());
 }
 
-GLfloat Quaternion::quadrance() {							
+float Quaternion::quadrance() {							
 
-	GLfloat quadrance = 0.0f;
+	float quadrance = 0.0f;
 
 	for(int i=0; i<4; i++)
 		quadrance += this->quaternion[i]*this->quaternion[i];
@@ -116,27 +116,27 @@ GLfloat Quaternion::quadrance() {
 	return quadrance;
 }
 
-void Quaternion::getValue(GLfloat* quaternion) {
+void Quaternion::getValue(float* quaternion) {
 	
 	for(int i=0; i<4; i++)
 		quaternion[i] = this->quaternion[i];
 }
 
-void Quaternion::setValue(const GLfloat value[4]) {
+void Quaternion::setValue(const float value[4]) {
 
 	for(int i=0; i<4; i++)
 		this->quaternion[i] = value[i];
 }
 
-void Quaternion::lerp(Quaternion quaternion, GLfloat k) {	
+void Quaternion::lerp(Quaternion quaternion, float k) {	
 
-	GLfloat angle =	  this->quaternion[QT] * quaternion[QT] 
+	float angle =	  this->quaternion[QT] * quaternion[QT] 
 					+ this->quaternion[QX] * quaternion[QX]
 					+ this->quaternion[QY] * quaternion[QY]
 					+ this->quaternion[QZ] * quaternion[QZ];
 
-	GLfloat k0 = 1.0f - k;
-	GLfloat k1 = (angle > 0) ? k : -k;
+	float k0 = 1.0f - k;
+	float k1 = (angle > 0) ? k : -k;
 
 	Quaternion temporary = quaternion;
 
@@ -146,15 +146,15 @@ void Quaternion::lerp(Quaternion quaternion, GLfloat k) {
 	(*this) += temporary;
 }
 
-void Quaternion::slerp(Quaternion quaternion, GLfloat k) {
+void Quaternion::slerp(Quaternion quaternion, float k) {
 
-	GLfloat angle =	acos(     this->quaternion[QT] * quaternion[QT] 
+	float angle =	acos(     this->quaternion[QT] * quaternion[QT] 
 							+ this->quaternion[QX] * quaternion[QX]
 							+ this->quaternion[QY] * quaternion[QY]
 							+ this->quaternion[QZ] * quaternion[QZ]);
 
-	GLfloat k0 = sin((1-k)*angle) / sin(angle);
-	GLfloat k1 = sin(k*angle) / sin(angle);
+	float k0 = sin((1-k)*angle) / sin(angle);
+	float k1 = sin(k*angle) / sin(angle);
 
 	Quaternion temporary = quaternion;
 
@@ -164,7 +164,7 @@ void Quaternion::slerp(Quaternion quaternion, GLfloat k) {
 	(*this) += temporary;
 }
 
-GLfloat& Quaternion::operator [] (int position) {
+float& Quaternion::operator [] (int position) {
 
 	return this->quaternion[position];
 }
@@ -241,7 +241,7 @@ Quaternion Quaternion::operator *= (Quaternion quaternion) {
 	return (*this);
 }
 
-Quaternion Quaternion::operator * (GLfloat scalar) {
+Quaternion Quaternion::operator * (float scalar) {
 
 	Quaternion result;
 
@@ -251,7 +251,7 @@ Quaternion Quaternion::operator * (GLfloat scalar) {
 	return result;
 }
 
-Quaternion Quaternion::operator *= (GLfloat scalar) {
+Quaternion Quaternion::operator *= (float scalar) {
 
 	for(int i=0; i<4; i++)
 		this->quaternion[i] *= scalar;
