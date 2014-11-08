@@ -23,6 +23,7 @@
 #include "Object.h"
 #include "Camera.h"
 
+#include "BufferObject.h"
 #include "ScreenTexture.h"
 #include "ShadingTexture.h"
 
@@ -91,25 +92,14 @@ map<int,Object*> materialMap;
 int lastFrameTime = 0;
 float deltaTime = 0.0f;
 
-//  PixelBufferObjects ID and Cuda Resource
-GLuint pixelBufferObjectID;
-cudaGraphicsResource *pixelBufferObjectResource = NULL;
-
-// Object TextureIDs and  and Cuda Resources
-GLuint chessTextureID;
-cudaArray *chessTextureArray = NULL;
-cudaGraphicsResource *chessTextureResource = NULL;
-
-//  Screens Texture ID
-GLuint screenTextureID;
-
+//  BufferObjects Wrapper
+BufferObject *bufferObject;
 //  Screens Textures Wrapper
 ScreenTexture *screenTexture;
-
 // Shading Textures Wrappers
-ShadingTexture* chessTexture;
-//ShadingTexture* rockTexture;
-//ShadingTexture* brickTexture;
+ShadingTexture* shadingTexture;
+// ... ShadingTexture* rockTexture;
+// ... ShadingTexture* brickTexture;
 
 // Total number of Triangles - Used for the memory necessary to allocate
 int triangleTotal = 0;
@@ -126,15 +116,6 @@ float *cudaTriangleDiffusePropertiesDP = NULL;
 float *cudaTriangleSpecularPropertiesDP = NULL;
 
 // Initialization Declarations
-void createBufferObject(unsigned int *bufferObjectID, cudaGraphicsResource **bufferObjectResource, unsigned int width, unsigned int height);
-void deleteBufferObject(unsigned int *bufferObjectID);
-
-void createScreenTexture(unsigned int *textureID, unsigned int width, unsigned int height);
-void deleteScreenTexture(unsigned int *textureID);
-
-void createShadingTexture(unsigned int *textureID, cudaGraphicsResource **shadingTextureResource, char* fileName);
-void deleteShadingTexture(unsigned int *textureID);
-
 bool initGLUT(int argc, char **argv);
 bool initGLEW();
 bool initOpenGL();
@@ -162,7 +143,7 @@ void readKeyboard(float elapsedTime);
 
 // Run-time Function Declarations 
 void display();
-void displayFrames(int time);
+void displayFrames(int time); // CHANGE TO UPDATE
 
 void userInteraction(int time);
 
@@ -171,104 +152,6 @@ void cleanup();
 
 void rayTrace();
 void draw();
-
-void createBufferObject(unsigned int *bufferObjectID, cudaGraphicsResource **bufferObjectResource, unsigned int width, unsigned int height) {
-
-	unsigned int pixelBufferObjectSize = sizeof(GLubyte) * width * height * 4;
-
-	// Delete the PixelBufferObject in case it already exists.
-	glDeleteBuffers(1, bufferObjectID);
-	Utility::checkOpenGLError("glDeleteBuffers()");
-
-	// Create the PixelBufferObject to output the Ray-Tracing result.
-	glGenBuffers(1, bufferObjectID);
-	Utility::checkOpenGLError("glGenBuffers()");
-
-	glBindBuffer(GL_ARRAY_BUFFER, *bufferObjectID);
-
-		glBufferData(GL_ARRAY_BUFFER, pixelBufferObjectSize, NULL, GL_DYNAMIC_DRAW);
-		Utility::checkOpenGLError("glBufferData()");
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	// Register the PixelBufferObject with CUDA.
-	Utility::checkCUDAError("cudaGraphicsGLRegisterBuffer()", cudaGraphicsGLRegisterBuffer(bufferObjectResource, *bufferObjectID, cudaGraphicsMapFlagsWriteDiscard));
-}
-
-void deleteBufferObject(unsigned int *bufferObjectID) {
-
-	// Delete the BufferObject from OpenGL 
-    glDeleteBuffers(1, bufferObjectID);
-	Utility::checkOpenGLError("glDeleteBuffers()");
-}
-
-void createScreenTexture(unsigned int *textureID, unsigned int width, unsigned int height) {
-
-	// Delete the Texture in case it already exists.
-	glDeleteTextures(1, textureID);
-
-	// Create the Texture to output the Ray-Tracing result.
-	glGenTextures(1, textureID);
-	glBindTexture(GL_TEXTURE_2D, *textureID);
-
-		// Set the basic Texture parameters
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		// Define the basic Texture parameters
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-		Utility::checkOpenGLError("glTexImage2D()");
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-void deleteScreenTexture(unsigned int *textureID) {
-
-	// Delete the Texture from OpenGL 
-	glDeleteTextures(1, textureID);
-	Utility::checkOpenGLError("glDeleteTextures()");
-}
-
-void createShadingTexture(unsigned int *textureID, cudaGraphicsResource **textureResource, char* fileName) {
-
-	// Delete the Texture in case it already exists.
-	glDeleteTextures(1, textureID);
-
-	// Create the Texture to store the Chess Image.
-	glGenTextures(1, textureID);
-
-	// Load a Sample Texture
-	*textureID = SOIL_load_OGL_texture(fileName, SOIL_LOAD_RGBA, SOIL_CREATE_NEW_ID, SOIL_FLAG_MIPMAPS | SOIL_FLAG_INVERT_Y);
-
-	// Check for an error during the loading process
-	if(*textureID == 0) {
-
-		cout << "[SOIL Error] Loading failed. (\"" << fileName << "\": " << SOIL_last_result() << std::endl;
-
-		exit(1);
-	}
-
-	// Set the basic Texture parameters
-	glBindTexture(GL_TEXTURE_2D, *textureID);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	// Register the Textures with CUDA.
-	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(textureResource, *textureID, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
-}
-
-void deleteShadingTexture(unsigned int *textureID) {
-
-	// Delete the Texture from OpenGL 
-	glDeleteTextures(1, textureID);
-	Utility::checkOpenGLError("glDeleteTextures()");
-}
 
 // Initialize GLUT 
 bool initGLUT(int argc, char** argv) {
@@ -461,19 +344,16 @@ bool initCUDA() {
 void initCUDAmemory() {
 
 	// Create the PixelBufferObject to output the Ray-Tracing result.
-	createBufferObject(&pixelBufferObjectID, &pixelBufferObjectResource, windowWidth, windowHeight);
+	bufferObject = new BufferObject(windowWidth, windowHeight);
+	bufferObject->createBufferObject();
 
 	// Create the Texture to output the Ray-Tracing result.
-	createScreenTexture(&screenTextureID, windowWidth, windowHeight);
-
-	//screenTexture = new ScreenTexture("Screen Texture", windowWidth, windowHeight);
-	//screenTexture->createTexture();
+	screenTexture = new ScreenTexture("Screen Texture", windowWidth, windowHeight);
+	screenTexture->createTexture();
 
 	// Create the Chess Texture
-	createShadingTexture(&chessTextureID, &chessTextureResource, "textures/fieldstone_diffuse.jpg");
-
-	//chessTexture = new ShadingTexture("Chess Texture", "textures/fieldstone_diffuse.jpg");
-	//chessTexture->createTexture();
+	shadingTexture = new ShadingTexture("Chess Texture", "textures/fieldstone_diffuse.jpg");
+	shadingTexture->createTexture();
 
 	// Load the Triangles to an Array
 	vector<float4> trianglePositions;
@@ -495,7 +375,6 @@ void initCUDAmemory() {
 		Matrix modelMatrix = object->getTransform()->getModelMatrix();
 		// Used for the normal transformations
 		Matrix modelMatrixInverseTranspose = modelMatrix;
-		//modelMatrixInverseTranspose.removeTranslation();
 		modelMatrixInverseTranspose.transpose();
 		modelMatrixInverseTranspose.invert();
 
@@ -746,10 +625,11 @@ void display() {
 // Callback function called by GLUT when window size changes - TODO
 void reshape(int width, int height) {
 
+	// Update the Global Variables
 	windowWidth = width;
 	windowHeight = height;
 
-	// Set OpenGL Viewport and Projection
+	// Update the OpenGL Viewport and Projection
 	glViewport(0, 0, windowWidth, windowHeight);
 
     glMatrixMode(GL_PROJECTION);
@@ -760,18 +640,22 @@ void reshape(int width, int height) {
 	glLoadIdentity();
 
 	// Update the Camera
-	camera->reshape(windowWidth, windowHeight);
+	camera->setWidth(windowWidth);
+	camera->setHeight(windowHeight);
+
+	// Update the BufferObject
+	bufferObject->setWidth(windowWidth);
+	bufferObject->setHeight(windowHeight);
 
 	// Create the PixelBufferObject to output the Ray-Tracing result.
-	createBufferObject(&pixelBufferObjectID, &pixelBufferObjectResource, windowWidth, windowHeight);
+	bufferObject->createBufferObject();
 
-	// Create the Texture to output the Ray-Tracing result.
-	createScreenTexture(&screenTextureID, windowWidth, windowHeight);
+	// Update the Screen Texture
+	screenTexture->setWidth(windowWidth);
+	screenTexture->setHeight(windowHeight);
 
-	//screenTexture->setWidth(windowWidth);
-	//screenTexture->setHeight(windowHeight);
-
-	//screenTexture->createTexture();
+	// Create the Screen Texture to output the Ray-Tracing result.
+	screenTexture->createTexture();
 
 	cout << "[Callback] Reshape Successfull" << endl;
 }
@@ -780,17 +664,13 @@ void reshape(int width, int height) {
 void cleanup() {
 
 	// Delete the PixelBufferObject
-	deleteBufferObject(&pixelBufferObjectID);
+	bufferObject->deleteBufferObject();
 
 	// Delete the Screen Texture 
-	deleteScreenTexture(&screenTextureID);
-
-	//screenTexture->deleteTexture();
+	screenTexture->deleteTexture();
 
 	// Delete the Shading Textures
-	deleteShadingTexture(&chessTextureID);
-
-	//chessTexture->deleteTexture();
+	shadingTexture->deleteTexture();
 
 	// Delete the CudaDevicePointers to the uploaded Triangle Information 
 	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTrianglePositionsDP));
@@ -845,51 +725,30 @@ void rayTrace() {
 	cameraUp = normalize(cameraUp);
 	cameraUp = halfHeight * cameraUp;
 
-	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &pixelBufferObjectResource, 0));
-	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &chessTextureResource, 0));
+	// Map the necessary CUDA Resources
+	bufferObject->mapCudaResource();
+	shadingTexture->mapCudaResource();
 
-	unsigned int* screenTextureDP = NULL;
-	size_t screenTextureSize = 0;
+	// Get the Device Pointer Reference
+	unsigned int* bufferObjectDevicePointer = bufferObject->getDevicePointer();
+	// Get the CUDA Array Reference and Bind it
+	cudaArray* shadingTextureCudaArray = shadingTexture->getArrayPointer();
 
-	// Map the PixelBufferObject and Textures
-	Utility::checkCUDAError("cudaGraphicsResourceGetMappedPointer()", cudaGraphicsResourceGetMappedPointer((void**)&screenTextureDP, &screenTextureSize, pixelBufferObjectResource));
-	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&chessTextureArray, chessTextureResource, 0, 0));
-
-	bindTextureArray(chessTextureArray);
-
-	//chessTexture->mapResources();
-
-	//cudaArray* chessTextureCudaArray = chessTexture->getCudaArrayReference();
-
-	//bindTextureArray(chessTextureCudaArray);
+	bindTextureArray(shadingTextureCudaArray);
 
 	// Kernel Launch
-	RayTraceWrapper(screenTextureDP,
+	RayTraceWrapper(bufferObjectDevicePointer,
 		windowWidth, windowHeight, 
 		triangleTotal,
 		cameraRight, cameraUp, cameraDirection, 
 		cameraPosition);
 
 	// Unmap the used CUDA Resources
-	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &pixelBufferObjectResource, 0));
-	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &chessTextureResource, 0));
+	bufferObject->unmapCudaResource();
+	shadingTexture->unmapCudaResource();
 
-	//chessTexture->unmapResources();
-
-	// Copy the Output to the Texture 
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, screenTextureID);
-
-		glActiveTexture(GL_TEXTURE0);
-
-		glBindTexture(GL_TEXTURE_2D, screenTextureID);
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, windowWidth, windowHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
-		glBindTexture(GL_TEXTURE_2D, 0);
-
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-
-	//screenTexture->replaceTexture();
-
-	Utility::checkOpenGLError("glTexSubImage2D()");
+	// Copy the Output to the Texture
+	screenTexture->replaceTexture();
 }
 
 void draw() {
@@ -897,8 +756,7 @@ void draw() {
 	// Draw the resulting Texture on a Quad covering the Screen 
 	glEnable(GL_TEXTURE_2D);
 
-		//glBindTexture(GL_TEXTURE_2D, screenTexture->getHandler());
-		glBindTexture(GL_TEXTURE_2D, screenTextureID);
+		glBindTexture(GL_TEXTURE_2D, screenTexture->getHandler());
 
 			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
@@ -929,19 +787,19 @@ void draw() {
 
 	glDisable(GL_TEXTURE_2D);
 	
-	Utility::checkOpenGLError("drawPixels()");
+	Utility::checkOpenGLError("draw()");
 }
 
 int main(int argc, char** argv) {
-
-	// Initialize the Scene 
-	initCamera();
-	initObjects();
 
 	// Initialize GLUT, GLEW and OpenGL 
 	initGLUT(argc,argv);
 	initGLEW();
 	initOpenGL();
+
+	// Initialize the Scene 
+	initCamera();
+	initObjects();
 
 	// Initialize CUDA 
 	initCUDA();

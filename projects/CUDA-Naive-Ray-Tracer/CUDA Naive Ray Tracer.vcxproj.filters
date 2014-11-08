@@ -103,6 +103,9 @@
     <ClCompile Include="source\ShadingTexture.cpp">
       <Filter>Source Files\Library\Textures\Shading</Filter>
     </ClCompile>
+    <ClCompile Include="source\BufferObject.cpp">
+      <Filter>Source Files\Library\Buffers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\Vector.h">
@@ -149,6 +152,9 @@
     </ClInclude>
     <ClInclude Include="source\ShadingTexture.h">
       <Filter>Source Files\Library\Textures\Shading</Filter>
+    </ClInclude>
+    <ClInclude Include="source\BufferObject.h">
+      <Filter>Source Files\Library\Buffers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

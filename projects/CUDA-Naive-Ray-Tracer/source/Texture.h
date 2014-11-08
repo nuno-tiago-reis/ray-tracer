@@ -33,7 +33,7 @@ class Texture {
 		string name;
 
 		/* OpenGL Texture Handler */
-		GLuint handler;
+		unsigned int handler;
 
 	public:
 
@@ -49,7 +49,7 @@ class Texture {
 		/* Getters */
 		string getName();
 
-		GLuint getHandler();
+		unsigned int getHandler();
 
 		/* Setters */
 		void setName(string name);

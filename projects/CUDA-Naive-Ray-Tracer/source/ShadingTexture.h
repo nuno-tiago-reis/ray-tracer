@@ -34,8 +34,10 @@ class ShadingTexture : public Texture {
 		void deleteTexture();
 
 		/* Map & Unmap to CUDA Methods */
-		void mapResources();
-		void unmapResources();
+		void mapCudaResource();
+		void unmapCudaResource();
+
+		cudaArray* getArrayPointer();
 
 		/* Getters */
 		string getFileName();

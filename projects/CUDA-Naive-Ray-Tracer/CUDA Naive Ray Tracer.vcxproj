@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="source\BufferObject.cpp" />
     <ClCompile Include="source\KeyboardHandler.cpp" />
     <ClCompile Include="source\Matrix.cpp" />
     <ClCompile Include="source\Mesh.cpp" />
@@ -27,6 +28,7 @@
     <ClCompile Include="source\Vector.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\BufferObject.h" />
     <ClInclude Include="source\Constants.h" />
     <ClInclude Include="source\KeyboardHandler.h" />
     <ClInclude Include="source\Matrix.h" />

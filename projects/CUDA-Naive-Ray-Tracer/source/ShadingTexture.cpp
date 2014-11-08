@@ -52,18 +52,24 @@ void ShadingTexture::deleteTexture() {
 	Utility::checkCUDAError("cudaArrayFree()",  cudaFreeArray(cudaArrayReference));
 }
 
-void ShadingTexture::mapResources() {
+void ShadingTexture::mapCudaResource() {
 
 	// Map the used CUDA Resources
 	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &cudaGraphicsResourceReference, 0));
-	// Map the Texture to the CUDA Array
-	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&cudaArrayReference, cudaGraphicsResourceReference, 0, 0));
 }
 
-void ShadingTexture::unmapResources() {
+void ShadingTexture::unmapCudaResource() {
 
 	// Unmap the used CUDA Resources
 	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &cudaGraphicsResourceReference, 0));
+}
+
+cudaArray* ShadingTexture::getArrayPointer() {
+
+	// Bind the CUDA Array to the Resource
+	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&cudaArrayReference, cudaGraphicsResourceReference, 0, 0));
+
+	return cudaArrayReference;
 }
 
 string ShadingTexture::getFileName() {

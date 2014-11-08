@@ -4,6 +4,8 @@ Texture::Texture(string name) {
 
 	/* Initialize the Textures Name */
 	this->name = name;
+	/* Initialize the Textures Handler */
+	this->handler = UINT_MAX;
 }
 
 Texture::~Texture() {
@@ -21,7 +23,7 @@ string Texture::getName() {
 	return this->name;
 }
 
-GLuint Texture::getHandler() {
+unsigned int Texture::getHandler() {
 
 	return this->handler;
 }
