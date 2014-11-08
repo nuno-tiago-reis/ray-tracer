@@ -56,14 +56,14 @@ __device__  const float linearAttenuation = 0.0025f;
 __device__  const float quadraticAttenuation = 0.0000025f;
 
 // Shadow Grid Dimensions and pre-calculated Values
-__device__ const int shadowGridWidth = 5;
-__device__ const int shadowGridHeight = 5;
+__device__ const int shadowGridWidth = 3;
+__device__ const int shadowGridHeight = 3;
 
-__device__ const int shadowGridHalfWidth = 2;
-__device__ const int shadowGridHalfHeight = 2;
+__device__ const int shadowGridHalfWidth = 1;
+__device__ const int shadowGridHalfHeight = 1;
 
 //__device__ const int shadowGridDimension = 25;
-__device__ const float shadowGridDimensionInverse = 1.0f/25.0f;
+__device__ const float shadowGridDimensionInverse = 1.0f/9.0f;
 
 __device__ const float shadowCellSize = 0.20f;
 
@@ -75,6 +75,8 @@ __device__ const int antiAliasingGridHalfWidth = 1;
 __device__ const int antiAliasingGridHalfHeight = 1;
 
 __device__ const float antiAliasingGridDimensionInverse = 1.0f/5.0f; //account for the center of the pixel too
+
+__device__ const float antiAliasingCellSize = 0.50f;
 
 // Ray structure
 struct Ray {
@@ -489,7 +491,7 @@ __device__ float3 RayCast(	Ray ray,
 				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25f;
 			}
 
-			// If the Object Hit is translucid
+			/*// If the Object Hit is translucid
 			if(refractionConstant > 0.0f) {
 
 				float newRefractionIndex;
@@ -503,9 +505,9 @@ __device__ float3 RayCast(	Ray ray,
 				float3 refractedDirection = refract(ray.direction, hitRecord.normal, refractionIndex / newRefractionIndex);
 
 				// Cast the Refracted Ray
-				//if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
-					//hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f;
-			}
+				if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
+					hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f;
+			}*/
 		}
 	}
 
@@ -553,7 +555,8 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 			// Ray Creation
 			float3 rayOrigin = cameraPosition;
 			float3 rayDirection = cameraDirection + 
-				cameraRight * ((float)(x + i * 2 - antiAliasingGridHalfWidth) / (float)width - 0.5f) + cameraUp * ((float)(y + j * 2 - antiAliasingGridHalfHeight) / (float)height - 0.5f);
+				cameraRight * (((float)x + (i * 2 - antiAliasingGridHalfWidth * antiAliasingCellSize)) / (float)width - 0.5f) + 
+				cameraUp * (((float)y + (j * 2 - antiAliasingGridHalfHeight * antiAliasingCellSize)) / (float)height - 0.5f);
 
 			// Ray used to store Origin and Direction information
 			Ray ray(rayOrigin, rayDirection);
@@ -582,7 +585,7 @@ extern "C" {
 								float3 cameraRight, float3 cameraUp, float3 cameraDirection,
 								float3 cameraPosition) {
 
-		dim3 block(16,16,1);
+		dim3 block(8,8,1);
 		dim3 grid(width/block.x,height/block.y, 1);
 
 		RayTracePixel<<<grid, block>>>(	outputPixelBufferObject, 

@@ -47,6 +47,18 @@
     <Filter Include="Source Files\CUDA Kernel">
       <UniqueIdentifier>{83755cd2-dcfa-4c72-9932-77c738f10e4b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Library\Buffers">
+      <UniqueIdentifier>{c7e598e1-a967-43f9-830c-f1f9b3f8e3b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Textures">
+      <UniqueIdentifier>{7b6996c5-cfb9-40d8-9eed-15d7fe99a59e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Textures\Screen">
+      <UniqueIdentifier>{ba3a2dcb-d0e4-4e67-8a36-fae8f7226a90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Textures\Shading">
+      <UniqueIdentifier>{997361cd-74e2-4549-a9a0-42494ce39843}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\main.cpp">
@@ -81,6 +93,15 @@
     </ClCompile>
     <ClCompile Include="source\OBJ_Reader.cpp">
       <Filter>Source Files\Library\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Texture.cpp">
+      <Filter>Source Files\Library\Textures</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ScreenTexture.cpp">
+      <Filter>Source Files\Library\Textures\Screen</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ShadingTexture.cpp">
+      <Filter>Source Files\Library\Textures\Shading</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -119,6 +140,15 @@
     </ClInclude>
     <ClInclude Include="source\Utility.h">
       <Filter>Source Files\Library\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Texture.h">
+      <Filter>Source Files\Library\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ScreenTexture.h">
+      <Filter>Source Files\Library\Textures\Screen</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ShadingTexture.h">
+      <Filter>Source Files\Library\Textures\Shading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

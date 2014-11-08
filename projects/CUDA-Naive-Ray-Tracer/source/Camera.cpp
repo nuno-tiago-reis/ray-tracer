@@ -17,9 +17,6 @@ Camera::~Camera() {
 
 void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime) {
 
-	//if(longitude == 0 && latitude == 0 && zoom == 0)
-		//return;
-
 	/* Update the Zoom */
 	this->zoom -= zoom * 0.05f;
 
