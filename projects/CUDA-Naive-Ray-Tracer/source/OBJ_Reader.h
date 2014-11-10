@@ -7,10 +7,6 @@
 	#include <crtdbg.h>
 #endif
 
-/* OpenGL definitions */
-#include "GL/glew.h"
-#include "GL/freeglut.h"
-
 /* C++ Includes */
 #include <fstream>
 #include <sstream>
@@ -22,25 +18,8 @@
 /* Mesh */
 #include "Mesh.h"
 
-/* Vector Implementation */
-#include "Vector.h"
-
 /* Constants */
 #define LOCATION "models/"
-
-#define X 0
-#define Y 1
-#define Z 2
-
-typedef struct {
-
-	float ambient[3];
-	float diffuse[3];
-	float specular[3];
-
-	float specularConstant;
-
-} MaterialStruct;
 
 typedef struct {
 

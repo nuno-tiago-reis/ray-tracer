@@ -13,6 +13,8 @@
   <ItemGroup>
     <ClCompile Include="source\BufferObject.cpp" />
     <ClCompile Include="source\KeyboardHandler.cpp" />
+    <ClCompile Include="source\Light.cpp" />
+    <ClCompile Include="source\Material.cpp" />
     <ClCompile Include="source\Matrix.cpp" />
     <ClCompile Include="source\Mesh.cpp" />
     <ClCompile Include="source\MouseHandler.cpp" />
@@ -26,11 +28,14 @@
     <ClCompile Include="source\Texture.cpp" />
     <ClCompile Include="source\Transform.cpp" />
     <ClCompile Include="source\Vector.cpp" />
+    <ClCompile Include="source\Vertex.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\BufferObject.h" />
     <ClInclude Include="source\Constants.h" />
     <ClInclude Include="source\KeyboardHandler.h" />
+    <ClInclude Include="source\Light.h" />
+    <ClInclude Include="source\Material.h" />
     <ClInclude Include="source\Matrix.h" />
     <ClInclude Include="source\Mesh.h" />
     <ClInclude Include="source\MouseHandler.h" />
@@ -44,6 +49,7 @@
     <ClInclude Include="source\Transform.h" />
     <ClInclude Include="source\Utility.h" />
     <ClInclude Include="source\Vector.h" />
+    <ClInclude Include="source\Vertex.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="source\RayTracer.cu">

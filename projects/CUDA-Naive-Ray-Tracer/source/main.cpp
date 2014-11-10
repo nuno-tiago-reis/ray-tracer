@@ -1,3 +1,9 @@
+/*
+ * TODO: Add Spotlights and Directional Lights
+ * TODO: Fix Refraction
+ *
+ */
+
 // OpenGL definitions
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -20,8 +26,9 @@
 #include <vector>
 
 // Custom Includes
-#include "Object.h"
+#include "Light.h"
 #include "Camera.h"
+#include "Object.h"
 
 #include "BufferObject.h"
 #include "ScreenTexture.h"
@@ -29,9 +36,6 @@
 
 // Math Library
 #include "Matrix.h"
-
-// Texture Library
-#include <soil.h>
 
 // Error Checking
 #include "Utility.h"
@@ -42,12 +46,23 @@
 
 using namespace std;
 
+#define PLATFORM 0
+#define SPHERE_0 1
+#define SPHERE_1 2
+#define SPHERE_2 3
+#define SPHERE_3 4
+#define TEST_CUBE_0 5
+#define TEST_CUBE_1 6
+#define TEST_CUBE_2 7
+#define TEST_CUBE_3 8
+
 // The interface between C++ and CUDA
 
 // Implementation of RayTraceWrapper is in the "RayTracer.cu" file
 extern "C" void RayTraceWrapper(unsigned int *outputPixelBufferObject, 
 								int width, int height, 
 								int triangleTotal,
+								int lightTotal,
 								float3 cameraPosition,
 								float3 cameraUp, float3 cameraRight, float3 cameraDirection);
 
@@ -59,14 +74,29 @@ extern "C" void bindTriangleNormals(float *cudaDevicePointer, unsigned int trian
 extern "C" void bindTriangleTangents(float *cudaDevicePointer, unsigned int triangleTotal);
 // Implementation of bindTriangleTextureCoordinates is in the "RayTracer.cu" file
 extern "C" void bindTriangleTextureCoordinates(float *cudaDevicePointer, unsigned int triangleTotal);
-// Implementation of bindTriangleDiffuseProperties is in the "RayTracer.cu" file
-extern "C" void bindTriangleDiffuseProperties(float *cudaDevicePointer, unsigned int triangleTotal);
-// Implementation of bindTriangleSpecularProperties is in the "RayTracer.cu" file
-extern "C" void bindTriangleSpecularProperties(float *cudaDevicePointer, unsigned int triangleTotal);
+// Implementation of bindTriangleMaterialIDs is in the "RayTracer.cu" file
+extern "C" void bindTriangleMaterialIDs(float *cudaDevicePointer, unsigned int triangleTotal);
+
+// Implementation of bindMaterialDiffuseProperties is in the "RayTracer.cu" file
+extern "C" void bindMaterialDiffuseProperties(float *cudaDevicePointer, unsigned int materialTotal);
+// Implementation of bindMaterialSpecularProperties is in the "RayTracer.cu" file
+extern "C" void bindMaterialSpecularProperties(float *cudaDevicePointer, unsigned int materialTotal);
+
+// Implementation of bindLightPositions is in the "RayTracer.cu" file
+extern "C" void bindLightPositions(float *cudaDevicePointer, unsigned int lightTotal);
+// Implementation of bindLightDirections is in the "RayTracer.cu" file
+extern "C" void bindLightDirections(float *cudaDevicePointer, unsigned int lightTotal);
+// Implementation of bindLightCutOffs is in the "RayTracer.cu" file
+extern "C" void bindLightCutOffs(float *cudaDevicePointer, unsigned int lightTotal);
+// Implementation of bindLightColors is in the "RayTracer.cu" file
+extern "C" void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal);
+// Implementation of bindLightIntensities is in the "RayTracer.cu" file
+extern "C" void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal);
+// Implementation of bindLightAttenuations is in the "RayTracer.cu" file
+extern "C" void bindLightAttenuations(float *cudaDevicePointer, unsigned int lightTotal);
+
 // Implementation of bindTextureArray is in the "RayTracer.cu" file
 extern "C" void bindTextureArray(cudaArray *cudaArray);
-
-// Global Variables
 
 // Window
 unsigned int windowWidth  = 640;
@@ -79,14 +109,10 @@ int windowHandle = 0;
 Camera* camera;
 
 // Objects
-#define PLATFORM 0
-#define SPHERE_0 1
-#define SPHERE_1 2
-#define SPHERE_2 3
-#define SPHERE_3 4
-
 map<int,Object*> objectMap;
-map<int,Object*> materialMap;
+
+// Lights
+map<int,Light*> lightMap;
 
 // Scene Time Management
 int lastFrameTime = 0;
@@ -103,6 +129,10 @@ ShadingTexture* shadingTexture;
 
 // Total number of Triangles - Used for the memory necessary to allocate
 int triangleTotal = 0;
+// Total number of Materials - Used for the memory necessary to allocate
+int materialTotal = 0;
+// Total number of Lights - Used for the memory necessary to allocate
+int lightTotal = 0;
 
 // CudaDevicePointers to the uploaded Triangles Positions 
 float *cudaTrianglePositionsDP = NULL; 
@@ -111,9 +141,22 @@ float *cudaTriangleNormalsDP = NULL;
 float *cudaTriangleTangentsDP = NULL;
 // CudaDevicePointers to the uploaded Triangles Texture Coordinates 
 float *cudaTriangleTextureCoordinatesDP = NULL;
+// CudaDevicePointers to the uploaded Triangles Material IDs
+float *cudaTriangleMaterialIDsDP = NULL;
+
 // CudaDevicePointers to the uploaded Triangles Materials 
-float *cudaTriangleDiffusePropertiesDP = NULL;
-float *cudaTriangleSpecularPropertiesDP = NULL;
+float *cudaMaterialDiffusePropertiesDP = NULL;
+float *cudaMaterialSpecularPropertiesDP = NULL;
+
+// CudaDevicePointers to the uploaded Lights
+float *cudaLightPositionsDP = NULL;
+float *cudaLightDirectionsDP = NULL;
+
+float *cudaLightCutOffsDP = NULL;
+
+float *cudaLightColorsDP = NULL;
+float *cudaLightIntensitiesDP = NULL;
+float *cudaLightAttenuationsDP = NULL;
 
 // Initialization Declarations
 bool initGLUT(int argc, char **argv);
@@ -121,6 +164,7 @@ bool initGLEW();
 bool initOpenGL();
 
 void initCamera();
+void initLights();
 void initObjects();
 
 bool initCUDA(int argc, char **argv);
@@ -258,12 +302,31 @@ bool initOpenGL() {
 void initCamera() {
 
 	camera = new Camera(windowWidth, windowHeight);
-	
 	camera->setFieldOfView(60.0f);
-
 	camera->setPosition(Vector(0.0f, 0.0f, 0.0f, 1.0f));
 
 	cout << "[Initialization] Camera Initialization Successfull" << endl << endl;
+}
+
+void initLights() {
+
+	Light* light = new Light("Test Positional Light");
+
+	light->setPosition(Vector(0.0f, 5.0f, 0.0f, 1.0f));
+	light->setDirection(Vector(0.0f));
+
+	light->setCutOff(0.0f);
+
+	light->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
+
+	light->setDiffuseIntensity(0.75f);
+	light->setSpecularIntensity(0.75f);
+
+	light->setConstantAttenuation(1.00f);
+	light->setLinearAttenuation(0.0025f);
+	light->setExponentialAttenuation(0.0000025f);
+
+	lightMap[0] = light;
 }
 
 void initObjects() {
@@ -276,15 +339,25 @@ void initObjects() {
 
 	objectMap[PLATFORM] = new Object("Platform");
 
+	/*objectMap[TEST_CUBE_0] = new Object("Test Cube 0");
+	objectMap[TEST_CUBE_1] = new Object("Test Cube 1");
+	objectMap[TEST_CUBE_2] = new Object("Test Cube 2");
+	objectMap[TEST_CUBE_3] = new Object("Test Cube 3");*/
+
 	// Load the Spheres Mesh from the OBJ file 
-	Mesh* sphere0Mesh = new Mesh("Sphere", "emeraldsphere.obj", "emerald.mtl");
-	Mesh* sphere1Mesh = new Mesh("Sphere", "rubysphere.obj", "ruby.mtl");
-	Mesh* sphere2Mesh = new Mesh("Sphere", "goldsphere.obj", "gold.mtl");
-	Mesh* sphere3Mesh = new Mesh("Sphere", "silversphere.obj", "silver.mtl");
+	Mesh* sphere0Mesh = new Mesh("Emerald Sphere", "emeraldsphere.obj", "emerald.mtl");
+	Mesh* sphere1Mesh = new Mesh("Ruby Sphere", "rubysphere.obj", "ruby.mtl");
+	Mesh* sphere2Mesh = new Mesh("Gold Sphere", "goldsphere.obj", "gold.mtl");
+	Mesh* sphere3Mesh = new Mesh("Silver Sphere", "silversphere.obj", "silver.mtl");
 
 	// Load the Platforms Mesh from the OBJ file 
-	//Mesh* platformMesh = new Mesh("Platform", "surface.obj", "surface.mtl");
 	Mesh* platformMesh = new Mesh("Platform", "cube.obj", "cube.mtl");
+
+	/*// Load the Cubes Mesh from the OBJ file 
+	Mesh* cube0Mesh = new Mesh("Emerald Cube", "cube.obj", "emerald.mtl");
+	Mesh* cube1Mesh = new Mesh("Ruby Cube", "cube.obj", "ruby.mtl");
+	Mesh* cube2Mesh = new Mesh("Gold Cube", "cube.obj", "gold.mtl");
+	Mesh* cube3Mesh = new Mesh("Silver Cube", "cube.obj", "silver.mtl");*/
 
 	// Load Sphere0s Transform 
  	Transform* sphere0Transform = new Transform("Sphere 0 Transform");
@@ -302,10 +375,24 @@ void initObjects() {
 	Transform* sphere3Transform = new Transform("Sphere 3 Transform");
 	sphere3Transform->setPosition(Vector( 10.0f, -2.5f, 10.0f, 1.0f));
 	sphere3Transform->setScale(Vector( 5.0f, 5.0f, 5.0f, 1.0f));
+
 	// Load Platforms Transform 
 	Transform* platformTransform = new Transform("Platform Transform");
 	platformTransform->setPosition(Vector( 0.0f,-15.0f, 0.0f, 1.0f));
 	platformTransform->setScale(Vector( 50.0f, 0.75f, 50.0f, 1.0f));
+
+	/*// Load Test Cube0s Transform 
+	Transform* cube0Transform = new Transform("Test Cube 0 Transform");
+	cube0Transform->setPosition(Vector( 5.0f,-10.0f, 5.0f, 1.0f));
+	// Load Test Cube1s Transform 
+	Transform* cube1Transform = new Transform("Test Cube 1 Transform");
+	cube1Transform->setPosition(Vector(-5.0f,-10.0f, 5.0f, 1.0f));
+	// Load Test Cube2s Transform 
+	Transform* cube2Transform = new Transform("Test Cube 2 Transform");
+	cube2Transform->setPosition(Vector(-5.0f,-10.0f,-5.0f, 1.0f));
+	// Load Test Cube3s Transform 
+	Transform* cube3Transform = new Transform("Test Cube 3 Transform");
+	cube3Transform->setPosition(Vector( 5.0f,-10.0f,-5.0f, 1.0f));*/
 
 	// Set the Mesh and Transform of the created Objects 
 	objectMap[SPHERE_0]->setMesh(sphere0Mesh);
@@ -322,6 +409,18 @@ void initObjects() {
 
 	objectMap[PLATFORM]->setMesh(platformMesh);
 	objectMap[PLATFORM]->setTransform(platformTransform);
+
+	/*objectMap[TEST_CUBE_0]->setMesh(cube0Mesh);
+	objectMap[TEST_CUBE_0]->setTransform(cube0Transform);
+
+	objectMap[TEST_CUBE_1]->setMesh(cube1Mesh);
+	objectMap[TEST_CUBE_1]->setTransform(cube1Transform);
+
+	objectMap[TEST_CUBE_2]->setMesh(cube2Mesh);
+	objectMap[TEST_CUBE_2]->setTransform(cube2Transform);
+
+	objectMap[TEST_CUBE_3]->setMesh(cube3Mesh);
+	objectMap[TEST_CUBE_3]->setTransform(cube3Transform);*/
 
 	cout << "[Initialization] Object Initialization Successfull" << endl << endl;
 }
@@ -343,6 +442,8 @@ bool initCUDA() {
 // Initialize CUDA Memory with the necessary space for the Meshes 
 void initCUDAmemory() {
 
+	////////////////////////////////////////////////////////////// BUFFER OBJECT AND SCREEN TEXTURE ///////////////////////////////////////////////////////////////
+
 	// Create the PixelBufferObject to output the Ray-Tracing result.
 	bufferObject = new BufferObject(windowWidth, windowHeight);
 	bufferObject->createBufferObject();
@@ -355,60 +456,103 @@ void initCUDAmemory() {
 	shadingTexture = new ShadingTexture("Chess Texture", "textures/fieldstone_diffuse.jpg");
 	shadingTexture->createTexture();
 
-	// Load the Triangles to an Array
+	/////////////////////////////////////////////////////////////////// TRIANGLES AND MATERIALS ///////////////////////////////////////////////////////////////////
+
+	// Stores the Triangles Information in the form of Arrays
 	vector<float4> trianglePositions;
 	vector<float4> triangleNormals;
 	vector<float4> triangleTangents;
 	vector<float2> triangleTextureCoordinates;
 
-	vector<float4> triangleDiffuseProperties;
-	vector<float4> triangleSpecularProperties;
+	// References which Material each Triangle is using
+	vector<int1> triangleMaterialIDs;
+
+	// Stores the Materials Information in the form of Arrays
+	vector<float4> materialDiffuseProperties;
+	vector<float4> materialSpecularProperties;
 
 	for(map<int,Object*>::const_iterator objectIterator = objectMap.begin(); objectIterator != objectMap.end(); objectIterator++) {
 
 		Object* object = objectIterator->second;
 
-		if(object->getName() != "Platform")
+		if(object->getName() != "Platform" && object->getName() != "Test Cube 0" && object->getName() != "Test Cube 1" && object->getName() != "Test Cube 2" && object->getName() != "Test Cube 3")
 			continue;
 	
 		// Used for the position transformations
 		Matrix modelMatrix = object->getTransform()->getModelMatrix();
 		// Used for the normal transformations
-		Matrix modelMatrixInverseTranspose = modelMatrix;
-		modelMatrixInverseTranspose.transpose();
-		modelMatrixInverseTranspose.invert();
+		Matrix normalMatrix = modelMatrix;
+		normalMatrix.removeTranslation();
+		normalMatrix.transpose();
+		normalMatrix.invert();
 
-		for(int j = 0; j < object->getMesh()->getVertexCount(); j++)	{
+		// Used to store the objects mesh data
+		Mesh* mesh = object->getMesh();
 
-			// Get the original vertex from the mesh 
-			Vertex originalVertex = object->getMesh()->getVertex(j);
+		// Used to store the meshs the vertex data
+		map<int, Vertex*> vertexMap = mesh->getVertexMap();
+
+		for(map<int, Vertex*>::const_iterator vertexIterator = vertexMap.begin(); vertexIterator != vertexMap.end(); vertexIterator++) {
+
+			// Get the vertex from the mesh 
+			Vertex* vertex = vertexIterator->second;
 
 			// Position: Multiply the original vertex using the objects model matrix
-			Vector modifiedPosition = modelMatrix * Vector(originalVertex.position[VX], originalVertex.position[VY], originalVertex.position[VZ], 1.0f);
-			float4 position = { modifiedPosition[VX], modifiedPosition[VY], modifiedPosition[VZ], 1.0f };
+			Vector originalPosition = vertex->getPosition();
+			Vector modifiedPosition = modelMatrix * originalPosition;
+
+			float4 position = { modifiedPosition[VX], modifiedPosition[VY], modifiedPosition[VZ], 1.0f};
 			trianglePositions.push_back(position);
 
 			// Normal: Multiply the original normal using the objects inverted transposed model matrix	
-			Vector modifiedNormal = modelMatrixInverseTranspose * Vector(originalVertex.normal[VX], originalVertex.normal[VY], originalVertex.normal[VZ], 0.0f);
+			Vector originalNormal = vertex->getPosition();
+			Vector modifiedNormal = normalMatrix * originalNormal;
 			modifiedNormal.normalize();
-			float4 normal = { modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ], 0.0f };
+
+			float4 normal = { modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ], 0.0f};
 			triangleNormals.push_back(normal);
 
 			// Tangent: Multiply the original tangent using the objects inverted transposed model matrix
-			Vector modifiedTangent = modelMatrixInverseTranspose * Vector(originalVertex.tangent[VX], originalVertex.tangent[VY], originalVertex.tangent[VZ], 0.0f);
-			float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalVertex.tangent[VW] };
+			Vector originalTangent = vertex->getTangent();
+			Vector modifiedTangent = normalMatrix * originalTangent;
+			modifiedTangent.normalize();
+
+			float4 tangent = { modifiedTangent[VX], modifiedTangent[VY], modifiedTangent[VZ], originalTangent[VW]};
 			triangleTangents.push_back(tangent);
 
-			// Texture Coordinate: Same as the original values
-			float2 textureCoordinates = { originalVertex.textureUV[VX], originalVertex.textureUV[VY] };
+			// Texture Coordinates: Same as the original values
+			Vector originalTextureCoordinates = vertex->getTextureCoordinates();
+
+			float2 textureCoordinates = { originalTextureCoordinates[VX], originalTextureCoordinates[VY] };
 			triangleTextureCoordinates.push_back(textureCoordinates);
 
-			// Material: Same as the original values
-			float4 diffuseProperty = { originalVertex.diffuse[VX], originalVertex.diffuse[VY], originalVertex.diffuse[VZ], 1.0f };
-			float4 specularProperty = { originalVertex.specular[VX], originalVertex.specular[VY], originalVertex.specular[VZ], originalVertex.specularConstant };
+			// Material ID: Same as the original values
+			int originalMaterialID = vertex->getMaterialID();
 
-			triangleDiffuseProperties.push_back(diffuseProperty);
-			triangleSpecularProperties.push_back(specularProperty);
+			int1 materialID = {originalMaterialID + materialTotal};
+			triangleMaterialIDs.push_back(materialID);
+		}
+
+		// Used to store the meshs material data
+		map<int, Material*> materialMap = mesh->getMaterialMap();
+
+		for(map<int, Material*>::const_iterator materialIterator = materialMap.begin(); materialIterator != materialMap.end(); materialIterator++) {
+
+			materialTotal++;
+
+			// Get the Material from the mesh 
+			Material* material = materialIterator->second;
+
+			// Material: Same as the original values
+			Vector originalDiffuseProperty = material->getDiffuse();
+			Vector originalSpecularProperty = material->getSpecular();
+			float originalSpecularConstant = material->getSpecularConstant();
+
+			float4 diffuseProperty = { originalDiffuseProperty[VX], originalDiffuseProperty[VY], originalDiffuseProperty[VZ], 1.0f };
+			float4 specularProperty = { originalSpecularProperty[VX], originalSpecularProperty[VY], originalSpecularProperty[VZ], originalSpecularConstant };
+
+			materialDiffuseProperties.push_back(diffuseProperty);
+			materialSpecularProperties.push_back(specularProperty);
 		}
 	}
 
@@ -419,22 +563,20 @@ void initCUDAmemory() {
 
 	// Each triangle contains Position, Normal, Tangent, Texture UV and Material Properties for 3 vertices
 	size_t trianglePositionsSize = trianglePositions.size() * sizeof(float4);
-	cout << "[Initialization] Triangle Positions Storage Size: " << trianglePositionsSize << " (" << trianglePositions.size() << " floats)" << endl;
+	cout << "[Initialization] Triangle Positions Storage Size: " << trianglePositionsSize << " (" << trianglePositions.size() << " float4s)" << endl;
 
 	size_t triangleNormalsSize = triangleNormals.size() * sizeof(float4);
-	cout << "[Initialization] Triangle Normals Storage Size: " << triangleNormalsSize << " (" << triangleNormals.size() << " floats)" << endl;
+	cout << "[Initialization] Triangle Normals Storage Size: " << triangleNormalsSize << " (" << triangleNormals.size() << " float4s)" << endl;
 	size_t triangleTangentsSize = triangleTangents.size() * sizeof(float4);
-	cout << "[Initialization] Triangle Tangents Storage Size: " << triangleTangentsSize << " (" << triangleTangents.size() << " floats)" << endl;
+	cout << "[Initialization] Triangle Tangents Storage Size: " << triangleTangentsSize << " (" << triangleTangents.size() << " float4s)" << endl;
 
 	size_t triangleTextureCoordinatesSize = triangleTextureCoordinates.size() * sizeof(float2);
-	cout << "[Initialization] Triangle Texture Coordinates Storage Size: " << triangleTextureCoordinatesSize << " (" << triangleTextureCoordinates.size() << " floats)" << endl;
+	cout << "[Initialization] Triangle Texture Coordinates Storage Size: " << triangleTextureCoordinatesSize << " (" << triangleTextureCoordinates.size() << " float2s)" << endl;
 
-	size_t triangleDiffusePropertiesSize = triangleDiffuseProperties.size() * sizeof(float4);
-	cout << "[Initialization] Triangle Diffuse Properties Storage Size: " << triangleDiffusePropertiesSize << " (" << triangleDiffuseProperties.size() << " floats)" << endl;
-	size_t triangleSpecularPropertiesSize = triangleSpecularProperties.size() * sizeof(float4);
-	cout << "[Initialization] Triangle Specular Properties Storage Size: " << triangleSpecularPropertiesSize << " (" << triangleSpecularProperties.size() << " floats)" << endl;
+	size_t triangleMaterialIDsSize = triangleMaterialIDs.size() * sizeof(int1);
+	cout << "[Initialization] Triangle Material IDs Storage Size: " << triangleMaterialIDsSize << " (" << triangleMaterialIDs.size() << " int1s)" << endl;
 
-	// Allocate the required CUDA Memory
+	// Allocate the required CUDA Memory for the Triangles
 	if(triangleTotal > 0) {
 
 		// Load the Triangle Positions
@@ -449,13 +591,11 @@ void initCUDAmemory() {
 
 		bindTriangleNormals(cudaTriangleNormalsDP, triangleTotal);
 
-		/*// Load the Triangle Tangents
-		cudaMalloc((void **)&cudaTriangleTangentsDP, triangleTangentsSize);
-		Utility::checkCUDAError("cudaMalloc()");
-		cudaMemcpy(cudaTriangleTangentsDP, &triangleTangents[0], triangleTangentsSize, cudaMemcpyHostToDevice);
-		Utility::checkCUDAError("cudaMemcpy()");*/
+		// Load the Triangle Tangents
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleTangentsDP, triangleTangentsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleTangentsDP, &triangleTangents[0], triangleTangentsSize, cudaMemcpyHostToDevice));
 
-		//bindTriangleTangents(cudaTriangleTangentsDP, triangleTotal);
+		bindTriangleTangents(cudaTriangleTangentsDP, triangleTotal);
 
 		// Load the Triangle Texture Coordinates
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleTextureCoordinatesDP, triangleTextureCoordinatesSize));
@@ -463,17 +603,154 @@ void initCUDAmemory() {
 
 		bindTriangleTextureCoordinates(cudaTriangleTextureCoordinatesDP, triangleTotal);
 
-		// Load the Triangle Diffuse Properties
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleDiffusePropertiesDP, triangleDiffusePropertiesSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleDiffusePropertiesDP, &triangleDiffuseProperties[0], triangleDiffusePropertiesSize, cudaMemcpyHostToDevice));
+		// Load the Triangle Material IDs
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleMaterialIDsDP, triangleMaterialIDsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleMaterialIDsDP, &triangleMaterialIDs[0], triangleMaterialIDsSize, cudaMemcpyHostToDevice));
 
-		bindTriangleDiffuseProperties(cudaTriangleDiffusePropertiesDP, triangleTotal);
+		bindTriangleMaterialIDs(cudaTriangleMaterialIDsDP, triangleTotal);
+	}
+
+	// Total number of Materials
+	cout << "[Initialization] Total number of Materials:" << materialTotal << endl;
+
+	// Each Material contains Diffuse and Specular Properties
+	size_t materialDiffusePropertiesSize = materialDiffuseProperties.size() * sizeof(float4);
+	cout << "[Initialization] Material Diffuse Properties Storage Size: " << materialDiffusePropertiesSize << " (" << materialDiffuseProperties.size() << " float4s)" << endl;
+	size_t materialSpecularPropertiesSize = materialSpecularProperties.size() * sizeof(float4);
+	cout << "[Initialization] Material Specular Properties Storage Size: " << materialSpecularPropertiesSize << " (" << materialSpecularProperties.size() << " float4s)" << endl;
+
+	// Allocate the required CUDA Memory for the Materials
+	if(materialTotal > 0) {
+	
+		// Load the Triangle Diffuse Properties
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaMaterialDiffusePropertiesDP, materialDiffusePropertiesSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaMaterialDiffusePropertiesDP, &materialDiffuseProperties[0], materialDiffusePropertiesSize, cudaMemcpyHostToDevice));
+
+		bindMaterialDiffuseProperties(cudaMaterialDiffusePropertiesDP, materialTotal);
 
 		// Load the Triangle Specular Properties
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleSpecularPropertiesDP, triangleSpecularPropertiesSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleSpecularPropertiesDP, &triangleSpecularProperties[0], triangleSpecularPropertiesSize, cudaMemcpyHostToDevice));
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaMaterialSpecularPropertiesDP, materialSpecularPropertiesSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaMaterialSpecularPropertiesDP, &materialSpecularProperties[0], materialSpecularPropertiesSize, cudaMemcpyHostToDevice));
 
-		bindTriangleSpecularProperties(cudaTriangleSpecularPropertiesDP, triangleTotal);
+		bindMaterialSpecularProperties(cudaMaterialSpecularPropertiesDP, materialTotal);
+	}
+
+	//////////////////////////////////////////////////////////////////////////// LIGHTS ///////////////////////////////////////////////////////////////////////////
+
+	// Stores the Lights Information in the form of Arrays
+	vector<float4> lightPositions;
+	vector<float4> lightDirections;
+
+	vector<float1> lightCutOffs;
+
+	vector<float4> lightColors;
+	vector<float2> lightIntensities;
+	vector<float4> lightAttenuations;
+
+	// Used to store the meshs material data
+	for(map<int, Light*>::const_iterator lightIterator = lightMap.begin(); lightIterator != lightMap.end(); lightIterator++) {
+
+		lightTotal++;
+
+		// Get the Material from the mesh 
+		Light* light = lightIterator->second;
+
+		// Position: Same as the original values
+		Vector originalPosition = light->getPosition();
+
+		float4 position = { originalPosition[VX], originalPosition[VY], originalPosition[VZ], 1.0f};
+		lightPositions.push_back(position);
+
+		// Direction: Same as the original values
+		Vector originalDirection = light->getDirection();
+
+		float4 direction = { originalDirection[VX], originalDirection[VY], originalDirection[VZ], 1.0f};
+		lightDirections.push_back(direction);
+
+		// CutOff: Same as the original values
+		float originalCutOff = light->getCutOff();
+
+		float1 cutOff = { originalCutOff };
+		lightCutOffs.push_back(cutOff);
+
+		// Color: Same as the original values
+		Vector originalColor = light->getColor();
+
+		float4 color = { originalColor[VX], originalColor[VY], originalColor[VZ], 1.0f};
+		lightColors.push_back(color);
+
+		// Intensity: Same as the original values
+		Vector originalIntensity = Vector(light->getDiffuseIntensity(), light->getSpecularIntensity(), 0.0f, 1.0f);
+
+		float2 intensity = { originalIntensity[VX], originalIntensity[VY] };
+		lightIntensities.push_back(intensity);
+
+		// Attenuation: Same as the original values
+		Vector originalAttenuation = Vector(light->getConstantAttenuation(), light->getLinearAttenuation(), light->getExponentinalAttenuation(), 0.0f);
+
+		float4 attenuation = { originalAttenuation[VX], originalAttenuation[VY], originalAttenuation[VZ], 0.0f};
+		lightAttenuations.push_back(attenuation);
+	}
+
+	// Total number of Lights
+	cout << "[Initialization] Total number of Lights:" << lightTotal << endl;
+
+	// Each Light contains a Position (Spot and Positional only) and Direction (Spot and Directional only)
+	size_t lightPositionsSize = lightPositions.size() * sizeof(float4);
+	cout << "[Initialization] Light Positions Storage Size: " << lightPositionsSize << " (" << lightPositions.size() << " float4s)" << endl;
+	size_t lightDirectionsSize = lightDirections.size() * sizeof(float4);
+	cout << "[Initialization] Light Directions Storage Size: " << lightDirectionsSize << " (" << lightDirections.size() << " float4s)" << endl;
+
+	// Each Spot-Light contains a Cut-Off
+	size_t lightCutOffsSize = lightCutOffs.size() * sizeof(float1);
+	cout << "[Initialization] Light Cut-Offs Storage Size: " << lightCutOffsSize << " (" << lightCutOffs.size() << " float1s)" << endl;
+
+	// Each Light contains a Color, Intensity and Attenuation (Spot and Positional only)
+	size_t lightColorsSize = lightColors.size() * sizeof(float4);
+	cout << "[Initialization] Light Colors Storage Size: " << lightColorsSize << " (" << lightColors.size() << " float4s)" << endl;
+	size_t lightIntensitiesSize = lightIntensities.size() * sizeof(float2);
+	cout << "[Initialization] Light Colors Storage Size: " << lightIntensitiesSize << " (" << lightIntensities.size() << " float2s)" << endl;
+	size_t lightAttenuationsSize = lightAttenuations.size() * sizeof(float4);
+	cout << "[Initialization] Light Colors Storage Size: " << lightAttenuationsSize << " (" << lightAttenuations.size() << " float4s)" << endl;
+
+	// Allocate the required CUDA Memory for the Materials
+	if(lightTotal > 0) {
+	
+		// Load the Lights Positions
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightPositionsDP, lightPositionsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightPositionsDP, &lightPositions[0], lightPositionsSize, cudaMemcpyHostToDevice));
+
+		bindLightPositions(cudaLightPositionsDP, lightTotal);
+
+		// Load the Lights Directions
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightDirectionsDP, lightDirectionsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightDirectionsDP, &lightDirections[0], lightDirectionsSize, cudaMemcpyHostToDevice));
+
+		bindLightDirections(cudaLightDirectionsDP, lightTotal);
+
+		// Load the Lights Cut-Offs
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightCutOffsDP, lightCutOffsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightCutOffsDP, &lightCutOffs[0], lightCutOffsSize, cudaMemcpyHostToDevice));
+
+		bindLightCutOffs(cudaLightCutOffsDP, lightTotal);
+
+		// Load the Lights Colors
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightColorsDP, lightColorsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightColorsDP, &lightColors[0], lightColorsSize, cudaMemcpyHostToDevice));
+
+		bindLightColors(cudaLightColorsDP, lightTotal);
+
+		// Load the Lights Intensities
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightIntensitiesDP, lightIntensitiesSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightIntensitiesDP, &lightIntensities[0], lightIntensitiesSize, cudaMemcpyHostToDevice));
+
+		bindLightIntensities(cudaLightIntensitiesDP, lightTotal);
+
+		// Load the Lights Attenuations
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightAttenuationsDP, lightAttenuationsSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightAttenuationsDP, &lightAttenuations[0], lightAttenuationsSize, cudaMemcpyHostToDevice));
+
+		bindLightAttenuations(cudaLightAttenuationsDP, lightTotal);
 	}
 
 	cout << "[Initialization] CUDA Memory Initialization Successfull" << endl << endl;
@@ -677,8 +954,11 @@ void cleanup() {
 	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTriangleNormalsDP));
 	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTriangleTangentsDP));
 	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTriangleTextureCoordinatesDP));
-	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTriangleDiffusePropertiesDP));
-	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTriangleSpecularPropertiesDP));
+	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTriangleMaterialIDsDP));
+
+	// Delete the CudaDevicePointers to the uploaded Material Information 
+	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaMaterialDiffusePropertiesDP));
+	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaMaterialSpecularPropertiesDP));
 
 	// Force CUDA to flush profiling information 
 	cudaDeviceReset();
@@ -709,6 +989,7 @@ void rayTrace() {
 	RayTraceWrapper(bufferObjectDevicePointer,
 		windowWidth, windowHeight, 
 		triangleTotal,
+		lightTotal,
 		make_float3(position[VX], position[VY], position[VZ]),
 		make_float3(up[VX], up[VY], up[VZ]), make_float3(right[VX], right[VY], right[VZ]), make_float3(direction[VX], direction[VY], direction[VZ]));
 
@@ -767,6 +1048,7 @@ int main(int argc, char** argv) {
 	initOpenGL();
 
 	// Initialize the Scene 
+	initLights();
 	initCamera();
 	initObjects();
 

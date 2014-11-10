@@ -17,47 +17,62 @@
     <Filter Include="Source Files\Library">
       <UniqueIdentifier>{71a4672b-ca0d-4578-9110-ca21a832c66d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Math">
-      <UniqueIdentifier>{cf0955d0-0a5a-48cb-89fa-66a34a69e366}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Math\Matrix">
-      <UniqueIdentifier>{27eb5fc8-0af8-4ea0-a01b-9681a59db916}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Math\Vector">
-      <UniqueIdentifier>{b8d2489e-c3ac-4d8c-a5b9-592dcfbf5598}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Math\Quaternion">
-      <UniqueIdentifier>{b107b3d6-3045-4a00-bf79-15929fcd012e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Camera">
-      <UniqueIdentifier>{6bc69f6b-0be9-4543-adf0-897c97706907}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Object">
-      <UniqueIdentifier>{925accb2-27d1-41b0-88b8-58c2cb5e58ea}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Object\Transform">
-      <UniqueIdentifier>{6baab3f4-d9ab-4946-be43-5debc27b02ff}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Library\Object\Mesh">
-      <UniqueIdentifier>{339c22d1-fafe-465c-a5db-8c54314301ab}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\Library\Utility">
       <UniqueIdentifier>{590226aa-0d6a-4a82-a66e-87d0b5bf0128}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\CUDA Kernel">
       <UniqueIdentifier>{83755cd2-dcfa-4c72-9932-77c738f10e4b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Buffers">
-      <UniqueIdentifier>{c7e598e1-a967-43f9-830c-f1f9b3f8e3b9}</UniqueIdentifier>
+    <Filter Include="Source Files\Library\Scene">
+      <UniqueIdentifier>{30a09e5a-ac78-4cfd-9c79-5df594aec67a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Textures">
+    <Filter Include="Source Files\Library\Scene\Object">
+      <UniqueIdentifier>{925accb2-27d1-41b0-88b8-58c2cb5e58ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Object\Transform">
+      <UniqueIdentifier>{6baab3f4-d9ab-4946-be43-5debc27b02ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Object\Mesh">
+      <UniqueIdentifier>{339c22d1-fafe-465c-a5db-8c54314301ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Object\Mesh\Material">
+      <UniqueIdentifier>{72791633-7dca-463c-91b5-72b1e5e377fd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Object\Mesh\Vertex">
+      <UniqueIdentifier>{f94ca7fc-9810-4eb5-9b01-3d59bfc85863}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Camera">
+      <UniqueIdentifier>{6bc69f6b-0be9-4543-adf0-897c97706907}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\Math">
+      <UniqueIdentifier>{cf0955d0-0a5a-48cb-89fa-66a34a69e366}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\Math\Matrix">
+      <UniqueIdentifier>{27eb5fc8-0af8-4ea0-a01b-9681a59db916}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\Math\Vector">
+      <UniqueIdentifier>{b8d2489e-c3ac-4d8c-a5b9-592dcfbf5598}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\Math\Quaternion">
+      <UniqueIdentifier>{b107b3d6-3045-4a00-bf79-15929fcd012e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\CUDA Interop">
+      <UniqueIdentifier>{de07b82a-8b4e-4319-9e0c-99515e71f28a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\CUDA Interop\Textures">
       <UniqueIdentifier>{7b6996c5-cfb9-40d8-9eed-15d7fe99a59e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Textures\Screen">
+    <Filter Include="Source Files\Library\CUDA Interop\Textures\Screen">
       <UniqueIdentifier>{ba3a2dcb-d0e4-4e67-8a36-fae8f7226a90}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Textures\Shading">
+    <Filter Include="Source Files\Library\CUDA Interop\Textures\Shading">
       <UniqueIdentifier>{997361cd-74e2-4549-a9a0-42494ce39843}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\CUDA Interop\Buffers">
+      <UniqueIdentifier>{c7e598e1-a967-43f9-830c-f1f9b3f8e3b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Lights">
+      <UniqueIdentifier>{ca68db67-b8e5-4f5e-8d44-764981b4122b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -65,25 +80,25 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\Vector.cpp">
-      <Filter>Source Files\Library\Math\Vector</Filter>
+      <Filter>Source Files\Library\Utility\Math\Vector</Filter>
     </ClCompile>
     <ClCompile Include="source\Camera.cpp">
-      <Filter>Source Files\Library\Camera</Filter>
+      <Filter>Source Files\Library\Scene\Camera</Filter>
     </ClCompile>
     <ClCompile Include="source\Object.cpp">
-      <Filter>Source Files\Library\Object</Filter>
+      <Filter>Source Files\Library\Scene\Object</Filter>
     </ClCompile>
     <ClCompile Include="source\Matrix.cpp">
-      <Filter>Source Files\Library\Math\Matrix</Filter>
+      <Filter>Source Files\Library\Utility\Math\Matrix</Filter>
     </ClCompile>
     <ClCompile Include="source\Quaternion.cpp">
-      <Filter>Source Files\Library\Math\Quaternion</Filter>
+      <Filter>Source Files\Library\Utility\Math\Quaternion</Filter>
     </ClCompile>
     <ClCompile Include="source\Transform.cpp">
-      <Filter>Source Files\Library\Object\Transform</Filter>
+      <Filter>Source Files\Library\Scene\Object\Transform</Filter>
     </ClCompile>
     <ClCompile Include="source\Mesh.cpp">
-      <Filter>Source Files\Library\Object\Mesh</Filter>
+      <Filter>Source Files\Library\Scene\Object\Mesh</Filter>
     </ClCompile>
     <ClCompile Include="source\MouseHandler.cpp">
       <Filter>Source Files\User Interaction\Mouse</Filter>
@@ -95,39 +110,48 @@
       <Filter>Source Files\Library\Utility</Filter>
     </ClCompile>
     <ClCompile Include="source\Texture.cpp">
-      <Filter>Source Files\Library\Textures</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Textures</Filter>
     </ClCompile>
     <ClCompile Include="source\ScreenTexture.cpp">
-      <Filter>Source Files\Library\Textures\Screen</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Textures\Screen</Filter>
     </ClCompile>
     <ClCompile Include="source\ShadingTexture.cpp">
-      <Filter>Source Files\Library\Textures\Shading</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Textures\Shading</Filter>
     </ClCompile>
     <ClCompile Include="source\BufferObject.cpp">
-      <Filter>Source Files\Library\Buffers</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Material.cpp">
+      <Filter>Source Files\Library\Scene\Object\Mesh\Material</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Vertex.cpp">
+      <Filter>Source Files\Library\Scene\Object\Mesh\Vertex</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Light.cpp">
+      <Filter>Source Files\Library\Scene\Lights</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\Vector.h">
-      <Filter>Source Files\Library\Math\Vector</Filter>
+      <Filter>Source Files\Library\Utility\Math\Vector</Filter>
     </ClInclude>
     <ClInclude Include="source\Camera.h">
-      <Filter>Source Files\Library\Camera</Filter>
+      <Filter>Source Files\Library\Scene\Camera</Filter>
     </ClInclude>
     <ClInclude Include="source\Object.h">
-      <Filter>Source Files\Library\Object</Filter>
+      <Filter>Source Files\Library\Scene\Object</Filter>
     </ClInclude>
     <ClInclude Include="source\Matrix.h">
-      <Filter>Source Files\Library\Math\Matrix</Filter>
+      <Filter>Source Files\Library\Utility\Math\Matrix</Filter>
     </ClInclude>
     <ClInclude Include="source\Quaternion.h">
-      <Filter>Source Files\Library\Math\Quaternion</Filter>
+      <Filter>Source Files\Library\Utility\Math\Quaternion</Filter>
     </ClInclude>
     <ClInclude Include="source\Transform.h">
-      <Filter>Source Files\Library\Object\Transform</Filter>
+      <Filter>Source Files\Library\Scene\Object\Transform</Filter>
     </ClInclude>
     <ClInclude Include="source\Mesh.h">
-      <Filter>Source Files\Library\Object\Mesh</Filter>
+      <Filter>Source Files\Library\Scene\Object\Mesh</Filter>
     </ClInclude>
     <ClInclude Include="source\MouseHandler.h">
       <Filter>Source Files\User Interaction\Mouse</Filter>
@@ -139,22 +163,31 @@
       <Filter>Source Files\Library\Utility</Filter>
     </ClInclude>
     <ClInclude Include="source\Constants.h">
-      <Filter>Source Files\Library\Math</Filter>
+      <Filter>Source Files\Library\Utility\Math</Filter>
     </ClInclude>
     <ClInclude Include="source\Utility.h">
       <Filter>Source Files\Library\Utility</Filter>
     </ClInclude>
     <ClInclude Include="source\Texture.h">
-      <Filter>Source Files\Library\Textures</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Textures</Filter>
     </ClInclude>
     <ClInclude Include="source\ScreenTexture.h">
-      <Filter>Source Files\Library\Textures\Screen</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Textures\Screen</Filter>
     </ClInclude>
     <ClInclude Include="source\ShadingTexture.h">
-      <Filter>Source Files\Library\Textures\Shading</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Textures\Shading</Filter>
     </ClInclude>
     <ClInclude Include="source\BufferObject.h">
-      <Filter>Source Files\Library\Buffers</Filter>
+      <Filter>Source Files\Library\CUDA Interop\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Material.h">
+      <Filter>Source Files\Library\Scene\Object\Mesh\Material</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Vertex.h">
+      <Filter>Source Files\Library\Scene\Object\Mesh\Vertex</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Light.h">
+      <Filter>Source Files\Library\Scene\Lights</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -9,15 +9,30 @@
 #include "vector_types.h"
 #include "vector_functions.h"
 
-texture<float4, 1, cudaReadModeElementType> trianglePositionsTexture;	// the scene triangles store in a 1D float4 texture (they are stored as the 3 vertices)
+// Triangle Textures
+texture<float4, 1, cudaReadModeElementType> trianglePositionsTexture;
 texture<float4, 1, cudaReadModeElementType> triangleNormalsTexture;
 texture<float4, 1, cudaReadModeElementType> triangleTangentsTexture;
 
 texture<float2, 1, cudaReadModeElementType> triangleTextureCoordinatesTexture;
 
-texture<float4, 1, cudaReadModeElementType> triangleDiffusePropertiesTexture;
-texture<float4, 1, cudaReadModeElementType> triangleSpecularPropertiesTexture;
+texture<int1, 1, cudaReadModeElementType> triangleMaterialIDsTexture;
 
+// Material Textures
+texture<float4, 1, cudaReadModeElementType> materialDiffusePropertiesTexture;
+texture<float4, 1, cudaReadModeElementType> materialSpecularPropertiesTexture;
+
+// Light Textures
+texture<float4, 1, cudaReadModeElementType> lightPositionsTexture;
+texture<float4, 1, cudaReadModeElementType> lightDirectionsTexture;
+
+texture<float1, 1, cudaReadModeElementType> lightCutOffsTexture;
+
+texture<float4, 1, cudaReadModeElementType> lightColorsTexture;
+texture<float2, 1, cudaReadModeElementType> lightIntensitiesTexture;
+texture<float4, 1, cudaReadModeElementType> lightAttenuationsTexture;
+
+// OpenGL Texture Textures
 texture<uchar4, cudaTextureType2D, cudaReadModeElementType> shadingTexture;
 
 const int initialDepth = 3;
@@ -44,16 +59,8 @@ __device__ const float3 spherePositions[] = {	{  10.0f, -2.5f,  10.0f },
 												{ -10.0f, -2.5f, -10.0f }, 
 												{  10.0f, -2.5f, -10.0f } };
 
-// Hard coded for testing purposes
-__device__ const float3 lightPosition =	{ 0.0f, 5.0f, 0.0f };
-__device__ const float3 lightColor =	{ 1.0f, 1.0f, 1.0f };
-
 // Ray testing Constant
 __device__ const float epsilon = 0.01f;
-
-__device__  const float constantAttenuation = 1.00f;
-__device__  const float linearAttenuation = 0.0025f;
-__device__  const float quadraticAttenuation = 0.0000025f;
 
 // Shadow Grid Dimensions and pre-calculated Values
 __device__ const int shadowGridWidth = 3;
@@ -246,9 +253,11 @@ __device__ float RaySphereIntersection2(const Ray &ray, const float3 sphereCente
 }
 
 // Casts a Ray and tests for intersections with the scenes geometry
-__device__ float3 RayCast(	Ray ray,								
-							// Triangle Dimensions
+__device__ float3 RayCast(	Ray ray, 
+							// Total Number of Triangles in the Scene
 							const int triangleTotal,
+							// Total Number of Lights in the Scene
+							const int lightTotal,
 							// Ray Bounce Depth
 							const int depth,
 							// Medium Refraction Index
@@ -345,8 +354,10 @@ __device__ float3 RayCast(	Ray ray,
 		if(hitRecord.triangleIndex >= 0) {
 
 			// Triangle Material Properties
-			diffuseColor = tex1Dfetch(triangleDiffusePropertiesTexture, hitRecord.triangleIndex * 3);
-			specularColor = tex1Dfetch(triangleSpecularPropertiesTexture, hitRecord.triangleIndex * 3);
+			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
+
+			diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+			specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
 
 			specularConstant = specularColor.w;
 			refractionConstant = diffuseColor.w;
@@ -373,110 +384,121 @@ __device__ float3 RayCast(	Ray ray,
 			refractionConstant = diffuseColor.w;
 		}
 
-		// Light Direction and Distance
-		float3 lightDirection = lightPosition - hitRecord.point;
+		for(int l = 0; l < lightTotal; l++) {
 
-		float lightDistance = length(lightDirection);
-		lightDirection = normalize(lightDirection);
+			float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
 
-		// Light Direction perpendicular plane base vectors 
-		float3 lightPlaneAxisA;
-		float3 lightPlaneAxisB;
-		float3 w;
+			// Light Direction and Distance
+			float3 lightDirection = lightPosition - hitRecord.point;
 
-		// Check which is the component with the smallest coeficient
-		float m = min(abs(lightDirection.x),max(abs(lightDirection.y),abs(lightDirection.z)));
+			float lightDistance = length(lightDirection);
+			lightDirection = normalize(lightDirection);
 
-		if(abs(lightDirection.x) == m) {
+			// Light Direction perpendicular plane base vectors 
+			float3 lightPlaneAxisA;
+			float3 lightPlaneAxisB;
+			float3 w;
 
-			w = make_float3(1.0f,0.0f,0.0f);
-		}
-		else if(abs(lightDirection.y) == m) {
+			// Check which is the component with the smallest coeficient
+			float m = min(abs(lightDirection.x),max(abs(lightDirection.y),abs(lightDirection.z)));
 
-			w = make_float3(0.0f,1.0f,0.0f);
-		}
-		else { //if(abs(lightDirection.z) == m) {
+			if(abs(lightDirection.x) == m) {
 
-			w = make_float3(0.0f,0.0f,1.0f);
-		}
+				w = make_float3(1.0f,0.0f,0.0f);
+			}
+			else if(abs(lightDirection.y) == m) {
 
-		// Calculate the perpendicular plane base vectors
-		lightPlaneAxisA = cross(w, lightDirection);
-		lightPlaneAxisB = cross(lightDirection,lightPlaneAxisA);
+				w = make_float3(0.0f,1.0f,0.0f);
+			}
+			else { //if(abs(lightDirection.z) == m) {
 
-		// Shadow Grid for Soft Shadows
-		for(int i=0; i<shadowGridWidth; i++) {
-			for(int j=0; j<shadowGridHeight; j++) {
+				w = make_float3(0.0f,0.0f,1.0f);
+			}
 
-				float3 interpolatedPosition = lightPosition + lightPlaneAxisA * (i-shadowGridHalfWidth) * shadowCellSize + lightPlaneAxisB * (j-shadowGridHalfHeight) * shadowCellSize;
+			// Calculate the perpendicular plane base vectors
+			lightPlaneAxisA = cross(w, lightDirection);
+			lightPlaneAxisB = cross(lightDirection,lightPlaneAxisA);
 
-				float3 interpolatedDirection = interpolatedPosition - hitRecord.point;
-				interpolatedDirection = normalize(interpolatedDirection);
+			// Shadow Grid for Soft Shadows
+			for(int i=0; i<shadowGridWidth; i++) {
+				for(int j=0; j<shadowGridHeight; j++) {
 
-				// Diffuse Factor
-				float diffuseFactor = max(dot(interpolatedDirection, hitRecord.normal), 0.0f);
-				clamp(diffuseFactor, 0.0f, 1.0f);
+					float3 interpolatedPosition = lightPosition + lightPlaneAxisA * (i-shadowGridHalfWidth) * shadowCellSize + lightPlaneAxisB * (j-shadowGridHalfHeight) * shadowCellSize;
 
-				if(diffuseFactor > 0.0f) {
+					float3 interpolatedDirection = interpolatedPosition - hitRecord.point;
+					interpolatedDirection = normalize(interpolatedDirection);
 
-					bool shadow = false;
+					// Diffuse Factor
+					float diffuseFactor = max(dot(interpolatedDirection, hitRecord.normal), 0.0f);
+					clamp(diffuseFactor, 0.0f, 1.0f);
 
-					Ray shadowRay(hitRecord.point + interpolatedDirection * epsilon, interpolatedDirection);
+					if(diffuseFactor > 0.0f) {
+
+						bool shadow = false;
+
+						Ray shadowRay(hitRecord.point + interpolatedDirection * epsilon, interpolatedDirection);
 			
-					// Test Shadow Rays for each Triangle
-					for(int k = 0; k < triangleTotal; k++) {
+						// Test Shadow Rays for each Triangle
+						for(int k = 0; k < triangleTotal; k++) {
 
-						float4 v0 = tex1Dfetch(trianglePositionsTexture, k * 3);
-						float4 e1 = tex1Dfetch(trianglePositionsTexture, k * 3 + 1);
-						e1 = e1 - v0;
-						float4 e2 = tex1Dfetch(trianglePositionsTexture, k * 3 + 2);
-						e2 = e2 - v0;
+							float4 v0 = tex1Dfetch(trianglePositionsTexture, k * 3);
+							float4 e1 = tex1Dfetch(trianglePositionsTexture, k * 3 + 1);
+							e1 = e1 - v0;
+							float4 e2 = tex1Dfetch(trianglePositionsTexture, k * 3 + 2);
+							e2 = e2 - v0;
 
-						float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+							float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
 
-						if(hitTime > epsilon) {
+							if(hitTime > epsilon) {
 
-							shadow = true;
-							break;
+								shadow = true;
+								break;
+							}
 						}
-					}
 
-					// Test Shadow Rays for each Sphere
-					for(int k = 0; k < sphereTotal; k++) {
+						// Test Shadow Rays for each Sphere
+						for(int k = 0; k < sphereTotal; k++) {
 
-						float hitTime = RaySphereIntersection(shadowRay, spherePositions[k], sphereRadius);
+							float hitTime = RaySphereIntersection(shadowRay, spherePositions[k], sphereRadius);
 
-						if(hitTime > epsilon) {
+							if(hitTime > epsilon) {
 
-							shadow = true;
-							break;
+								shadow = true;
+								break;
+							}
 						}
-					}
 
-					if(shadow == false) {
+						if(shadow == false) {
 
-						// Blinn-Phong approximation Halfway Vector
-						float3 halfwayVector = interpolatedDirection - ray.direction;
-						halfwayVector = normalize(halfwayVector);
+							// Blinn-Phong approximation Halfway Vector
+							float3 halfwayVector = interpolatedDirection - ray.direction;
+							halfwayVector = normalize(halfwayVector);
 
-						// Light Attenuation
-						float lightAttenuation = 1.0f / (constantAttenuation + lightDistance * linearAttenuation + lightDistance * lightDistance * quadraticAttenuation);
+							// Light Color
+							float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
+							// Light Intensity (x = diffuse, y = specular)
+							float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+							// Light Attenuation (x = constant, y = linear, z = exponential)
+							float3 lightAttenuation = make_float3(tex1Dfetch(lightAttenuationsTexture, l));
 
-						// Diffuse Component
-						hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightAttenuation * shadowGridDimensionInverse;
+							float attenuation = 1.0f / (lightAttenuation.x + lightDistance * lightAttenuation.y + lightDistance * lightDistance * lightAttenuation.z);
 
-						// Specular Factor
-						float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0f), specularConstant);
-						clamp(specularFactor, 0.0f, 1.0f);
+							// Diffuse Component
+							hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation * shadowGridDimensionInverse;
 
-						// Specular Component
-						if(specularFactor > 0.0f)
-							hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightAttenuation * shadowGridDimensionInverse;
+							// Specular Factor
+							float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0f), specularConstant);
+							clamp(specularFactor, 0.0f, 1.0f);
+
+							// Specular Component
+							if(specularFactor > 0.0f)
+								hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightIntensity.y * attenuation * shadowGridDimensionInverse;
+						}
 					}
 				}
 			}
 		}
-		// Blinn-Phong Shading - END		
+		// Blinn-Phong Shading - END
 
 		// If max depth wasn't reached yet
 		if(depth > 0)	{
@@ -488,7 +510,7 @@ __device__ float3 RayCast(	Ray ray,
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
 				// Cast the Reflected Ray
-				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, depth-1, refractionIndex) * 0.25f;
+				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, lightTotal, depth-1, refractionIndex) * 0.25f;
 			}
 
 			/*// If the Object Hit is translucid
@@ -519,8 +541,10 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 								// Screen Dimensions
 								const int width, 
 								const int height, 
-								// Triangle Dimensions
+								// Total Number of Triangles in the Scene
 								const int triangleTotal,
+								// Total Number of Lights in the Scene
+								const int lightTotal,
 								// Ray Bounce Depth
 								const int depth,
 								// Medium Refraction Index
@@ -559,7 +583,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 			// Ray used to store Origin and Direction information
 			Ray ray(rayOrigin, rayDirection);
 
-			pixelColor += RayCast(ray, triangleTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
+			pixelColor += RayCast(ray, triangleTotal, lightTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
 		}
 	}
 
@@ -570,7 +594,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	// Ray used to store Origin and Direction information
 	Ray ray(rayOrigin, rayDirection);
 
-	pixelColor += RayCast(ray, triangleTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
+	pixelColor += RayCast(ray, triangleTotal, lightTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
 
 	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
 }
@@ -580,6 +604,7 @@ extern "C" {
 	void RayTraceWrapper(unsigned int *outputPixelBufferObject,
 								int width, int height, 
 								int triangleTotal,
+								int lightTotal,
 								float3 cameraPosition,
 								float3 cameraUp, float3 cameraRight, float3 cameraDirection
 								) {
@@ -590,12 +615,14 @@ extern "C" {
 		RayTracePixel<<<grid, block>>>(	outputPixelBufferObject, 
 										width, height,
 										triangleTotal,
+										lightTotal,
 										initialDepth,
 										initialRefractionIndex,
 										cameraPosition,
 										cameraUp, cameraRight, cameraDirection);
 	}
 
+	// Triangle Texture Binding Functions
 	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal) {
 
 		trianglePositionsTexture.normalized = false;                      // access with normalized texture coordinates
@@ -644,30 +671,117 @@ extern "C" {
 		cudaBindTexture(0, triangleTextureCoordinatesTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 
-	void bindTriangleDiffuseProperties(float *cudaDevicePointer, unsigned int triangleTotal) {
+	void bindTriangleMaterialIDs(float *cudaDevicePointer, unsigned int triangleTotal) {
 
-		triangleDiffusePropertiesTexture.normalized = false;                      // access with normalized texture coordinates
-		triangleDiffusePropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
-		triangleDiffusePropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+		triangleMaterialIDsTexture.normalized = false;                      // access with normalized texture coordinates
+		triangleMaterialIDsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		triangleMaterialIDsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
 
-		size_t size = sizeof(float4) * triangleTotal * 3;
+		size_t size = sizeof(int1) * triangleTotal * 3;
 
-		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
-		cudaBindTexture(0, triangleDiffusePropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<int1>();
+		cudaBindTexture(0, triangleMaterialIDsTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 
-	void bindTriangleSpecularProperties(float *cudaDevicePointer, unsigned int triangleTotal) {
+	// Material Texture Binding Functions
+	void bindMaterialDiffuseProperties(float *cudaDevicePointer, unsigned int materialTotal) {
 
-		triangleSpecularPropertiesTexture.normalized = false;                      // access with normalized texture coordinates
-		triangleSpecularPropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
-		triangleSpecularPropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+		materialDiffusePropertiesTexture.normalized = false;                      // access with normalized texture coordinates
+		materialDiffusePropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		materialDiffusePropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
 
-		size_t size = sizeof(float4) * triangleTotal * 3;
+		size_t size = sizeof(float4) * materialTotal;
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
-		cudaBindTexture(0, triangleSpecularPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+		cudaBindTexture(0, materialDiffusePropertiesTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 
+	void bindMaterialSpecularProperties(float *cudaDevicePointer, unsigned int materialTotal) {
+
+		materialSpecularPropertiesTexture.normalized = false;                      // access with normalized texture coordinates
+		materialSpecularPropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		materialSpecularPropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * materialTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, materialSpecularPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	// Light Texture Binding Functions
+	void bindLightPositions(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightPositionsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightPositionsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightPositionsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, lightPositionsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightDirections(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightDirectionsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightDirectionsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightDirectionsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, lightDirectionsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightCutOffs(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightCutOffsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightCutOffsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightCutOffsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float1) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float1>();
+		cudaBindTexture(0, lightCutOffsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightColorsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightColorsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightColorsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, lightColorsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightIntensitiesTexture.normalized = false;                      // access with normalized texture coordinates
+		lightIntensitiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightIntensitiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float2) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float2>();
+		cudaBindTexture(0, lightIntensitiesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightAttenuations(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightAttenuationsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightAttenuationsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightAttenuationsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, lightAttenuationsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	// OpenGL Textutures Texture Binding Functions
 	void bindTextureArray(cudaArray *cudaArray) {
 
 		shadingTexture.normalized = true;						// access with normalized texture coordinates

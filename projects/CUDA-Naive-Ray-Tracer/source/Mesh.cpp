@@ -3,14 +3,21 @@
 Mesh::Mesh(string name, string meshFilename, string materialFilename) {
 
 	OBJ_Reader* objReader = OBJ_Reader::getInstance();
-	objReader->loadMesh(meshFilename, materialFilename, this);
 
-	//createMesh();
+	objReader->loadMesh(meshFilename, materialFilename, this);
 }
 
 Mesh::~Mesh() {
 
-	delete[] this->vertices;
+	/* Destroy Vertices */
+	map<int,Vertex*>::const_iterator vertexIterator;
+	for(vertexIterator = this->vertexMap.begin(); vertexIterator != this->vertexMap.end(); vertexIterator++)
+		delete vertexIterator->second;
+
+	/* Destroy Materials */
+	map<int,Material*>::const_iterator materialIterator;
+	for(materialIterator = this->materialMap.begin(); materialIterator != this->materialMap.end(); materialIterator++)
+		delete materialIterator->second;
 }
 
 string Mesh::getName() {
@@ -18,51 +25,63 @@ string Mesh::getName() {
 	return this->name;
 }
 
-int Mesh::getVertexCount() {
+void Mesh::addVertex(Vertex* vertex) {
 
-	return this->vertexCount;
+	this->vertexMap[vertex->getID()] = vertex;
 }
 
-Vertex* Mesh::getVertices() {
+void Mesh::removeVertex(int vertexID) {
 
-	return this->vertices;
+	this->vertexMap.erase(vertexID);
 }
 
-Vertex Mesh::getVertex(int vertexID) {
+Vertex* Mesh::getVertex(int vertexID) {
 
-	return this->vertices[vertexID];
+	if (vertexMap.find(vertexID) == vertexMap.end())
+		return NULL;
+
+	return vertexMap[vertexID];
 }
 
-void Mesh::setName(string name) {
+map<int,Vertex*> Mesh::getVertexMap() {
 
-	this->name = name;
+	return this->vertexMap;
 }
 
-void Mesh::setVertexCount(int vertexCount) {
+void Mesh::addMaterial(Material* material) {
 
-	this->vertexCount = vertexCount;
+	this->materialMap[material->getID()] = material;
 }
 
-void Mesh::setVertices(Vertex* vertices, int vertexCount) {
+void Mesh::removeMaterial(int materialID) {
 
-	this->vertexCount = vertexCount;
+	this->materialMap.erase(materialID);
+}
 
-	this->vertices = new Vertex[vertexCount];
+Material* Mesh::getMaterial(int materialID) {
 
-	memcpy(this->vertices, vertices, sizeof(Vertex) * vertexCount);
+	if(this->materialMap.find(materialID) == this->materialMap.end())
+		return NULL;
+
+	return this->materialMap[materialID];
+}
+
+map<int,Material*> Mesh::getMaterialMap() {
+
+	return this->materialMap;
 }
 
 void Mesh::dump() {
 
 	cout << "<Mesh \"" << this->name << "\" Dump>" << endl;
 
-	/* Buffer Object Vertex Attributes */
-	cout << "<Mesh Vertex Count> = " << this->vertexCount << " ;" << endl;
+	/* Vertex Map */
+	map<int,Vertex*>::const_iterator vertexIterator;
+	for(vertexIterator = this->vertexMap.begin(); vertexIterator != this->vertexMap.end(); vertexIterator++)
+		vertexIterator->second->dump();
 
-	cout << "<Mesh Vertex List> = "  << endl;
-	for(int i=0; i < this->vertexCount; i++) {
-
-		cout << "\tVertex " << i << " Position: ";
-		cout << "\t[" << this->vertices[i].position[0] << "][" << this->vertices[i].position[1] << "][" << this->vertices[i].position[2] << "][" << this->vertices[i].position[3] << "]" << endl;
-	}
+	/* Material Map */
+	map<int,Material*>::const_iterator materialIterator;
+	for(materialIterator = this->materialMap.begin(); materialIterator != this->materialMap.end(); materialIterator++)
+		materialIterator->second->dump();
 }

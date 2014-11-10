@@ -30,19 +30,21 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 
 	cout << "[Initialization] LoadMesh(" << meshFilename << "," << materialFilename << "," << mesh->getName() << ")" << endl;
 
+	/* Holds the current line being read */
 	string line;
 
+	/* Map holding all the declared materials in the .mtl file */
+	map<string, Material*> materialMap;	
+
+	/* ID of the Material currently being read */
+	int currentMaterialID = 0;
+	/* Name of the Material currently being read */
+	string currentMaterialName = string("Uninitialized");
+
 	/* Reading the Materials .mtl */
-	bool hasMaterial = false;
-
-	string activeMaterial;
-	map<string,MaterialStruct> materialMap;	
-
 	ifstream materialFile(LOCATION + materialFilename);
 
 	while(getline(materialFile, line)) {
-
-		hasMaterial = true;
 
 		istringstream iss(line);
 
@@ -52,7 +54,9 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 		/* Reading a new Material */
 		if(start == "newmtl") {
 
-			iss >> activeMaterial;
+			iss >> currentMaterialName;
+
+			materialMap[currentMaterialName] = new Material(currentMaterialID++, currentMaterialName);
 		}
 		/* Reading Ambient Component */
 		else if(start == "Ka") {
@@ -60,9 +64,7 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 			float x,y,z;
 			iss >> x >> y >> z;
 
-			materialMap[activeMaterial].ambient[0] = x;
-			materialMap[activeMaterial].ambient[1] = y;
-			materialMap[activeMaterial].ambient[2] = z;
+			materialMap[currentMaterialName]->setAmbient(Vector(x, y, z, 1.0f));
 		}
 		/* Reading Diffuse Component */
 		else if(start == "Kd") {
@@ -70,9 +72,7 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 			float x,y,z;
 			iss >> x >> y >> z;
 
-			materialMap[activeMaterial].diffuse[0] = x;
-			materialMap[activeMaterial].diffuse[1] = y;
-			materialMap[activeMaterial].diffuse[2] = z;
+			materialMap[currentMaterialName]->setDiffuse(Vector(x, y, z, 1.0f));
 		}
 		/* Reading Specular Component */
 		else if(start == "Ks") {
@@ -80,25 +80,36 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 			float x,y,z;
 			iss >> x >> y >> z;
 
-			materialMap[activeMaterial].specular[0] = x;
-			materialMap[activeMaterial].specular[1] = y;
-			materialMap[activeMaterial].specular[2] = z;
+			materialMap[currentMaterialName]->setSpecular(Vector(x, y, z, 1.0f));
 		}
 		/* Reading Specular Constant */
 		else if(start == "Ns") {
 
-			float x;
-			iss >> x;
+			float s;
+			iss >> s;
 
-			materialMap[activeMaterial].specularConstant = x;
+			materialMap[currentMaterialName]->setSpecularConstant(s);
 		}
 	}
 
 	materialFile.close();
 
+	/* If no Material was read, add a default one */
+	if(currentMaterialName == string("Uninitialized")) {
+
+		currentMaterialName = string("Default Material");
+	
+		materialMap[currentMaterialName] = new Material(currentMaterialID++, currentMaterialName);
+
+		materialMap[currentMaterialName]->setAmbient(Vector(0.75f, 0.75f, 0.75f, 1.0f));
+		materialMap[currentMaterialName]->setDiffuse(Vector(0.75f, 0.75f, 0.75f, 1.0f));
+		materialMap[currentMaterialName]->setSpecular(Vector(0.75f, 0.75f, 0.75f, 1.0f));
+		materialMap[currentMaterialName]->setSpecularConstant(100.0f);
+	}
+
 	/* Reading the Model .obj - First pass */
 	int faceNumber = 0;
-	int vertexNumber = 0;
+	int positionNumber = 0;
 	int normalNumber = 0;
 	int textureCoordinateNumber = 0;
 
@@ -113,7 +124,7 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 		
 		/* Add a Vertex */
 		if(start == "v")
-			vertexNumber++;
+			positionNumber++;
 		/* Add a Vertex Normal */
 		else if(start == "vn")
 			normalNumber++;
@@ -131,25 +142,27 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 	modelFile.open(LOCATION + meshFilename);
 
 	/* Storage Structures */
-	Coordinate3D *vertexArray = new Coordinate3D[vertexNumber];
+	Coordinate3D *positionArray = new Coordinate3D[positionNumber];
 	Coordinate3D *normalArray = new Coordinate3D[normalNumber];
 	Coordinate2D *textureCoordinateArray = new Coordinate2D[textureCoordinateNumber];
 
-	/* Calculated after parsing */
-	Vector *sTangentArray = new Vector[vertexNumber];
-	Vector *tTangentArray = new Vector[vertexNumber];
-
-	/* Final GPU-ready Structure */
-	Vertex *bufferVertices = new Vertex[faceNumber * 3];
+	/* Auxiliary Array to calculate Tangents */
 	int *bufferVerticesID = new int[faceNumber * 3];
+
+	/* Auxiliary Arrays to accumulate Tangents */
+	Vector *sTangentArray = new Vector[positionNumber];
+	Vector *tTangentArray = new Vector[positionNumber];
+
+	/* Map holding all the declared vertices in the .obj file */
+	map<unsigned int, Vertex*> vertexMap;
 
 	/* Index Trackers */
 	int currentFace = 0;
-	int currentVertex = 0;
+	int currentPosition = 0;
 	int currentNormal = 0;
 	int currentTextureCoordinate = 0;
 
-	bool hasNormals = false;
+	string activeMaterialName = string("Uninitialized");
 
 	while(getline(modelFile, line)) {
 
@@ -161,7 +174,7 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 		/* Change Active Material */
 		if(start == "usemtl") {
 
-			iss >> activeMaterial;
+			iss >> activeMaterialName;
 		}
 		/* Add a Vertex */
 		else if(start == "v") {
@@ -169,11 +182,11 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 			float x,y,z;
 			iss >> x >> y >> z;
 
-			vertexArray[currentVertex].x = x;
-			vertexArray[currentVertex].y = y;
-			vertexArray[currentVertex].z = z;			
+			positionArray[currentPosition].x = x;
+			positionArray[currentPosition].y = y;
+			positionArray[currentPosition].z = z;			
 
-			currentVertex++;
+			currentPosition++;
 		}
 		/* Add a Vertex Normal */
 		else if(start == "vn") {
@@ -208,110 +221,64 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 
 				vector<int> index = split(faceVertex[i], '/');
 
+				/* IDs of the Vertex Components */
+				int positionID = index[0]-1;
+				int normalID = index[2]-1;
+				int textureCoordinatesID = index[1]-1;
+
+				Vertex* vertex = new Vertex(currentFace * 3 + i);
+
 				/* Vertex ID */
-				bufferVerticesID[currentFace * 3 + i] = index[0]-1;
+				bufferVerticesID[currentFace * 3 + i] = positionID;
 
 				/* Vertex Position */
-				bufferVertices[currentFace * 3 + i].position[0] = vertexArray[index[0]-1].x;
-				bufferVertices[currentFace * 3 + i].position[1] = vertexArray[index[0]-1].y;
-				bufferVertices[currentFace * 3 + i].position[2] = vertexArray[index[0]-1].z;
-				bufferVertices[currentFace * 3 + i].position[3] = 1.0f;
+				vertex->setPosition(Vector(positionArray[positionID].x, positionArray[positionID].y, positionArray[positionID].z, 1.0f));
 			
 				/* Vertex Texture Coordinates */
-				if(index.size() >= 2) {
+				if(index.size() >= 2)
+					vertex->setTextureCoordinates(Vector(textureCoordinateArray[textureCoordinatesID].u, textureCoordinateArray[textureCoordinatesID].v, 0.0f, 0.0f));
+				else
+					vertex->setTextureCoordinates(Vector(0.0f));
 
-					bufferVertices[currentFace * 3 + i].textureUV[0] = textureCoordinateArray[index[1]-1].u;
-					bufferVertices[currentFace * 3 + i].textureUV[1] = textureCoordinateArray[index[1]-1].v;
-				} 
-				else {
-
-					bufferVertices[currentFace * 3 + i].textureUV[0] = 0.0f;
-					bufferVertices[currentFace * 3 + i].textureUV[1] = 0.0f;
-				}
-
-				/* Vertex Normals */
-				if(index.size() >= 3) {
-
-					hasNormals = true;
-
-					bufferVertices[currentFace * 3 + i].normal[0] = normalArray[index[2]-1].x;
-					bufferVertices[currentFace * 3 + i].normal[1] = normalArray[index[2]-1].y;
-					bufferVertices[currentFace * 3 + i].normal[2] = normalArray[index[2]-1].z;
-					bufferVertices[currentFace * 3 + i].normal[3] = 0.0f;
-				}
-				else {
-
-					bufferVertices[currentFace * 3 + i].normal[0] = 0.0f;
-					bufferVertices[currentFace * 3 + i].normal[1] = 0.0f;
-					bufferVertices[currentFace * 3 + i].normal[2] = 0.0f;
-					bufferVertices[currentFace * 3 + i].normal[3] = 0.0f; 				
-				}
+				/* Vertex Normal */
+				if(index.size() >= 3)
+					vertex->setNormal(Vector(normalArray[normalID].x, normalArray[normalID].y, normalArray[normalID].z, 0.0f));
+				else
+					vertex->setNormal(Vector(0.0f)); 				
 
 				/* Vertex Material */
-				if(hasMaterial == true) {
+				if(activeMaterialName != string("Uninitialized") && materialMap.find(activeMaterialName) != materialMap.end())	
+					vertex->setMaterialID(materialMap[activeMaterialName]->getID());			
+				else
+					vertex->setMaterialID(materialMap.begin()->second->getID());
 
-					bufferVertices[currentFace * 3 + i].ambient[0] = materialMap[activeMaterial].ambient[0];
-					bufferVertices[currentFace * 3 + i].ambient[1] = materialMap[activeMaterial].ambient[1];
-					bufferVertices[currentFace * 3 + i].ambient[2] = materialMap[activeMaterial].ambient[2];
-					bufferVertices[currentFace * 3 + i].ambient[3] = 1.0f;
-
-					bufferVertices[currentFace * 3 + i].diffuse[0] = materialMap[activeMaterial].diffuse[0];
-					bufferVertices[currentFace * 3 + i].diffuse[1] = materialMap[activeMaterial].diffuse[1];
-					bufferVertices[currentFace * 3 + i].diffuse[2] = materialMap[activeMaterial].diffuse[2];
-					bufferVertices[currentFace * 3 + i].diffuse[3] = 1.0f;
-					
-					bufferVertices[currentFace * 3 + i].specular[0] = materialMap[activeMaterial].specular[0];
-					bufferVertices[currentFace * 3 + i].specular[1] = materialMap[activeMaterial].specular[1];
-					bufferVertices[currentFace * 3 + i].specular[2] = materialMap[activeMaterial].specular[2];
-					bufferVertices[currentFace * 3 + i].specular[3] = 1.0f;
-					
-					bufferVertices[currentFace * 3 + i].specularConstant = materialMap[activeMaterial].specularConstant;					
-				}
-				else {
-
-					bufferVertices[currentFace * 3 + i].ambient[0] = 1.0f;
-					bufferVertices[currentFace * 3 + i].ambient[1] = 1.0f;
-					bufferVertices[currentFace * 3 + i].ambient[2] = 1.0f;
-					bufferVertices[currentFace * 3 + i].ambient[3] = 1.0f;
-
-					bufferVertices[currentFace * 3 + i].diffuse[0] = 1.0f;
-					bufferVertices[currentFace * 3 + i].diffuse[1] = 0.0f;
-					bufferVertices[currentFace * 3 + i].diffuse[2] = 0.0f;
-					bufferVertices[currentFace * 3 + i].diffuse[3] = 1.0f;
-					
-					bufferVertices[currentFace * 3 + i].specular[0] = 0.0f;
-					bufferVertices[currentFace * 3 + i].specular[1] = 0.0f;
-					bufferVertices[currentFace * 3 + i].specular[2] = 1.0f;
-					bufferVertices[currentFace * 3 + i].specular[3] = 1.0f;
-
-					bufferVertices[currentFace * 3 + i].specularConstant = 255.0f;
-				}
+				vertexMap[vertex->getID()] = vertex;
 			}
 
-			/* Create the Vertex-based Edges */
-			Coordinate3D xyz1;
-			xyz1.x = bufferVertices[currentFace * 3 + 1].position[0] - bufferVertices[currentFace * 3].position[0];
-			xyz1.y = bufferVertices[currentFace * 3 + 1].position[1] - bufferVertices[currentFace * 3].position[1];
-			xyz1.z = bufferVertices[currentFace * 3 + 1].position[2] - bufferVertices[currentFace * 3].position[2];
+			/* Load the Vertices */
+			Vertex* vertex0 = vertexMap[currentFace * 3];
+			Vertex* vertex1 = vertexMap[currentFace * 3 + 1];
+			Vertex* vertex2 = vertexMap[currentFace * 3 + 2];
 
-			Coordinate3D xyz2;
-			xyz2.x = bufferVertices[currentFace * 3 + 2].position[0] - bufferVertices[currentFace * 3].position[0];
-			xyz2.y = bufferVertices[currentFace * 3 + 2].position[1] - bufferVertices[currentFace * 3].position[1];
-			xyz2.z = bufferVertices[currentFace * 3 + 2].position[2] - bufferVertices[currentFace * 3].position[2];
+			/* Create the Vertex-based Edges */
+			Vector positionEdge01 = vertex1->getPosition() - vertex0->getPosition();
+			Vector positionEdge02 = vertex2->getPosition() - vertex0->getPosition();
 
 			/* Create the UV-based Edges */
-			Coordinate2D uv1;
-			uv1.u = bufferVertices[currentFace * 3 + 1].textureUV[0] - bufferVertices[currentFace * 3].textureUV[0];
-			uv1.v = bufferVertices[currentFace * 3 + 1].textureUV[1] - bufferVertices[currentFace * 3].textureUV[1];
+			Vector textureCoordinatesEdge01 = vertex1->getTextureCoordinates() - vertex0->getTextureCoordinates();
+			Vector textureCoordinatesEdge02 = vertex2->getTextureCoordinates() - vertex0->getTextureCoordinates();
 
-			Coordinate2D uv2;
-			uv2.u = bufferVertices[currentFace * 3 + 2].textureUV[0] - bufferVertices[currentFace * 3].textureUV[0];
-			uv2.v = bufferVertices[currentFace * 3 + 2].textureUV[1] - bufferVertices[currentFace * 3].textureUV[1];
+			float r = 1.0f / (textureCoordinatesEdge01[VX] * textureCoordinatesEdge02[VY] - textureCoordinatesEdge02[VX] * textureCoordinatesEdge01[VY]);
 
-			float r = 1.0f / (uv1.u * uv2.v - uv2.u * uv1.v);
+			Vector s(
+				(textureCoordinatesEdge02[VY] * positionEdge01[VX] - textureCoordinatesEdge01[VY] * positionEdge02[VX]) * r, 
+				(textureCoordinatesEdge02[VY] * positionEdge01[VY] - textureCoordinatesEdge01[VY] * positionEdge02[VY]) * r,
+				(textureCoordinatesEdge02[VY] * positionEdge01[VZ] - textureCoordinatesEdge01[VY] * positionEdge02[VZ]) * r, 0.0f);
 
-			Vector s((uv2.v * xyz1.x - uv1.v * xyz2.x) * r, (uv2.v * xyz1.y - uv1.v * xyz2.y) * r,(uv2.v * xyz1.z - uv1.v * xyz2.z) * r, 0.0f);
-			Vector t((uv1.u * xyz2.x - uv2.u * xyz1.x) * r, (uv1.u * xyz2.y - uv2.u * xyz1.y) * r,(uv1.u * xyz2.z - uv2.u * xyz1.z) * r, 0.0f);
+			Vector t(
+				(textureCoordinatesEdge01[VX] * positionEdge02[VX] - textureCoordinatesEdge02[VX] * positionEdge01[VX]) * r, 
+				(textureCoordinatesEdge01[VX] * positionEdge02[VY] - textureCoordinatesEdge02[VX] * positionEdge01[VY]) * r,
+				(textureCoordinatesEdge01[VX] * positionEdge02[VZ] - textureCoordinatesEdge02[VX] * positionEdge01[VZ]) * r, 0.0f);
 
 			/* Acumulate the new Tangents */
 			sTangentArray[bufferVerticesID[currentFace * 3]] += s;
@@ -330,37 +297,44 @@ void OBJ_Reader::loadMesh(string meshFilename, string materialFilename, Mesh* me
 	}
 
 	/* Average the Tangents */
-	for(int i=0; i<faceNumber * 3; i++) {
+	for(map<unsigned int,Vertex*>::const_iterator vertexIterator = vertexMap.begin(); vertexIterator != vertexMap.end(); vertexIterator++) {
 
-		Vector n = Vector(bufferVertices[i].normal);
-		Vector t1 = sTangentArray[bufferVerticesID[i]];
-		Vector t2 = tTangentArray[bufferVerticesID[i]];
+		Vertex* vertex =  vertexIterator->second;
+	
+		Vector normal = vertex->getNormal();
+		Vector t1 = sTangentArray[bufferVerticesID[vertex->getID()]];
+		Vector t2 = tTangentArray[bufferVerticesID[vertex->getID()]];
         
 		// Gram-Schmidt orthogonalize
-		Vector tangent = (t1 - n * Vector::dotProduct(n, t1));
+		Vector tangent = (t1 - normal * Vector::dotProduct(normal, t1));
 		tangent.normalize();
 
 		// Calculate handedness
-		tangent[3] = (Vector::dotProduct(Vector::crossProduct(n, tangent), t2) < 0.0f) ? -1.0f : 1.0f;
+		tangent[3] = (Vector::dotProduct(Vector::crossProduct(normal, tangent), t2) < 0.0f) ? -1.0f : 1.0f;
 	
-		for(int j=0; j<4; j++)
-			bufferVertices[i].tangent[j] = tangent[j];
+		/* Vertex Tangent */
+		vertex->setTangent(tangent);
 
-		if(Vector::dotProduct(n,tangent) > Vector::threshold)
-			cerr << "FAILED CALCULATING TANGENT" << endl;
+		if(Vector::dotProduct(normal,tangent) > Vector::threshold)
+			cerr << "Failed calculating Tangent." << endl;
 	}
 
-	mesh->setVertices(bufferVertices, faceNumber * 3);
+	/* Add the Vertices to the Mesh */
+	for(map<unsigned int,Vertex*>::const_iterator vertexIterator = vertexMap.begin(); vertexIterator != vertexMap.end(); vertexIterator++)
+		mesh->addVertex(vertexIterator->second);
+
+	/* Add the Materials to the Mesh */
+	for(map<string,Material*>::const_iterator materialIterator = materialMap.begin(); materialIterator != materialMap.end(); materialIterator++)
+		mesh->addMaterial(materialIterator->second);
 
 	/* Cleanup */
-	delete[] vertexArray;
+	delete[] positionArray;
 	delete[] normalArray;	
 	delete[] textureCoordinateArray;
 
 	delete[] sTangentArray;
 	delete[] tTangentArray;
-	
-	delete[] bufferVertices;
+
 	delete[] bufferVerticesID;
 
 	cout << "[Initialization] LoadMesh(" << meshFilename << "," << materialFilename << "," << mesh->getName() << ") Successfull!" << endl;
