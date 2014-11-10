@@ -47,17 +47,20 @@ __device__ const float sphereRadius = 5.0f;
 __device__ const float4 sphereDiffuses[] = {	{ 0.50754000f, 0.50754000f, 0.50754000f, 0.00f }, 
 												{ 0.75164000f, 0.60648000f, 0.22648000f, 0.00f }, 
 												{ 0.61424000f, 0.04136000f, 0.04136000f, 0.00f }, 
-												{ 0.07568000f, 0.61424000f, 0.07568000f, 0.00f } };
+												{ 0.07568000f, 0.61424000f, 0.07568000f, 0.00f },
+												{ 0.80754000f, 0.80754000f, 0.80754000f, 1.00f } };
 
 __device__ const float4 sphereSpeculars[] = {	{ 0.50827300f, 0.50827300f, 0.50827300f, 155.0f }, 
 												{ 0.62828100f, 0.55580200f, 0.36606500f, 155.0f }, 
 												{ 0.72781100f, 0.62695900f, 0.62695900f, 155.0f }, 
-												{ 0.63300000f, 0.72781100f, 0.63300000f, 155.0f } };
+												{ 0.63300000f, 0.72781100f, 0.63300000f, 155.0f },
+												{ 0.50827300f, 0.50827300f, 0.50827300f,   0.0f } };
 
 __device__ const float3 spherePositions[] = {	{  10.0f, -2.5f,  10.0f }, 
 												{ -10.0f, -2.5f,  10.0f }, 
 												{ -10.0f, -2.5f, -10.0f }, 
-												{  10.0f, -2.5f, -10.0f } };
+												{  10.0f, -2.5f, -10.0f },
+												{   0.0f, -2.5f,  0.0f }};
 
 // Ray testing Constant
 __device__ const float epsilon = 0.01f;
@@ -510,10 +513,10 @@ __device__ float3 RayCast(	Ray ray,
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
 				// Cast the Reflected Ray
-				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, lightTotal, depth-1, refractionIndex) * 0.25f;
+				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, lightTotal, depth-1, refractionIndex) * 0.50f;
 			}
 
-			/*// If the Object Hit is translucid
+			// If the Object Hit is translucid
 			if(refractionConstant > 0.0f) {
 
 				float newRefractionIndex;
@@ -528,8 +531,8 @@ __device__ float3 RayCast(	Ray ray,
 
 				// Cast the Refracted Ray
 				if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
-					hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, depth-1, newRefractionIndex) * 0.75f;
-			}*/
+					hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, lightTotal, depth-1, newRefractionIndex) * 0.50f;
+			}
 		}
 	}
 
