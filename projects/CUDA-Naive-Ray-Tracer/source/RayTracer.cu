@@ -357,25 +357,29 @@ __device__ float3 RayCast(	Ray ray,
 		if(hitRecord.triangleIndex >= 0) {
 
 			// Triangle Material Properties
-			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
+			/*int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
 
 			diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
 			specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
 
 			specularConstant = specularColor.w;
-			refractionConstant = diffuseColor.w;
+			refractionConstant = diffuseColor.w;*/
 
 			//If using Textures
 
-			//float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
-			//float2 uv1 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 1);
-			//float2 uv2 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 2);
+			float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
+			float2 uv1 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 1);
+			float2 uv2 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 2);
 
-			//float2 uv = (areaPBC / areaABC) * uv0 + (areaPCA / areaABC) * uv1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * uv2;
+			float2 uv = (areaPBC / areaABC) * uv0 + (areaPCA / areaABC) * uv1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * uv2;
 
-			//uchar4 textureColor = tex2D(shadingTexture, uv.x, uv.y);
+			uchar4 textureColor = tex2D(shadingTexture, uv.x, uv.y);
 
-			//diffuseColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
+			diffuseColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
+			specularColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
+
+			specularConstant = 150.0f;
+			refractionConstant = 0.0f;
 		}
 		else { //if(hitRecord.sphereIndex >= 0) {
 				
