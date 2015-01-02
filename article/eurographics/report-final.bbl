@@ -1,0 +1,33 @@
+\begin{thebibliography}{\uppercase{Whi80}}
+
+\bibitem[AK87]{ArvoKirk87}
+\textsc{Arvo J., Kirk D.}:
+\newblock Fast ray tracing by ray classification.
+\newblock \emph{ACM SIGGRAPH Computer Graphics 21}, 4 (July 1987).
+
+\bibitem[App68]{Appel68}
+\textsc{Appel A.}:
+\newblock Some techniques for shading machine renderings of solids, 1968.
+
+\bibitem[GL10]{GaranzhaLoop10}
+\textsc{Garanzha K., Loop C.}:
+\newblock Fast ray sorting and breadth-first packet traversal for gpu ray
+  tracing.
+\newblock \emph{Eurographics 29}, 2 (2010).
+
+\bibitem[RAH]{Roger07}
+\textsc{Roger D., Assarsson U., Holzschuch N.}:
+\newblock Whitted ray-tracing for dynamic scenes using a ray-space hierarchy on
+  the gpu.
+
+\bibitem[SD]{SimiakisDay94}
+\textsc{Simiakis G., Day A.~M.}:
+\newblock Five-dimensional adaptive subdivision for ray tracing.
+\newblock \emph{Computer Graphics forum 13}, 2, 133--140.
+
+\bibitem[Whi80]{Whitted80}
+\textsc{Whitted T.}:
+\newblock An improved illumination model for shaded display.
+\newblock \emph{Communications of the ACM 23} (1980).
+
+\end{thebibliography}
