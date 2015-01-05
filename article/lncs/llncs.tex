@@ -8,8 +8,19 @@
 %
 
 \usepackage{makeidx}  % allows for indexgeneration
+
+% Image Packages
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{compatibility=false}
+
+\usepackage[space]{grffile}
+
+% Llncs Packages
 \usepackage{fixltx2e}
 
+% UTF-8 Packages
 \usepackage[utf8]{inputenc}
 
 %
@@ -50,8 +61,6 @@ First i will decompose the original Ray-Space Hierarchy algorithm and analyse it
 \keywords{Ray-Tracing, Secondary Rays, Acceleration Structures, Object-Space, Bounding-Volume, Ray-Space, Ray-Bundling, Hierarchies, GPGPU}
 
 \end{abstract}
-
-\newpage
 
 %
 \section{Introduction}
@@ -96,8 +105,6 @@ Over the last few years many improvements have been made in both Object-Space an
 \medskip
 
 In this report I will analyse three different approaches based on ray-space hierarchies, one using caching mechanisms, one using ray bundles combined with a tree hierarchy and one using ray sorting combined with ray bundles. I will also analyse two papers, one regarding efficient parallel scans and the other regarding efficient sorting algorithms, both on the GPU. Finally I will propose an improvement to the ray-bundle approach by Roger et al \cite{Roger07}, combining it with the ray-sorting approach by Garanzha and Loop \cite{GaranzhaLoop10} to achieve higher efficiency in the ray-object intersection tests. This ray-bundling approach will also be parallelized so that it is mapped more efficiently on the GPU, leading to better performance.
-
-\newpage
 
 %
 \section{Objectives}
@@ -274,9 +281,13 @@ This algorithm doesn't create a global Ray-Space hierarchy that contains every s
 \section{Proposed Algorithm}
 %
 
-After analysing several papers I've decided to combine two approaches. The Ray-Space Hierarchy by Roger et al. \cite{Roger07} is very interesting and easy to build. It takes advantage of the properties of the cone and sphere used to represent nodes to create a structure that fits very well with rays, making it easy to construct the hierarchy while also fitting very well with the architecture of modern GPUs. It is also worth remembering that they used rasterization to render the primary rays, since the visual benefits of Ray-Tracing are acquired only after we trace the secondary rays. However, since the secondary rays are also incoherent it also means that they hierarchy has the potential of becoming very loose when rays that aren't similar at all  in both origin and orientation. This is an issue because the early traversal of the hierarchy will wield larger local intersection candidate sets. This means more local intersection tests overall, which is in fact what are are trying to reduce, since the intersection tests are the bottleneck of Ray-Tracing. By combining the Ray-Sorting approach taken by Garanzha and Loop \cite{GaranzhaLoop10} we can create clusters of coherent rays. With these clusters of coherent rays the local intersection candidate sets will be smaller which means we will calculate less intersections and thus improve the algorithms efficiency. I will now describe the algorithms individual steps from the perspective of a OpenGLand CUDA implementation.
+After analysing several papers I've decided to combine two approaches. The Ray-Space Hierarchy by Roger et al. \cite{Roger07} is very interesting and easy to build. It takes advantage of the properties of the cone and sphere used to represent nodes to create a structure that fits very well with rays, making it easy to construct the hierarchy while also fitting very well with the architecture of modern GPUs. It is also worth remembering that they used rasterization to render the primary rays, since the visual benefits of Ray-Tracing are acquired only after we trace the secondary rays. However, since the secondary rays are also incoherent it also means that they hierarchy has the potential of becoming very loose when rays that aren't similar at all  in both origin and orientation. This is an issue because the early traversal of the hierarchy will wield larger local intersection candidate sets. This means more local intersection tests overall, which is in fact what are are trying to reduce, since the intersection tests are the bottleneck of Ray-Tracing. By combining the Ray-Sorting approach taken by Garanzha and Loop \cite{GaranzhaLoop10} we can create clusters of coherent rays. With these clusters of coherent rays the local intersection candidate sets will be smaller which means we will calculate less intersections and thus improve the algorithms efficiency. I will now describe the algorithms individual steps from the perspective of a OpenGL and CUDA implementation.
 
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.60]{images/figure 1.png}
+\caption{Algorithm Overview.}
+\end{figure}
 
 %
 \subsection{Rasterization}
@@ -284,70 +295,141 @@ After analysing several papers I've decided to combine two approaches. The Ray-S
 
 The first step of the algorithm is the Rasterization. For the past years it was often generalized that Rasterization and Ray-Tracing were polar opposites and that a choice had to be 	made between the two despite this not being true at all. Although Rasterization is completely different from Ray-Tracing, one can complement the other. The first set of rays, the primary rays, doesn't convey any of the visual effects that Ray-Tracing is used for, such as Shadows, Reflections and Refractions. This means that Rasterization as we know it conveys the same effects as the tracing of the primary rays, while being extremely faster. If we complement the Rasterization of the primary rays with the Ray-Tracing the secondary rays we can get the benefits from both techniques, the efficiency of Rasterization and the visual effects from Ray-Tracing.
 
-%TODO IMAGE
-
 \medskip
 
 This means however that the output from the fragment shaders used to rasterize the scene is more than just the traditional fragment colors. We need to create different render targets according to the information we want to store but in general we need to output the shadow, reflection and refraction rays. While being dependant on the implementation details it can be generalized that the fragment shader has to output 4 different textures, one consisting of the traditional 32 bit integer that will contain the pixel colors and three more consisting of two 32 bit floats that will contain the rays origin and direction for the shadow, reflection and refraction rays. These textures will then be accessed by the CUDA Kernel to read the information necessary to sort the secondary rays.
 
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.60]{images/figure 2.png}
+\caption{Rasterization Overview.}
+\end{figure}
+
+\newpage
 
 %
 \subsection{Ray Sorting}
 %
 
-%
-\subsubsection{Key-Index pair Creation}
-%
+In this section I will describe in detail how each Ray-Sorting step works, based on the paper by Garanzha and Loop \cite{GaranzhaLoop10}.
 
-After rasterizing the scene and calculating the secondary rays we need to sort those secondary rays so that we can create clusters of coherent rays. To sort them first we need to assign a key-index to each ray. The index is quite simple since it only refers to the rays index in the corresponding ray texture. The key however is trickier since we need a way to order rays. The solution from Garanzha and Loops work \cite{GaranzhaLoop10} is to quantize the rays origin and direction. The origin is quantized by partitioning the scene bounding box into a virtual grid with uniform cell size and then by calculating in which cell the rays origin is. The direction is quatized by creating an angular partition centered on the rays origin and then by calculating the section to which the rays direction is pointing to. Once we have these two values we merge them into a 32bit integer and we can use that integer as the key. With the keys and the indices we create an array containing a pair for each secondary ray.
-
-%TODO IMAGE
-
-%
-\subsubsection{Compression}
-%
-
-After creating the key-index pairs we need to sort them using a compression-sorting-decompression scheme. The compression step exploits the local coherency of rays. Even for secondary rays, the bounces generated by two adjacent rays have a good chance of being coherent which can result  in the same hash value for both bounces. With this information in mind, we compress the key-index pairs into chucks effectively minimizing the number of pairs that need to be sorted. To compress the pairs we create a head flags array with the same size as the key-index pair array, initializing it with 0s in every position. We then insert a 1 in the indices in which the hash value of the corresponding pair differs from the previous pairs. After creating the head flags we apply an exclusive scan operator on it. By combining the head flags array and the scan output array we can create the chunk hash, base and size arrays, which contain the hash, starting index and size of the corresponding chunks (see image).
-
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.60]{images/figure 3.png}
+\caption{Ray-Sorting Overview.}
+\end{figure}
 
 %
-\subsubsection{Sorting}
+\subsubsection{Ray Indexing}
+%
+
+After rasterizing the scene and calculating the secondary rays we need to sort those secondary rays so that we can create clusters of coherent rays. To sort them first we need to assign a key-index pair to each ray. The index is quite simple since it only refers to the rays index in the corresponding ray texture. The key however is trickier since we need a way to compare rays using these keys. The solution from Garanzha and Loops work \cite{GaranzhaLoop10} is to quantize the rays origin and direction. The origin is quantized by partitioning the scene bounding box into a virtual grid with uniform cell size and then by calculating in which cell the rays origin is. The direction is quatized by creating an angular partition centered on the rays origin and then by calculating the section to which the rays direction is pointing to. Once we have these two values we merge them into a 32bit integer and we can use that integer as the key. With the keys and the indices we create an array containing a pair for each secondary ray. An example of this partitioning can be seen in figures~\ref{fig:directional-partitioning} and~\ref{fig:spatial-partitioning} below.
+
+\begin{figure}
+\centering
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[width=.45\linewidth]{images/figure 7.png}
+  \captionof{figure}{Directional Partitioning - 2D}
+  \label{fig:directional-partitioning}
+\end{minipage}%
+\begin{minipage}{.5\textwidth}
+  \centering
+  \includegraphics[width=.45\linewidth]{images/figure 8.png}
+  \captionof{figure}{Spatial Partitioning - 2D}
+  \label{fig:spatial-partitioning}
+\end{minipage}
+\end{figure}
+
+%
+\subsubsection{Ray Compression}
+%
+
+After creating the key-index pairs we need to sort them using a compression-sorting-decompression scheme. The compression step exploits the local coherency of rays. Even for secondary rays, the bounces generated by two adjacent rays have a good chance of being coherent which can result  in the same hash value for both bounces. With this information in mind, we compress the key-index pairs into chucks effectively minimizing the number of pairs that need to be sorted. To compress the pairs we create a head flags array with the same size as the key-index pair array, initializing it with 0s in every position. We then insert a 1 in the indices in which the hash value of the corresponding pair differs from the previous pairs. After creating the head flags we apply an exclusive scan operator on it. By combining the head flags array and the scan output array we can create the chunk hash, base and size arrays, which contain the hash, starting index and size of the corresponding chunks (see figure~\ref{fig:ray-compression} below).
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.45]{images/figure 10.png}
+\caption{Ray Compression into Chunks using parallel primitives.}
+\label{fig:ray-compression}
+\end{figure}
+
+%
+\subsubsection{Ray Sorting}
 %
 
 By this time we have an array of chunks with the information necessary to reconstruct the initial array of rays and we can begin the actual sorting. By using radix sort \cite{Satish09} on the array of chunks we will get a new array of chunks sorted according to the rays quantization. After this step we need to decompress the chunks to get the array of sorted rays.
 
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.025]{images/placeholder.png}
+\caption{Ray Chunk Sorting using Radix Sort.}
+\label{fig:ray-sorting}
+\end{figure}
 
 %
-\subsubsection{Decompression}
+\subsubsection{Ray Decompression}
 %
 
-At this stage all that's left is to decompress the chunk array. The first step is to apply another exclusive scan operator but this time it will be on the chunk size array. This will give us the indices of the chunks starting positions on the sorted key-index pair array for each pair. With this information we create 2 arrays, the skeleton array and the head flags array. The skeleton is initialized with 1s and the head flags array is initialized with 0s, like we did earlier for the compression. The skeleton array is populated using the output of the exclusive scan that we applied to the chunk arrays, meaning that for each value in the scanned array we alter the corresponding position of the skeleton array with the corresponding chunk base.The head flags array is also marked at the same time with 1s in the same positions that we altered in the skeleton array.After populating both the skeleton and head flags arrays we apply an inclusive segmented scan to them which will give us the sorted key-index pairs that we need for the next step, the hierarchy creation.
+At this stage all that's left is to decompress the chunk array. The first step is to apply another exclusive scan operator but this time it will be on the chunk size array. This will give us the indices of the chunks starting positions on the sorted key-index pair array for each pair. With this information we create 2 arrays, the skeleton array and the head flags array. The skeleton is initialized with 1s and the head flags array is initialized with 0s, like we did earlier for the compression. The skeleton array is populated using the output of the exclusive scan that we applied to the chunk arrays, meaning that for each value in the scanned array we alter the corresponding position of the skeleton array with the corresponding chunk base.The head flags array is also marked at the same time with 1s in the same positions that we altered in the skeleton array.After populating both the skeleton and head flags arrays we apply an inclusive segmented scan to them which will give us the sorted key-index pairs that we need for the next step, the hierarchy creation (see figure~\ref{fig:ray-decompression} below).
 
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.45]{images/figure 11.png}
+\caption{Ray Chunk Decompression from Chunks using parallel primitives.}
+\label{fig:ray-decompression}
+\end{figure}
+
+\newpage
 
 %
 \subsection{Hierarchy Creation}
 %
 
+\begin{figure}
+\centering
+\includegraphics[scale=0.60]{images/figure 4.png}
+\caption{Ray-Hierarchy Creation Overview.}
+\end{figure}
+
 With the sorted rays we can now proceed to the creation of the actual hierarchy. Since the rays are now sorted according to their coherency the hierarchy will be much tighter in the lower levels of the hierarchy, giving us smaller intersection candidates.
 Each node in the hierarchy is represented by a sphere and a cone. The sphere contains all the origins on the rays in the node and the cone also contain the ray itself. This structure  is stored with 8 floats, the spheres center and radius and the cones direction and spread angle.The construction of the hierarchy is done in a bottom-up order, meaning that we start with the leaves, which have a sphere with radius equal 0 and a cone with spread angle equal to 0 as well. The upper levels of the hierarchy are created by calculating the union of the child nodes (in this particular case, each node has 4 children). It is important to note that each ray needs to store the pixel that it corresponds to since after the sorting step the rays are not in their original order so we need a way to map them back to the screens pixels. It is also worth noting that since the hierarchy is in no way tied to the triangles positioning in the scene it doesn't matter at all for the hierarchy itself  if the scene is dynamic or static.
 
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.070]{images/placeholder.png}
+\caption{Ray Hierarchy Creation}
+\end{figure}
+
+\newpage
 
 %
 \subsection{Hierarchy Traversal}
 %
 
+\begin{figure}
+\centering
+\includegraphics[scale=0.60]{images/figure 5.png}
+\caption{Ray-Hierarchy Traversal Overview.}
+\end{figure}
+
 Having created the hierarchy all that is left is to traverse it. This is down in a top-down order, intersecting each node with the scenes geometry. Since the top level nodes of the hierarchy fully contain the bottom level nodes, triangles rejected in the top levels will not be tested again for the bottom level nodes. Giving a specific example, we start traversing the hierarchy with the root node. If a certain triangle doesn't intersect the root node then this means that that specific triangle will not intersect any of its children. Since it is the root node, it also means that no ray in the scene will intersect it so we don't have to test it for intersections any more. After traversing each level of the hierarchy we store the intersection information in a texture so that the children nodes will know which triangles they have to test intersections against. It is also worth noting that the intersection tests being run at this stage are only coarse tests using the triangles bounding sphere since we will have to do the actual intersection tests in the final stage anyway. Since the intersection tests are being run in a parallel manner there is will be a problem regarding empty spaces in the textures that contain the intersection information. These textures need to be pruned by using a stream-reduction pass \cite{RAHStream07} that will remove the empty elements and group the remaining elements together as input for the next level.
 
-%TODO IMAGE
+\begin{figure}
+\centering
+\includegraphics[scale=0.070]{images/placeholder.png}
+\caption{Ray Hierarchy Traversal}
+\end{figure}
 
 %
 \subsection{Local Intersection Tests}
 %
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.60]{images/figure 6.png}
+\caption{Local Intersection Testsl Overview.}
+\end{figure}
 
 After traversing the hierarchy we will have a list of triangle ID and ray ID pairs, the candidates for the local intersection tests. In this final step all that's left is to find out which one is the closest intersection triangle for each ray and accumulate shading. Depending on the depth that we want for the algorithm we might need to output another set of secondary rays. Since the algorithm is generic, all that's necessary is to output these rays and return to the Ray-Sorting step.
 
