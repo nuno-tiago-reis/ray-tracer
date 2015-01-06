@@ -5,89 +5,91 @@
 \@writefile{toc}{\authcount {1}}
 \@writefile{toc}{\contentsline {author}{Nuno T. Reis}{1}}
 \@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}}
-\citation{Whitted80}
 \citation{Roger07}
 \citation{GaranzhaLoop10}
+\citation{ArvoKirk87}
 \@writefile{toc}{\contentsline {section}{\numberline {2}Objectives}{3}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Find the State of the Art}{3}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Choosing and Improving the approach}{3}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Preliminary Analysis}{3}}
-\citation{ArvoKirk87}
-\@writefile{toc}{\contentsline {section}{\numberline {3}Previous Work}{4}}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Previous Work}{3}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Fast Ray Tracing by Ray Classification}{4}}
 \@writefile{toc}{\contentsline {subsubsection}{Bounding Volume Creation}{4}}
-\@writefile{toc}{\contentsline {subsubsection}{Space Subdivision}{5}}
+\@writefile{toc}{\contentsline {subsubsection}{Space Subdivision}{4}}
+\citation{SimiakisDay94}
+\citation{ArvoKirk87}
 \@writefile{toc}{\contentsline {subsubsection}{Candidate set Creation}{5}}
 \@writefile{toc}{\contentsline {subsubsection}{Ray Classification}{5}}
 \@writefile{toc}{\contentsline {subsubsection}{Intersection Tests}{5}}
 \@writefile{toc}{\contentsline {subsubsection}{Considerations}{5}}
-\citation{SimiakisDay94}
-\citation{ArvoKirk87}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Five-dimensional Adaptive Subdivision for Ray Tracing}{5}}
 \citation{Roger07}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Five-dimensional Adaptive Subdivision for Ray Tracing}{6}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Whitted Ray-Tracing for Dynamic Scenes using a Ray-Space Hierarchy on the GPU}{6}}
 \@writefile{toc}{\contentsline {subsubsection}{Render the Scene using the Rasterizer}{6}}
 \@writefile{toc}{\contentsline {subsubsection}{Generate the first set of Secondary Rays}{6}}
+\@writefile{toc}{\contentsline {subsubsection}{Build the Ray-Space Hierarchy}{6}}
 \citation{Horn05}
-\@writefile{toc}{\contentsline {subsubsection}{Build the Ray-Space Hierarchy}{7}}
+\citation{GaranzhaLoop10}
 \@writefile{toc}{\contentsline {subsubsection}{Intersect the Ray-Space Hierarchy with the Scene}{7}}
 \@writefile{toc}{\contentsline {subsubsection}{Final Intersection Tests}{7}}
 \@writefile{toc}{\contentsline {subsubsection}{Considerations}{7}}
-\citation{GaranzhaLoop10}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Fast Ray Sorting and Breadth-First Packet Traversal for GPU Ray Tracing}{8}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Fast Ray Sorting and Breadth-First Packet Traversal for GPU Ray Tracing}{7}}
 \@writefile{toc}{\contentsline {subsubsection}{Ray Sorting}{8}}
-\@writefile{toc}{\contentsline {subsubsection}{Frustum Creation}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Frustum Traversal}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Local Intersection Tests}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Considerations}{9}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.5}Efficient Parallel Scan Algorithms for GPUs}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Parallel Scan}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Segmented Scan}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Considerations}{9}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.6}Designing Efficient Sorting Algorithms for Manycore GPUs}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Parallel Scan}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Segmented Scan}{9}}
-\@writefile{toc}{\contentsline {subsubsection}{Considerations}{9}}
+\@writefile{toc}{\contentsline {subsubsection}{Frustum Creation}{8}}
+\@writefile{toc}{\contentsline {subsubsection}{Frustum Traversal}{8}}
 \citation{Roger07}
 \citation{GaranzhaLoop10}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Proposed Algorithm}{10}}
+\@writefile{toc}{\contentsline {subsubsection}{Local Intersection Tests}{9}}
+\@writefile{toc}{\contentsline {subsubsection}{Considerations}{9}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Proposed Algorithm}{9}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Rasterization}{9}}
 \@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Algorithm Overview.\relax }}{10}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Rasterization}{11}}
-\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Rasterization Overview.\relax }}{11}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Rasterization Overview.\relax }}{10}}
 \citation{GaranzhaLoop10}
 \citation{GaranzhaLoop10}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Ray Sorting}{12}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Ray-Sorting Overview.\relax }}{12}}
-\@writefile{toc}{\contentsline {subsubsection}{Ray Indexing}{12}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Directional Partitioning - 2D\relax }}{12}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Ray Sorting}{11}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Ray-Sorting Overview.\relax }}{11}}
+\@writefile{toc}{\contentsline {subsubsection}{Ray Indexing}{11}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Directional Partitioning - 2D\relax }}{11}}
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:directional-partitioning}{{4}{12}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Spatial Partitioning - 2D\relax }}{12}}
-\newlabel{fig:spatial-partitioning}{{5}{12}}
+\newlabel{fig:directional-partitioning}{{4}{11}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Spatial Partitioning - 2D\relax }}{11}}
+\newlabel{fig:spatial-partitioning}{{5}{11}}
 \citation{Satish09}
-\@writefile{toc}{\contentsline {subsubsection}{Ray Compression}{13}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Ray Compression into Chunks using parallel primitives.\relax }}{13}}
-\newlabel{fig:ray-compression}{{6}{13}}
-\@writefile{toc}{\contentsline {subsubsection}{Ray Sorting}{13}}
-\@writefile{toc}{\contentsline {subsubsection}{Ray Decompression}{13}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Ray Chunk Sorting using Radix Sort.\relax }}{14}}
-\newlabel{fig:ray-sorting}{{7}{14}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Ray Chunk Decompression from Chunks using parallel primitives.\relax }}{14}}
-\newlabel{fig:ray-decompression}{{8}{14}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Hierarchy Creation}{15}}
-\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Ray-Hierarchy Creation Overview.\relax }}{15}}
-\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Ray Hierarchy Creation\relax }}{15}}
+\@writefile{toc}{\contentsline {subsubsection}{Ray Compression}{12}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces Ray Compression into Chunks using parallel primitives.\relax }}{12}}
+\newlabel{fig:ray-compression}{{6}{12}}
+\@writefile{toc}{\contentsline {subsubsection}{Ray Sorting}{12}}
+\@writefile{toc}{\contentsline {subsubsection}{Ray Decompression}{12}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Radix Sort of Integer key values.\relax }}{13}}
+\newlabel{fig:ray-sorting}{{7}{13}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces Ray Chunk Decompression from Chunks using parallel primitives.\relax }}{13}}
+\newlabel{fig:ray-decompression}{{8}{13}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Hierarchy Creation}{13}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Ray-Hierarchy Creation Overview.\relax }}{14}}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Bounding Spheres - 2D\relax }}{14}}
+\newlabel{fig:bounding-spheres}{{10}{14}}
+\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Bounding Cones - 2D\relax }}{14}}
+\newlabel{fig:bounding-cones}{{11}{14}}
 \citation{RAHStream07}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Hierarchy Traversal}{16}}
-\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Ray-Hierarchy Traversal Overview.\relax }}{16}}
-\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Ray Hierarchy Traversal\relax }}{16}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Local Intersection Tests}{17}}
-\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Local Intersection Testsl Overview.\relax }}{17}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}Hierarchy Traversal}{15}}
+\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Ray-Hierarchy Traversal Overview.\relax }}{15}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}Local Intersection Tests}{15}}
+\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Local Intersection Tests Overview.\relax }}{16}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}Shadow Rays}{16}}
+\@writefile{lof}{\contentsline {figure}{\numberline {14}{\ignorespaces (Soft) Shadow Rays\relax }}{16}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7}Ambient Occlusion}{16}}
+\citation{GaranzhaLoop10}
+\citation{Roger07}
+\citation{Roger07}
+\citation{Roger07}
+\@writefile{lof}{\contentsline {figure}{\numberline {15}{\ignorespaces Ambient Occlusion\relax }}{17}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.8}Preliminary Analysis}{17}}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Evaluation Metrics}{18}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Rays per Second}{18}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Intersection test reduction}{18}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Planning}{19}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusions}{20}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Improvements compared to the original algorithm}{18}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Planning}{18}}
 \bibstyle{abbrv}
 \bibdata{references}
 \bibcite{Appel68}{1}
@@ -95,6 +97,7 @@
 \bibcite{GaranzhaLoop10}{3}
 \bibcite{RAHStream07}{4}
 \bibcite{Roger07}{5}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusions}{19}}
 \bibcite{Satish09}{6}
 \bibcite{SimiakisDay94}{7}
 \bibcite{Whitted80}{8}
