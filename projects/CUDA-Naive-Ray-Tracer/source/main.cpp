@@ -452,10 +452,6 @@ void initCUDAmemory() {
 	screenTexture = new ScreenTexture("Screen Texture", windowWidth, windowHeight);
 	screenTexture->createTexture();
 
-	// Create the Chess Texture
-	shadingTexture = new ShadingTexture("Chess Texture", "textures/fieldstone_diffuse.jpg");
-	shadingTexture->createTexture();
-
 	/////////////////////////////////////////////////////////////////// TRIANGLES AND MATERIALS ///////////////////////////////////////////////////////////////////
 
 	// Stores the Triangles Information in the form of Arrays

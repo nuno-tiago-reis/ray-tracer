@@ -1,0 +1,435 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Shader Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>glsl;vert;frag;v;f</Extensions>
+    </Filter>
+    <Filter Include="Source Files\Library">
+      <UniqueIdentifier>{a4298614-dfb7-4dd6-8d86-4a52123a22a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Kernel">
+      <UniqueIdentifier>{03d50ae4-db60-4dd5-80ae-0239af3a88a0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility">
+      <UniqueIdentifier>{9c194606-c804-419c-ab6d-217ce70e0f17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\XML">
+      <UniqueIdentifier>{caf0cf13-03dc-4945-8a19-fa1de88af0ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\OBJ">
+      <UniqueIdentifier>{9e4b9495-261c-4261-8663-a843b10f6a51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\User Interaction">
+      <UniqueIdentifier>{4e312f87-6520-43be-b2a5-61c13e00f90f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\User Interaction\Mouse">
+      <UniqueIdentifier>{9637dc23-452d-4e7e-bdd7-975e37b81cf4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\User Interaction\Keyboard">
+      <UniqueIdentifier>{34889079-aeb2-4950-b267-3c892ecc19f8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene">
+      <UniqueIdentifier>{e509dedf-4f82-4852-aab5-16697da648c4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Algebra">
+      <UniqueIdentifier>{42149d94-06e7-44a6-a242-cbeb46b76848}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Algebra\Quaternion">
+      <UniqueIdentifier>{5668653f-c2dc-4cc4-8e00-109851de58c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Algebra\Vector">
+      <UniqueIdentifier>{98b5778a-731e-47fe-878e-d808a7c45885}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Algebra\Matrix">
+      <UniqueIdentifier>{3cb6ed6a-9e96-4f5c-8f41-4817b8207e07}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Particle Systems">
+      <UniqueIdentifier>{904af4d6-d6cb-4a37-9217-053fe991c25f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager">
+      <UniqueIdentifier>{a346a320-cc3c-41ad-bf32-68e6489baa76}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Lights">
+      <UniqueIdentifier>{bb8781fb-89ca-4a99-9f01-a99654781bc0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Lights\DirectionalLight">
+      <UniqueIdentifier>{a729dcf1-3ec1-4a9f-ad9d-ed8c6671bba1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Lights\Light">
+      <UniqueIdentifier>{d00b9e45-7407-4ed0-a657-60cc1f561f54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Lights\PositionalLight">
+      <UniqueIdentifier>{04b6a256-a01d-4c7e-ac10-7596ecc14bc8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Lights\SpotLight">
+      <UniqueIdentifier>{d771b2c8-bb9f-4e61-b9db-32f96589506a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Camera">
+      <UniqueIdentifier>{73afb099-d3ed-4887-949f-b5c23bb2a393}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects">
+      <UniqueIdentifier>{a200c648-222f-4126-a22c-8d1145317659}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Material">
+      <UniqueIdentifier>{42e1872d-2118-4d03-a394-decca63d42be}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Mesh">
+      <UniqueIdentifier>{cd44c009-036d-4395-b535-cab631cc72e9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Transform">
+      <UniqueIdentifier>{3165f95f-d425-407a-aaf4-68714c976806}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Sounds">
+      <UniqueIdentifier>{a0c6af7b-6ec4-45ce-8f51-0094327b77b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Scene Graph">
+      <UniqueIdentifier>{18694d95-e68c-49cb-8a2b-af49462951db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Scene Graph\MatrixStack">
+      <UniqueIdentifier>{babe8c29-8b57-459d-8f92-d6dc80e8fdcc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders">
+      <UniqueIdentifier>{23b0ca58-f328-414d-9acd-a26a65e2962a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\BlinnPhong">
+      <UniqueIdentifier>{bc5a4213-15f7-4b6b-9def-7fc103f3fdba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\BlinnPhong\glsl">
+      <UniqueIdentifier>{8c84c7e9-a0c1-4155-b1de-fb1069abe064}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\BumpMap">
+      <UniqueIdentifier>{f26f5eca-1f0a-4ff4-9495-69b51a1def9c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\BumpMap\glsl">
+      <UniqueIdentifier>{7fbae9e1-2139-4870-a0ef-5ef217c6e8dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\SphereMapping">
+      <UniqueIdentifier>{df74ffee-f2aa-4eb3-9735-41a6b3f6e750}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\SphereMapping\glsl">
+      <UniqueIdentifier>{6e9ea89f-2c06-4ac8-a23a-38fe7e0064e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\CubeMapping">
+      <UniqueIdentifier>{836c1639-5dfd-40bc-9056-e3a6b8535ef3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\CubeMapping\glsl">
+      <UniqueIdentifier>{46048f40-f710-45af-9835-7b15231ec60f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\Wood">
+      <UniqueIdentifier>{d803a608-2c1c-4f9a-a7e1-17e25c9c71dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\Wood\glsl">
+      <UniqueIdentifier>{fa4f6db8-d145-472b-afbc-fbe170ce5ebd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\Fire">
+      <UniqueIdentifier>{38591870-c4b2-4b52-bcf3-0afb26350fd0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Shaders\Fire\glsl">
+      <UniqueIdentifier>{94c20915-53cc-4769-82c9-ebc604a4c3da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Textures">
+      <UniqueIdentifier>{78db1ec1-3653-4d41-bd72-b7994428e745}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Textures\NoiseTexture">
+      <UniqueIdentifier>{a1d170dc-e493-4772-966c-3eda42b689b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Textures\NoiseTexture\PerlinNoise">
+      <UniqueIdentifier>{226640cb-7723-40bf-b766-48cd5750c80a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Textures\CubeTexture">
+      <UniqueIdentifier>{5c8e5a32-cd69-42a8-92a7-d2c9d42d7b23}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\CUDA">
+      <UniqueIdentifier>{a957732b-3157-49bb-acd1-3d58d3ba6e5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\CUDA\Buffers">
+      <UniqueIdentifier>{8072f395-42c0-4af1-b589-8b30880f96d5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\CUDA\Textures">
+      <UniqueIdentifier>{81d5d960-9915-4e8b-8e07-e653237722b4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\SceneManager.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager</Filter>
+    </ClCompile>
+    <ClCompile Include="source\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Vector.cpp">
+      <Filter>Source Files\Library\Scene\Algebra\Vector</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Quaternion.cpp">
+      <Filter>Source Files\Library\Scene\Algebra\Quaternion</Filter>
+    </ClCompile>
+    <ClCompile Include="source\KeyboardHandler.cpp">
+      <Filter>Source Files\User Interaction\Keyboard</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MouseHandler.cpp">
+      <Filter>Source Files\User Interaction\Mouse</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Matrix.cpp">
+      <Filter>Source Files\Library\Scene\Algebra\Matrix</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Camera.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MatrixStack.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Scene Graph\MatrixStack</Filter>
+    </ClCompile>
+    <ClCompile Include="source\OBJ_Reader.cpp">
+      <Filter>Source Files\Library\Utility\OBJ</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SceneNode.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Scene Graph</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ShaderProgram.cpp">
+      <Filter>Source Files\Library\Scene\Shaders</Filter>
+    </ClCompile>
+    <ClCompile Include="source\DirectionalLight.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\DirectionalLight</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SpotLight.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\SpotLight</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PositionalLight.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\PositionalLight</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Light.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\Light</Filter>
+    </ClCompile>
+    <ClCompile Include="source\BlinnPhongShader.cpp">
+      <Filter>Source Files\Library\Scene\Shaders\BlinnPhong</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Texture.cpp">
+      <Filter>Source Files\Library\Scene\Textures</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PerlinNoise.cpp">
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture\PerlinNoise</Filter>
+    </ClCompile>
+    <ClCompile Include="source\GeneratedTexture.cpp">
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="source\XML_Reader.cpp">
+      <Filter>Source Files\Library\Utility\XML</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Sound.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Sounds</Filter>
+    </ClCompile>
+    <ClCompile Include="source\CubeTexture.cpp">
+      <Filter>Source Files\Library\Scene\Textures\CubeTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Mesh.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Mesh</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Transform.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Transform</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Material.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Material</Filter>
+    </ClCompile>
+    <ClCompile Include="source\WoodShader.cpp">
+      <Filter>Source Files\Library\Scene\Shaders\Wood</Filter>
+    </ClCompile>
+    <ClCompile Include="source\BumpMappingShader.cpp">
+      <Filter>Source Files\Library\Scene\Shaders\BumpMap</Filter>
+    </ClCompile>
+    <ClCompile Include="source\CubeMappingShader.cpp">
+      <Filter>Source Files\Library\Scene\Shaders\CubeMapping</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SphereMappingShader.cpp">
+      <Filter>Source Files\Library\Scene\Shaders\SphereMapping</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ParticleSystem.cpp">
+      <Filter>Source Files\Library\Scene\Particle Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Particle.cpp">
+      <Filter>Source Files\Library\Scene\Particle Systems</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Object.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="source\FireShader.cpp">
+      <Filter>Source Files\Library\Scene\Shaders\Fire</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ScreenTexture.cpp">
+      <Filter>Source Files\Library\CUDA\Textures</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PixelBuffer.cpp">
+      <Filter>Source Files\Library\CUDA\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="source\FrameBuffer.cpp">
+      <Filter>Source Files\Library\CUDA\Buffers</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\SceneManager.h">
+      <Filter>Source Files\Library\Scene\Scene Manager</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Utility.h">
+      <Filter>Source Files\Library\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Constants.h">
+      <Filter>Source Files\Library\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Vector.h">
+      <Filter>Source Files\Library\Scene\Algebra\Vector</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Quaternion.h">
+      <Filter>Source Files\Library\Scene\Algebra\Quaternion</Filter>
+    </ClInclude>
+    <ClInclude Include="source\KeyboardHandler.h">
+      <Filter>Source Files\User Interaction\Keyboard</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MouseHandler.h">
+      <Filter>Source Files\User Interaction\Mouse</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Matrix.h">
+      <Filter>Source Files\Library\Scene\Algebra\Matrix</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Camera.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MatrixStack.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Scene Graph\MatrixStack</Filter>
+    </ClInclude>
+    <ClInclude Include="source\OBJ_Reader.h">
+      <Filter>Source Files\Library\Utility\OBJ</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SceneNode.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Scene Graph</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ShaderProgram.h">
+      <Filter>Source Files\Library\Scene\Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="source\DirectionalLight.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\DirectionalLight</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SpotLight.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\SpotLight</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PositionalLight.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\PositionalLight</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Light.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Lights\Light</Filter>
+    </ClInclude>
+    <ClInclude Include="source\BlinnPhongShader.h">
+      <Filter>Source Files\Library\Scene\Shaders\BlinnPhong</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Texture.h">
+      <Filter>Source Files\Library\Scene\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PerlinNoise.h">
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture\PerlinNoise</Filter>
+    </ClInclude>
+    <ClInclude Include="source\XML_Reader.h">
+      <Filter>Source Files\Library\Utility\XML</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Sound.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Sounds</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Names.h">
+      <Filter>Source Files\Library\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CubeTexture.h">
+      <Filter>Source Files\Library\Scene\Textures\CubeTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Mesh.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Material.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Material</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Transform.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Transform</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Material.h">
+      <Filter>Source Files\Scene Manager\Objects\Object\Material</Filter>
+    </ClInclude>
+    <ClInclude Include="source\WoodShader.h">
+      <Filter>Source Files\Library\Scene\Shaders\Wood</Filter>
+    </ClInclude>
+    <ClInclude Include="source\BumpMappingShader.h">
+      <Filter>Source Files\Library\Scene\Shaders\BumpMap</Filter>
+    </ClInclude>
+    <ClInclude Include="source\CubeMappingShader.h">
+      <Filter>Source Files\Library\Scene\Shaders\CubeMapping</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SphereMappingShader.h">
+      <Filter>Source Files\Library\Scene\Shaders\SphereMapping</Filter>
+    </ClInclude>
+    <ClInclude Include="source\GeneratedTexture.h">
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ParticleSystem.h">
+      <Filter>Source Files\Library\Scene\Particle Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Particle.h">
+      <Filter>Source Files\Library\Scene\Particle Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Object.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="source\FireShader.h">
+      <Filter>Source Files\Library\Scene\Shaders\Fire</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ScreenTexture.h">
+      <Filter>Source Files\Library\CUDA\Textures</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PixelBuffer.h">
+      <Filter>Source Files\Library\CUDA\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\FrameBuffer.h">
+      <Filter>Source Files\Library\CUDA\Buffers</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\blinn_phong_fragment_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\BlinnPhong\glsl</Filter>
+    </None>
+    <None Include="shaders\blinn_phong_vertex_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\BlinnPhong\glsl</Filter>
+    </None>
+    <None Include="shaders\bump_map_fragment_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\BumpMap\glsl</Filter>
+    </None>
+    <None Include="shaders\bump_map_vertex_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\BumpMap\glsl</Filter>
+    </None>
+    <None Include="shaders\real_wood_fragment_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\Wood\glsl</Filter>
+    </None>
+    <None Include="shaders\real_wood_vertex_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\Wood\glsl</Filter>
+    </None>
+    <None Include="shaders\sphere_map_fragment_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\SphereMapping\glsl</Filter>
+    </None>
+    <None Include="shaders\sphere_map_vertex_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\SphereMapping\glsl</Filter>
+    </None>
+    <None Include="shaders\cube_map_fragment_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\CubeMapping\glsl</Filter>
+    </None>
+    <None Include="shaders\cube_map_vertex_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\CubeMapping\glsl</Filter>
+    </None>
+    <None Include="shaders\fire_fragment_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\Fire\glsl</Filter>
+    </None>
+    <None Include="shaders\fire_vertex_shader.glsl">
+      <Filter>Source Files\Library\Scene\Shaders\Fire\glsl</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="source\RayTracer.cu">
+      <Filter>Source Files\Kernel</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>

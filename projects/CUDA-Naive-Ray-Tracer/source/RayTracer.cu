@@ -152,6 +152,16 @@ __device__ int rgbToInt(float red, float green, float blue) {
 	return (int(red)<<16) | (int(green)<<8) | int(blue); // notice switch red and blue to counter the GL_BGRA
 }
 
+// Converts 8-bit integer to floating point rgb color
+__device__ float3 intToRgb(int color) {
+
+	float red	= color & 255;
+	float green	= (color >> 8) & 255;
+	float blue	= (color >> 16) & 255;
+
+	return make_float3(red, green, blue);
+}
+
 // Ray - BoundingBox Intersection Code
 __device__ int RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, const float3 &RayOrigin, const float3 &RayDirectionInverse, float &tmin, float &tmax) {
 

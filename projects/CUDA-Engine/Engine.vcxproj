@@ -1,0 +1,196 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\BlinnPhongShader.cpp" />
+    <ClCompile Include="source\PixelBuffer.cpp" />
+    <ClCompile Include="source\BumpMappingShader.cpp" />
+    <ClCompile Include="source\Camera.cpp" />
+    <ClCompile Include="source\CubeMappingShader.cpp" />
+    <ClCompile Include="source\CubeTexture.cpp" />
+    <ClCompile Include="source\DirectionalLight.cpp" />
+    <ClCompile Include="source\FireShader.cpp" />
+    <ClCompile Include="source\FrameBuffer.cpp" />
+    <ClCompile Include="source\GeneratedTexture.cpp" />
+    <ClCompile Include="source\Material.cpp" />
+    <ClCompile Include="source\Object.cpp" />
+    <ClCompile Include="source\KeyboardHandler.cpp" />
+    <ClCompile Include="source\Light.cpp" />
+    <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\Mesh.cpp" />
+    <ClCompile Include="source\MatrixStack.cpp" />
+    <ClCompile Include="source\MouseHandler.cpp" />
+    <ClCompile Include="source\OBJ_Reader.cpp" />
+    <ClCompile Include="source\Particle.cpp" />
+    <ClCompile Include="source\ParticleSystem.cpp" />
+    <ClCompile Include="source\PerlinNoise.cpp" />
+    <ClCompile Include="source\PositionalLight.cpp" />
+    <ClCompile Include="source\Quaternion.cpp" />
+    <ClCompile Include="source\ScreenTexture.cpp" />
+    <ClCompile Include="source\WoodShader.cpp" />
+    <ClCompile Include="source\SceneNode.cpp" />
+    <ClCompile Include="source\SceneManager.cpp" />
+    <ClCompile Include="source\ShaderProgram.cpp" />
+    <ClCompile Include="source\Matrix.cpp" />
+    <ClCompile Include="source\Sound.cpp" />
+    <ClCompile Include="source\SphereMappingShader.cpp" />
+    <ClCompile Include="source\SpotLight.cpp" />
+    <ClCompile Include="source\Texture.cpp" />
+    <ClCompile Include="source\Transform.cpp" />
+    <ClCompile Include="source\Vector.cpp" />
+    <ClCompile Include="source\XML_Reader.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\BlinnPhongShader.h" />
+    <ClInclude Include="source\PixelBuffer.h" />
+    <ClInclude Include="source\BumpMappingShader.h" />
+    <ClInclude Include="source\FireShader.h" />
+    <ClInclude Include="source\FrameBuffer.h" />
+    <ClInclude Include="source\Material.h" />
+    <ClInclude Include="source\Mesh.h" />
+    <ClInclude Include="source\Camera.h" />
+    <ClInclude Include="source\Constants.h" />
+    <ClInclude Include="source\CubeMappingShader.h" />
+    <ClInclude Include="source\CubeTexture.h" />
+    <ClInclude Include="source\DirectionalLight.h" />
+    <ClInclude Include="source\GeneratedTexture.h" />
+    <ClInclude Include="source\Names.h" />
+    <ClInclude Include="source\Object.h" />
+    <ClInclude Include="source\KeyboardHandler.h" />
+    <ClInclude Include="source\Light.h" />
+    <ClInclude Include="source\Matrix.h" />
+    <ClInclude Include="source\MatrixStack.h" />
+    <ClInclude Include="source\MouseHandler.h" />
+    <ClInclude Include="source\OBJ_Reader.h" />
+    <ClInclude Include="source\Particle.h" />
+    <ClInclude Include="source\ParticleSystem.h" />
+    <ClInclude Include="source\PerlinNoise.h" />
+    <ClInclude Include="source\PositionalLight.h" />
+    <ClInclude Include="source\Quaternion.h" />
+    <ClInclude Include="source\ScreenTexture.h" />
+    <ClInclude Include="source\WoodShader.h" />
+    <ClInclude Include="source\SceneNode.h" />
+    <ClInclude Include="source\Sound.h" />
+    <ClInclude Include="source\SphereMappingShader.h" />
+    <ClInclude Include="source\SpotLight.h" />
+    <ClInclude Include="source\Texture.h" />
+    <ClInclude Include="source\Transform.h" />
+    <ClInclude Include="source\Utility.h" />
+    <ClInclude Include="source\SceneManager.h" />
+    <ClInclude Include="source\ShaderProgram.h" />
+    <ClInclude Include="source\Vector.h" />
+    <ClInclude Include="source\XML_Reader.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\blinn_phong_fragment_shader.glsl" />
+    <None Include="shaders\blinn_phong_vertex_shader.glsl" />
+    <None Include="shaders\bump_map_fragment_shader.glsl" />
+    <None Include="shaders\bump_map_vertex_shader.glsl" />
+    <None Include="shaders\cube_map_fragment_shader.glsl" />
+    <None Include="shaders\cube_map_vertex_shader.glsl" />
+    <None Include="shaders\fire_fragment_shader.glsl" />
+    <None Include="shaders\fire_vertex_shader.glsl" />
+    <None Include="shaders\real_wood_fragment_shader.glsl" />
+    <None Include="shaders\real_wood_vertex_shader.glsl" />
+    <None Include="shaders\sphere_map_fragment_shader.glsl" />
+    <None Include="shaders\sphere_map_vertex_shader.glsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="source\RayTracer.cu" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{32F9991F-30E3-4B87-81D8-F5C958610FDC}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectName>CUDA Engine</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 6.5.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <LibraryPath>$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\fmodex\lib;$(SolutionDir)\dependencies\bulletphysics\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\tinyxml\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\fmodex\include;$(SolutionDir)\dependencies\bulletphysics\include;$(IncludePath)</IncludePath>
+    <OutDir>$(SolutionDir)output\</OutDir>
+    <SourcePath>$(ProjectDir)\source</SourcePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)output\</OutDir>
+    <IncludePath>$(SolutionDir)\dependencies\cuda\include;$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\tinyxml\include;$(SolutionDir)\dependencies\fmodex\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)\dependencies\cuda\lib\Win32;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(SolutionDir)\dependencies\fmodex\lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(ProjectDir)\source</SourcePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;GLUT_BUILDING_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>glew32.lib;freeglut.lib;tinyxml2.lib;soil.lib;fmodex.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>cuda.lib;cudart.lib;glew32.lib;freeglut.lib;soil.lib;fmodex.lib;tinyxml2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 6.5.targets" />
+  </ImportGroup>
+</Project>
