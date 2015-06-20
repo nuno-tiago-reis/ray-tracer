@@ -19,6 +19,9 @@ in vec4 FragmentDiffuse;
 in vec4 FragmentSpecular;
 in float FragmentShininess;
 
+in vec4 FragmentRayOrigin;
+in vec4 FragmentRayDirection;
+
 in vec3 LightDirection[LIGHT_COUNT];
 in vec3 HalfwayVector[LIGHT_COUNT];
 
@@ -57,7 +60,10 @@ layout(std140) uniform SharedLightSources {
 };
 
 /* Output Attributes (Fragment Color) */
-out vec4 FragmentColor;
+layout(location=0) out vec4 FragmentColor;
+layout(location=1) out vec4 RayOrigin;
+layout(location=2) out vec4 RayReflection;
+layout(location=3) out vec4 RayRefraction;
 
 vec4 positionalLight(int i, vec3 Normal) {
 	
@@ -179,4 +185,11 @@ void main() {
 									break;
 		}
 	}
+
+	/* Ray Origin */
+	RayOrigin = FragmentRayOrigin;
+	/* Ray Reflection */
+	RayReflection = FragmentRayDirection; //reflect(, Normal);
+	/* Ray Refraction */
+	RayRefraction = FragmentRayDirection; //refract(ray.direction, Normal, 1.0f / 0.5f);
 }

@@ -109,8 +109,14 @@ ScreenTexture *screenTexture;
 									float3 cameraPosition,
 									float3 cameraUp, float3 cameraRight, float3 cameraDirection);
 
-	// Implementation of bindFrameTextureArray and bindPixelTextureArray are in the "RayTracer.cu" file
-	extern "C" void bindFrameTextureArray(cudaArray *frameTextureArray);
+	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
+	extern "C" void bindRenderTextureArray(cudaArray *renderArray);
+	// Implementation of bindRayOriginTextureArray is in the "RayTracer.cu" file
+	extern "C" void bindRayOriginTextureArray(cudaArray *renderArray);
+	// Implementation of bindRayReflectionTextureArray is in the "RayTracer.cu" file
+	extern "C" void bindRayReflectionTextureArray(cudaArray *renderArray);
+	// Implementation of bindRayRefractionTextureArray is in the "RayTracer.cu" file
+	extern "C" void bindRayRefractionTextureArray(cudaArray *renderArray);
 
 // [Scene Functions]
 
@@ -194,11 +200,18 @@ void display() {
 	// Map the necessary CUDA Resources
 	frameBuffer->mapCudaResource();
 	pixelBuffer->mapCudaResource();
+	
+    // Get the CUDA arrays references
+	cudaArray* renderTextureArray = frameBuffer->getRenderCudaArray();
+	cudaArray* rayOriginTextureArray = frameBuffer->getRayOriginCudaArray();
+	cudaArray* rayReflectionTextureArray = frameBuffer->getRayReflectionCudaArray();
+	cudaArray* rayRefractionTextureArray = frameBuffer->getRayRefractionCudaArray();
 
-	cudaArray* sourceTextureArray = frameBuffer->getArrayPointer();
-
-    // Map the source texture to a texture reference.
-    bindFrameTextureArray(sourceTextureArray);
+    // Bind the textures to CUDA arrays
+    bindRenderTextureArray(renderTextureArray);
+	bindRayOriginTextureArray(rayOriginTextureArray);
+	bindRayReflectionTextureArray(rayReflectionTextureArray);
+	bindRayRefractionTextureArray(rayRefractionTextureArray);
 
 	// Get the Device Pointer References
 	unsigned int* pixelBufferDevicePointer = pixelBuffer->getDevicePointer();
@@ -641,8 +654,8 @@ void initializeCameras() {
 
 void init(int argc, char* argv[]) {
 
-	//freopen("output.txt","w",stderr);
-	//freopen("output.txt","w",stdout);
+	freopen("output.txt","w",stderr);
+	freopen("output.txt","w",stdout);
 
 	// Initialize OpenGL
 	initializeGLUT(argc, argv);

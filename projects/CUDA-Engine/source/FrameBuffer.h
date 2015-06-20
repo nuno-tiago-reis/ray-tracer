@@ -30,18 +30,28 @@ class FrameBuffer {
 		// FrameBuffers Handler
 		GLuint frameBufferHandler;
 		GLuint depthBufferHandler;
-
+		
+		// FrameBuffers Rendering Textures
 		GLuint renderTextureHandler;
 
 		// FrameBuffers Ray-Tracing Textures
-		GLuint originTexture;
-		GLuint reflectionDirectionTexture;
-		GLuint refractionDirectionTexture;
+		GLuint rayOriginTextureHandler;
+		GLuint rayReflectionTextureHandler;
+		GLuint rayRefractionTextureHandler;
 		
-		/* CUDA Array that stores the Texture */
-		cudaArray *cudaArrayReference;
-		/* CUDA Graphics Resource that binds the FrameBuffer */
-		cudaGraphicsResource *cudaGraphicsResourceReference;
+		/* CUDA Array references that store the Textures in CUDA */
+		cudaArray *renderCudaArray;
+
+		cudaArray *rayOriginCudaArray;
+		cudaArray *rayReflectionCudaArray;
+		cudaArray *rayRefractionCudaArray;
+
+		/* CUDA Graphics Resource references that bind the Textures to CUDA */
+		cudaGraphicsResource *renderCudaGraphicsResource;
+		
+		cudaGraphicsResource *rayOriginCudaGraphicsResource;
+		cudaGraphicsResource *rayReflectionCudaGraphicsResource;
+		cudaGraphicsResource *rayRefractionCudaGraphicsResource;
 
 	public:
 
@@ -56,10 +66,10 @@ class FrameBuffer {
 		void reshape(GLint width, GLint height);
 
 		// CUDA-OpenGL Interop Methods
+		void bindCudaResources();
+
 		void mapCudaResource();
 		void unmapCudaResource();
-
-		cudaArray* getArrayPointer();
 
 		/* Getters */
 		GLint getWidth();
@@ -69,9 +79,22 @@ class FrameBuffer {
 		GLuint getDepthBufferHandler();
 
 		GLuint getRenderTextureHandler();
+
+		GLuint getRayOriginTextureHandler();
+		GLuint getRayReflectionTextureHandler();
+		GLuint getRayRefractionTextureHandler();
 		
-		cudaArray* getCudaArray();
-		cudaGraphicsResource* getCudaGraphicsResource();
+		cudaArray* getRenderCudaArray();
+
+		cudaArray* getRayOriginCudaArray();
+		cudaArray* getRayReflectionCudaArray();
+		cudaArray* getRayRefractionCudaArray();
+
+		cudaGraphicsResource* getRenderCudaGraphicsResource();
+
+		cudaGraphicsResource* getRayOriginCudaGraphicsResource();
+		cudaGraphicsResource* getRayReflectionCudaGraphicsResource();
+		cudaGraphicsResource* getRayRefractionCudaGraphicsResource();
 
 		/* Setters */
 		void setWidth(GLint width);
@@ -81,9 +104,22 @@ class FrameBuffer {
 		void setDepthBufferHandler(GLuint depthBufferHandler);
 
 		void setRenderTextureHandler(GLuint renderTextureHandler);
+	
+		void setRayOriginTextureHandler(GLuint rayOriginTextureHandler);
+		void setRayReflectionTextureHandler(GLuint rayReflectionTextureHandler);
+		void setRayRefractionTextureHandler(GLuint rayRefractionTextureHandler);
 		
-		void setCudaArray(cudaArray* cudaArrayReference);
-		void setCudaGraphicsResource(cudaGraphicsResource* cudaGraphicsResourceReference);
+		void setRenderCudaArray(cudaArray* renderCudaArray);
+
+		void setRayOriginCudaArray(cudaArray* rayOriginCudaArray);
+		void setRayReflectionCudaArray(cudaArray* rayReflectionCudaArray);
+		void setRayRefractionCudaArray(cudaArray* rayRefractionCudaArray);
+			
+		void setRenderCudaGraphicsResource(cudaGraphicsResource* renderCudaGraphicsResource);
+
+		void setRayOriginCudaGraphicsResource(cudaGraphicsResource* rayOriginCudaGraphicsResource);
+		void setRayReflectionCudaGraphicsResource(cudaGraphicsResource* rayReflectionCudaGraphicsResource);
+		void setRayRefractionCudaGraphicsResource(cudaGraphicsResource* rayRefractionCudaGraphicsResource);
 };
 
 #endif

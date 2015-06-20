@@ -63,6 +63,9 @@ out vec4 FragmentDiffuse;
 out vec4 FragmentSpecular;
 out float FragmentShininess;
 
+out vec4 FragmentRayOrigin;
+out vec4 FragmentRayDirection;
+
 out vec3 LightDirection[LIGHT_COUNT];
 out vec3 HalfwayVector[LIGHT_COUNT];
 
@@ -81,6 +84,10 @@ void main() {
 	FragmentDiffuse = VertexDiffuse;
 	FragmentSpecular = VertexSpecular;
 	FragmentShininess = VertexShininess;
+
+	/* Ray Tracing */
+	FragmentRayOrigin = ModelMatrix * VertexPosition;
+	FragmentRayDirection = normalize(ModelMatrix * VertexPosition - vec4((-transpose(mat3(ViewMatrix)) * ViewMatrix[3].xyz), 1.0));
 
 	/* Lighting calculations */
 	for(int i=0; i<LIGHT_COUNT; i++) {

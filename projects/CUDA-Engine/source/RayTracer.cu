@@ -15,7 +15,12 @@ const int initialDepth = 3;
 const float initialRefractionIndex = 1.0f;
 
 // OpenGL Rendering Texture
-texture<uchar4, cudaTextureType2D, cudaReadModeElementType> frameBufferTexture;
+texture<uchar4, cudaTextureType2D, cudaReadModeElementType> renderTexture;
+
+// OpenGL Ray Origin, Reflection and Refraction Textures
+texture<float4, cudaTextureType2D, cudaReadModeElementType> rayOriginTexture;
+texture<float4, cudaTextureType2D, cudaReadModeElementType> rayReflectionTexture;
+texture<float4, cudaTextureType2D, cudaReadModeElementType> rayRefractionTexture;
 
 // Ray testing Constant
 __device__ const float epsilon = 0.01f;
@@ -62,15 +67,18 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 	int3 pixelColor = make_int3(0);
 
-	pixelColor.x = 255 - tex2D(frameBufferTexture, x, y).x;
-	pixelColor.y = 255 - tex2D(frameBufferTexture, x, y).y;
-	pixelColor.z = 255 - tex2D(frameBufferTexture, x, y).z;
+	pixelColor.x = 255 - tex2D(renderTexture, x, y).x;
+	pixelColor.y = 255 - tex2D(renderTexture, x, y).y;
+	pixelColor.z = 255 - tex2D(renderTexture, x, y).z;
 
 	int rgb = pixelColor.x;
 	rgb = (rgb << 8) + pixelColor.y;
 	rgb = (rgb << 8) + pixelColor.z;
 
 	pixelBufferObject[y * width + x] = rgb;
+
+	float4 color = tex2D(rayReflectionTexture, x, y);
+	pixelBufferObject[y * width + x] = rgbToInt((color.x + 1.0f)* 128.0f, (color.y + 1.0f) * 128.0f, (color.z + 1.0f) * 128.0f);
 }
 
 extern "C" {
@@ -96,16 +104,49 @@ extern "C" {
 										cameraUp, cameraRight, cameraDirection);
 	}
 
-
-	// OpenGL FrameBuffer Texture Binding Functions
-	void bindFrameTextureArray(cudaArray *frameTextureArray) {
-
-		frameBufferTexture.normalized = false;						// access with normalized texture coordinates
-		frameBufferTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
-		frameBufferTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
-		frameBufferTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+	// OpenGL Texture Binding Functions
+	void bindRenderTextureArray(cudaArray *renderArray) {
+	
+		renderTexture.normalized = false;					// access with normalized texture coordinates
+		renderTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		renderTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		renderTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<uchar4>();
-		cudaBindTextureToArray(frameBufferTexture, frameTextureArray, channelDescriptor);
+		cudaBindTextureToArray(renderTexture, renderArray, channelDescriptor);
+	}
+
+	// OpenGL Texture Binding Functions
+	void bindRayOriginTextureArray(cudaArray *rayOriginArray) {
+	
+		rayOriginTexture.normalized = false;					// access with normalized texture coordinates
+		rayOriginTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		rayOriginTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		rayOriginTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTextureToArray(rayOriginTexture, rayOriginArray, channelDescriptor);
+	}
+
+	void bindRayReflectionTextureArray(cudaArray *rayReflectionArray) {
+	
+		rayReflectionTexture.normalized = false;					// access with normalized texture coordinates
+		rayReflectionTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		rayReflectionTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		rayReflectionTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTextureToArray(rayReflectionTexture, rayReflectionArray, channelDescriptor);
+	}
+
+	void bindRayRefractionTextureArray(cudaArray *rayRefractionArray) {
+	
+		rayRefractionTexture.normalized = false;					// access with normalized texture coordinates
+		rayRefractionTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		rayRefractionTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		rayRefractionTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTextureToArray(rayRefractionTexture, rayRefractionArray, channelDescriptor);
 	}
 }
