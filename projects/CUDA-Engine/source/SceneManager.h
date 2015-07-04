@@ -56,6 +56,8 @@ class SceneManager {
 		/* Singleton Instance */
 		static SceneManager *instance;
 
+		int objectID;
+
 		int rotationAxis;
 		int currentObject;
 
@@ -106,6 +108,9 @@ class SceneManager {
 		void readMouse(GLfloat elapsedTime);
 
 		void rayCast(GLint* mousePosition, GLfloat elapsedTime);
+
+		/* Object ID */
+		int getObjectID();
 
 		/* Getters */
 		Camera* getActiveCamera();

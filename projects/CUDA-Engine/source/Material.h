@@ -20,13 +20,26 @@
 /* Math Library */
 #include "Vector.h"
 
+/* Generic Texture */
+#include "Texture.h"
 /* Generic Shader */
 #include "ShaderProgram.h"
 
-/* Generic Texture */
-#include "Texture.h"
+/* Mesh Reader */
+#include "OBJ_Reader.h"
 
 using namespace std;
+
+typedef struct {
+
+	GLfloat ambient[4];
+	GLfloat diffuse[4];
+	GLfloat specular[4];
+	GLfloat specularConstant;
+
+	GLint materialID;
+
+} MaterialStructure;
 
 class Material {
 
@@ -35,6 +48,14 @@ class Material {
 		/* Material Identifier */
 		string name;
 
+		/* Material Ambient, Diffuse and Specular Properties */
+		Vector ambient;
+		Vector diffuse;
+		Vector specular;
+
+		/* Material Specular Constant */
+		float specularConstant;
+		
 		/* Material Shader Program */
 		ShaderProgram* shaderProgram;
 
@@ -44,28 +65,43 @@ class Material {
 	public:
 
 		/* Constructors & Destructors */
-		Material(string name, ShaderProgram* shaderProgram);
+		Material(string name, string materialFilename, ShaderProgram* shaderProgram);
 		~Material();
 
 		/* Scene Methods */
 		void bind();
 		void unbind();
 
+		/* Texture Map Manipulation Methods*/
+		void addTexture(Texture* texture);
+		void removeTexture(string textureName);
+
+		Texture* getTexture(string textureName);
+		
+		/* GPU Methods */
+		MaterialStructure getMaterialStructure();
+
 		/* Getters */
 		string getName();
+
+		Vector getAmbient();
+		Vector getDiffuse();
+		Vector getSpecular();
+
+		float getSpecularConstant();
 
 		ShaderProgram* getShaderProgram();
 
 		/* Setters */
 		void setName(string name);
 
+		void setAmbient(Vector ambient);
+		void setDiffuse(Vector diffuse);
+		void setSpecular(Vector specular);
+
+		void setSpecularConstant(float specularConstant);
+
 		void setShaderProgram(ShaderProgram* shaderProgram);
-
-		/* Texture Map Manipulation Methods*/
-		void addTexture(Texture* texture);
-		void removeTexture(string textureName);
-
-		Texture* getTexture(string textureName);
 
 		/* Debug Methods */
 		void dump();

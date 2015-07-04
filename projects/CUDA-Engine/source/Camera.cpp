@@ -103,6 +103,33 @@ void Camera::loadView() {
 	this->viewMatrix.loadIdentity();
 	this->viewMatrix.setView(this->eye,this->target,this->up);
 	this->viewMatrix.transpose();
+
+	// Images Aspect Ratio 
+	float aspectRatio = (float)this->width / (float)this->height;
+	// Cameras distance to the target 
+	float distance = (this->target - this->eye).magnitude();
+
+	// Cameras Field of View 
+	float fieldOfView = this->fieldOfView;
+	// Projection Frustum Half-Width 
+	float theta = (fieldOfView * 0.5f) * DEGREES_TO_RADIANS;
+	float halfHeight = 2.0f * distance * tanf(theta);
+	float halfWidth = halfHeight * aspectRatio;
+
+	// Re-Calculate the Cameras Direction Vector
+	this->direction = Vector(target[VX] - eye[VX], target[VY] - eye[VY], target[VZ] - eye[VZ], 1.0f);
+	this->direction.normalize();
+	this->direction = direction * distance;
+
+	// Re-Calculate the Cameras Right Vector
+	this->right = Vector::crossProduct(direction, up);
+	this->right.normalize();
+	this->right = right * halfWidth;
+
+	// Re-Calculate the Cameras Up Vector
+	this->up = Vector::crossProduct(right, direction);
+	this->up.normalize();
+	this->up = up * halfHeight;
 }
 
 void Camera::loadOrthogonalProjection() {
@@ -111,7 +138,6 @@ void Camera::loadOrthogonalProjection() {
 
 	this->projectionMatrix.loadIdentity();
 	this->projectionMatrix.setOrthogonalProjection(ORTHO_LEFT,ORTHO_RIGHT,ORTHO_TOP,ORTHO_BOTTOM,ORTHO_NEAR,ORTHO_FAR);
-	//this->projectionMatrix.transpose();
 }
 
 void Camera::loadOrthogonalProjection(GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat nearZ, GLfloat farZ) {
@@ -120,7 +146,6 @@ void Camera::loadOrthogonalProjection(GLfloat left, GLfloat right, GLfloat top, 
 
 	this->projectionMatrix.loadIdentity();
 	this->projectionMatrix.setOrthogonalProjection(left,right,top,bottom,nearZ,farZ);
-	//this->projectionMatrix.transpose();
 }
 
 void Camera::loadPerspectiveProjection() {
@@ -129,7 +154,8 @@ void Camera::loadPerspectiveProjection() {
 
 	this->projectionMatrix.loadIdentity();
 	this->projectionMatrix.setPerspectiveProjection(PERS_ANGLE,(GLfloat)this->width/this->height,PERS_NEAR,PERS_FAR);
-	//this->projectionMatrix.transpose();
+
+	this->fieldOfView = PERS_ANGLE;
 }
 
 void Camera::loadPerspectiveProjection(GLfloat angle, GLfloat aspectRatio, GLfloat nearZ, GLfloat farZ) {
@@ -138,7 +164,8 @@ void Camera::loadPerspectiveProjection(GLfloat angle, GLfloat aspectRatio, GLflo
 
 	this->projectionMatrix.loadIdentity();
 	this->projectionMatrix.setPerspectiveProjection(angle,aspectRatio,nearZ,farZ);
-	//this->projectionMatrix.transpose();
+
+	this->fieldOfView = angle;
 }
 
 string Camera::getName() {
@@ -210,6 +237,16 @@ Vector Camera::getUp() {
 	return this->up;
 }
 
+Vector Camera::getRight() {
+
+	return this->right;
+}
+
+Vector Camera::getDirection() {
+
+	return this->direction;
+}
+
 void Camera::setName(string name) {
 
 	this->name = name;
@@ -278,6 +315,16 @@ void Camera::setEye(Vector eye) {
 void Camera::setUp(Vector up) {
 
 	this->up = up;
+}
+
+void Camera::setRight(Vector right) {
+
+	this->right = right;
+}
+
+void Camera::setDirection(Vector direction) {
+
+	this->direction = direction;
 }
 
 void Camera::dump() {

@@ -22,6 +22,23 @@ texture<float4, cudaTextureType2D, cudaReadModeElementType> rayOriginTexture;
 texture<float4, cudaTextureType2D, cudaReadModeElementType> rayReflectionTexture;
 texture<float4, cudaTextureType2D, cudaReadModeElementType> rayRefractionTexture;
 
+// CUDA Triangle Textures
+texture<float4, 1, cudaReadModeElementType> trianglePositionsTexture;
+texture<float4, 1, cudaReadModeElementType> triangleNormalsTexture;
+texture<float4, 1, cudaReadModeElementType> triangleTangentsTexture;
+texture<float2, 1, cudaReadModeElementType> triangleTextureCoordinatesTexture;
+
+texture<int1, 1, cudaReadModeElementType> triangleMaterialIDsTexture;
+
+// CUDA Material Textures
+texture<float4, 1, cudaReadModeElementType> materialDiffusePropertiesTexture;
+texture<float4, 1, cudaReadModeElementType> materialSpecularPropertiesTexture;
+
+// CUDA Light Textures
+texture<float4, 1, cudaReadModeElementType> lightPositionsTexture;
+texture<float4, 1, cudaReadModeElementType> lightColorsTexture;
+texture<float2, 1, cudaReadModeElementType> lightIntensitiesTexture;
+
 // Ray testing Constant
 __device__ const float epsilon = 0.01f;
 
@@ -79,6 +96,8 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 	float4 color = tex2D(rayReflectionTexture, x, y);
 	pixelBufferObject[y * width + x] = rgbToInt((color.x + 1.0f)* 128.0f, (color.y + 1.0f) * 128.0f, (color.z + 1.0f) * 128.0f);
+	
+	pixelBufferObject[y * width + x] = rgb;
 }
 
 extern "C" {
@@ -148,5 +167,128 @@ extern "C" {
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
 		cudaBindTextureToArray(rayRefractionTexture, rayRefractionArray, channelDescriptor);
+	}
+
+	// CUDA Triangle Texture Binding Functions
+	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal) {
+
+		trianglePositionsTexture.normalized = false;                      // access with normalized texture coordinates
+		trianglePositionsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		trianglePositionsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * triangleTotal * 3;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, trianglePositionsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindTriangleNormals(float *cudaDevicePointer, unsigned int triangleTotal) {
+
+		triangleNormalsTexture.normalized = false;                      // access with normalized texture coordinates
+		triangleNormalsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		triangleNormalsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * triangleTotal * 3;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, triangleNormalsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindTriangleTangents(float *cudaDevicePointer, unsigned int triangleTotal) {
+
+		triangleTangentsTexture.normalized = false;                      // access with normalized texture coordinates
+		triangleTangentsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		triangleTangentsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * triangleTotal * 3;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, triangleTangentsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindTriangleTextureCoordinates(float *cudaDevicePointer, unsigned int triangleTotal) {
+
+		triangleTextureCoordinatesTexture.normalized = false;                      // access with normalized texture coordinates
+		triangleTextureCoordinatesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		triangleTextureCoordinatesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float2) * triangleTotal * 3;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float2>();
+		cudaBindTexture(0, triangleTextureCoordinatesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindTriangleMaterialIDs(float *cudaDevicePointer, unsigned int triangleTotal) {
+
+		triangleMaterialIDsTexture.normalized = false;                      // access with normalized texture coordinates
+		triangleMaterialIDsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		triangleMaterialIDsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(int1) * triangleTotal * 3;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<int1>();
+		cudaBindTexture(0, triangleMaterialIDsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	// CUDA Material Texture Binding Functions
+	void bindMaterialDiffuseProperties(float *cudaDevicePointer, unsigned int materialTotal) {
+
+		materialDiffusePropertiesTexture.normalized = false;                      // access with normalized texture coordinates
+		materialDiffusePropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		materialDiffusePropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * materialTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, materialDiffusePropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindMaterialSpecularProperties(float *cudaDevicePointer, unsigned int materialTotal) {
+
+		materialSpecularPropertiesTexture.normalized = false;                      // access with normalized texture coordinates
+		materialSpecularPropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		materialSpecularPropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * materialTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, materialSpecularPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	// CUDA Light Texture Binding Functions
+	void bindLightPositions(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightPositionsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightPositionsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightPositionsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, lightPositionsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightColorsTexture.normalized = false;                      // access with normalized texture coordinates
+		lightColorsTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightColorsTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, lightColorsTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal) {
+
+		lightIntensitiesTexture.normalized = false;                      // access with normalized texture coordinates
+		lightIntensitiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		lightIntensitiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float2) * lightTotal;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float2>();
+		cudaBindTexture(0, lightIntensitiesTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 }

@@ -72,7 +72,7 @@ class Light {
 
 		void setIdentifier(GLint identifier);
 
-		void setPosition(Vector position);
+		virtual void setPosition(Vector position);
 		void setColor(Vector color);
 
 		void setAmbientIntensity(GLfloat ambientIntensity);

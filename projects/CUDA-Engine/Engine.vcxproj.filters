@@ -153,6 +153,9 @@
     <Filter Include="Source Files\Library\CUDA\Textures">
       <UniqueIdentifier>{81d5d960-9915-4e8b-8e07-e653237722b4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Vertex">
+      <UniqueIdentifier>{2485c980-01da-4885-8f83-3e9bddeeb870}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\SceneManager.cpp">
@@ -265,6 +268,9 @@
     </ClCompile>
     <ClCompile Include="source\FrameBuffer.cpp">
       <Filter>Source Files\Library\CUDA\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Vertex.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Vertex</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -387,6 +393,9 @@
     </ClInclude>
     <ClInclude Include="source\FrameBuffer.h">
       <Filter>Source Files\Library\CUDA\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Vertex.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Vertex</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

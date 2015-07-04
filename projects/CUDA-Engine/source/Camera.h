@@ -70,10 +70,17 @@ class Camera {
 		/* Camera Position */
 		Vector position;
 
+		/* Field of View */
+		float fieldOfView;
+
 		/* Look At Vectors */
 		Vector target;
 		Vector eye;
+
+		/* Camera Plane Vectors */
 		Vector up;
+		Vector right;
+		Vector direction;
 
 	public:
 
@@ -119,6 +126,9 @@ class Camera {
 		Vector getEye();
 		Vector getUp();
 
+		Vector getRight();
+		Vector getDirection();
+
 		/* Setters */
 		void setName(string name);
 		
@@ -139,7 +149,10 @@ class Camera {
 
 		void setTarget(Vector target);
 		void setEye(Vector eye);
+
 		void setUp(Vector up);
+		void setRight(Vector right);
+		void setDirection(Vector direction);
 
 		/* Debug Methods */
 		void dump();

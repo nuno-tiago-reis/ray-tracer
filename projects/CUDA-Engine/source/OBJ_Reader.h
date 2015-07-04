@@ -21,14 +21,10 @@
 #include <string>
 #include <vector>
 
-/* Generic Shader Program */
-#include "ShaderProgram.h"
-
 /* Mesh */
 #include "Mesh.h"
-
-/* Vector Implementation */
-#include "Vector.h"
+/* Material */
+#include "Material.h"
 
 /* Constants */
 #define LOCATION "models/"
@@ -36,16 +32,6 @@
 #define X 0
 #define Y 1
 #define Z 2
-
-typedef struct {
-
-	GLfloat ambient[3];
-	GLfloat diffuse[3];
-	GLfloat specular[3];
-
-	GLfloat specularConstant;
-
-} MaterialStruct;
 
 typedef struct {
 
@@ -65,6 +51,7 @@ typedef struct {
 using namespace std;
 
 class Mesh;
+class Material;
 
 class OBJ_Reader {
 
@@ -82,7 +69,8 @@ class OBJ_Reader {
 		static OBJ_Reader* getInstance();
 		static void destroyInstance();
 
-		void loadMesh(string meshFilename, string materialFilename, Mesh* mesh);
+		void loadMesh(string meshFilename, Mesh* mesh);
+		void loadMaterial(string materialFilename, Material* material);
 };
 
 #endif

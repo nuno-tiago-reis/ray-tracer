@@ -7,6 +7,8 @@ SceneManager::SceneManager() {
 	this->rotationAxis = 0;
 	this->currentObject = 0;
 
+	this->objectID = 0;
+
 	_activeCamera = NULL;
 
 	/* FMOD Sound System Initialization */
@@ -438,6 +440,11 @@ void SceneManager::rayCast(GLint* mousePosition, GLfloat elapsedTime) {
 
 	/*if(platformIntersectionPoint != NULL)
 		cout << "Intersected " << platform->getName() << " " << platformIntersectionPoint << " " << rand()%100 << endl;*/
+}
+
+int SceneManager::getObjectID() {
+
+	return this->objectID++;
 }
 
 void SceneManager::setActiveCamera(Camera* camera) {

@@ -33,6 +33,7 @@ class Object {
 	protected:
 
 		/* Object Identifier */
+		int id;
 		string name;
 		string parentName;
 
@@ -41,11 +42,19 @@ class Object {
 		Material* material;
 		Transform* transform;
 
+		/* Objects Mesh OpenGL IDs */
+		GLuint arrayObjectID;
+		GLuint bufferObjectID;
+
 	public:
 
 		/* Constructors & Destructors */
 		Object(string name);
 		~Object();
+
+		/* GPU Creation & Destruction Methods */
+		void createMesh();
+		void destroyMesh();
 
 		/* Scene Methods */
 		virtual void draw();
@@ -57,6 +66,7 @@ class Object {
 		GLfloat isIntersecting(Vector origin, Vector direction);
 
 		/* Getters */
+		int getID();
 		string getName();
 		string getParentName();
 
@@ -64,13 +74,20 @@ class Object {
 		Material* getMaterial();
 		Transform* getTransform();
 
+		GLuint getArrayObjectID();
+		GLuint getBufferObjectID();
+
 		/* Setters */
+		void setID(int id);
 		void setName(string name);
 		void setParentName(string parentName);
 
 		void setMesh(Mesh* mesh);
 		void setMaterial(Material* material);
 		void setTransform(Transform* transform);
+
+		void setArrayObjectID(GLuint arrayObjectID);
+		void setBufferObjectID(GLuint bufferObjectID);
 
 		/* Debug Methods */
 		void dump();

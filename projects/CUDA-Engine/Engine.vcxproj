@@ -36,6 +36,7 @@
     <ClCompile Include="source\PositionalLight.cpp" />
     <ClCompile Include="source\Quaternion.cpp" />
     <ClCompile Include="source\ScreenTexture.cpp" />
+    <ClCompile Include="source\Vertex.cpp" />
     <ClCompile Include="source\WoodShader.cpp" />
     <ClCompile Include="source\SceneNode.cpp" />
     <ClCompile Include="source\SceneManager.cpp" />
@@ -77,6 +78,7 @@
     <ClInclude Include="source\PositionalLight.h" />
     <ClInclude Include="source\Quaternion.h" />
     <ClInclude Include="source\ScreenTexture.h" />
+    <ClInclude Include="source\Vertex.h" />
     <ClInclude Include="source\WoodShader.h" />
     <ClInclude Include="source\SceneNode.h" />
     <ClInclude Include="source\Sound.h" />
