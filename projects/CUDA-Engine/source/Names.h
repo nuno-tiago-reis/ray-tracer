@@ -11,6 +11,10 @@
 
 #define TEST_PARTICLE_SYSTEM "Test Particle System"
 
+#define SPHERE_0 "Sphere 0"
+#define SPHERE_1 "Sphere 1"
+#define SPHERE_2 "Sphere 2"
+
 /* Sound Names */
 #define ARROW_SOUND_NAME "Arrow Sound"
 #define ARROW_SOUND_FILE "sounds/arrow.mp3"

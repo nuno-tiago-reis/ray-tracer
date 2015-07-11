@@ -89,6 +89,8 @@ class Matrix {
 		void transpose();
 		void invert();
 
+		void removeTranslation();
+
 		/* Camera Transformations */
 		void setView(Vector eye, Vector center, Vector userUp);
 		void setOrthogonalProjection(GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat nearZ, GLfloat farZ);

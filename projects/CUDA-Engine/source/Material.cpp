@@ -165,6 +165,13 @@ void Material::dump() {
 
 	// Material Shader Program
 	cout << "<Material Shader Program> = " << this->shaderProgram->getName() << endl;
+	
+	// Material Ambient Vector
+	cout << "<Material Ambient Vector> = "; this->ambient.dump();
+	// Material Diffuse Vector
+	cout << "<Material Diffuse Vector> = "; this->diffuse.dump();
+	// Material Diffuse Vector
+	cout << "<Material Specular Vector> = "; this->specular.dump();
 
 	// Material Texture Map
 	cout << "<Material Texture Map> = " << endl;

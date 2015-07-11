@@ -315,6 +315,13 @@ void Matrix::invert() {
 	setValue(inverseMatrix);
 }
 
+void Matrix::removeTranslation() {
+
+	this->matrix[0][3] = 0.0f;
+	this->matrix[1][3] = 0.0f;
+	this->matrix[2][3] = 0.0f;
+}
+
 void Matrix::setView(Vector eye, Vector target, Vector userUp) {
 
 	Matrix view;

@@ -106,66 +106,100 @@ int materialTotal = 0;
 // Total number of Lights - Used for the memory necessary to allocate
 int lightTotal = 0;
 
-// CudaDevicePointers to the uploaded Triangles Positions 
+// CUDA DevicePointers to the uploaded Triangles Positions and Normals
 float *cudaTrianglePositionsDP = NULL; 
-// CudaDevicePointers to the uploaded Triangles Normals and Tangents 
 float *cudaTriangleNormalsDP = NULL;
-float *cudaTriangleTangentsDP = NULL;
-// CudaDevicePointers to the uploaded Triangles Texture Coordinates 
+// CUDA DevicePointers to the uploaded Triangles Texture Coordinates 
 float *cudaTriangleTextureCoordinatesDP = NULL;
-// CudaDevicePointers to the uploaded Triangles Material IDs
+// CUDA DevicePointers to the uploaded Triangles Object and Material IDs
+float *cudaTriangleObjectIDsDP = NULL;
 float *cudaTriangleMaterialIDsDP = NULL;
 
-// CudaDevicePointers to the uploaded Triangles Materials 
+// CUDA DevicePointers to the uploaded Triangles Materials 
 float *cudaMaterialDiffusePropertiesDP = NULL;
 float *cudaMaterialSpecularPropertiesDP = NULL;
 
-// CudaDevicePointers to the uploaded Lights
+// CUDA DevicePointers to the uploaded Lights
 float *cudaLightPositionsDP = NULL;
 float *cudaLightColorsDP = NULL;
 float *cudaLightIntensitiesDP = NULL;
 
+// CUDA DevicePointers Arrays
+float4* cudaUpdatedTrianglePositionsDP = NULL;
+float4* cudaUpdatedTriangleNormalsDP = NULL;
+
+float* cudaUpdatedModelMatricesDP = NULL;
+float* cudaUpdatedNormalMatricesDP = NULL;
+
 // [CUDA-OpenGL Interop] 
+extern "C" {
 
 	// Implementation of RayTraceWrapper is in the "RayTracer.cu" file
-	extern "C" void RayTraceWrapper(unsigned int *pixelBufferObject,
-									int width, int height, 
-									int triangleTotal,
-									int lightTotal,
-									float3 cameraPosition,
-									float3 cameraUp, float3 cameraRight, float3 cameraDirection);
+	void RayTraceWrapper(	unsigned int *pixelBufferObject,
+							// Screen Dimensions
+							int width, int height, 			
+							// Updated Normal Matrices Array
+							float* modelMatricesArray,
+							// Updated Normal Matrices Array
+							float* normalMatricesArray,
+							// Updated Triangle Positions Array
+							float4* trianglePositionArray,
+							// Updated Triangle Normals Array
+							float4* triangleNormalArray,
+							// Total Number of Triangles in the Scene
+							int triangleTotal,
+							// Total Number of Lights in the Scene
+							int lightTotal,
+							// Camera Definitions
+							float3 cameraPosition);
 
 	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
-	extern "C" void bindRenderTextureArray(cudaArray *renderArray);
+	void bindRenderTextureArray(cudaArray *renderArray);
 	// Implementation of bindRayOriginTextureArray is in the "RayTracer.cu" file
-	extern "C" void bindRayOriginTextureArray(cudaArray *renderArray);
+	void bindRayOriginTextureArray(cudaArray *renderArray);
 	// Implementation of bindRayReflectionTextureArray is in the "RayTracer.cu" file
-	extern "C" void bindRayReflectionTextureArray(cudaArray *renderArray);
+	void bindRayReflectionTextureArray(cudaArray *renderArray);
 	// Implementation of bindRayRefractionTextureArray is in the "RayTracer.cu" file
-	extern "C" void bindRayRefractionTextureArray(cudaArray *renderArray);
+	void bindRayRefractionTextureArray(cudaArray *renderArray);
 
 	// Implementation of bindTrianglePositions is in the "RayTracer.cu" file
-	extern "C" void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal);
+	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal);
 	// Implementation of bindTriangleNormals is in the "RayTracer.cu" file
-	extern "C" void bindTriangleNormals(float *cudaDevicePointer, unsigned int triangleTotal);
-	// Implementation of bindTriangleTangents is in the "RayTracer.cu" file
-	extern "C" void bindTriangleTangents(float *cudaDevicePointer, unsigned int triangleTotal);
+	void bindTriangleNormals(float *cudaDevicePointer, unsigned int triangleTotal);
 	// Implementation of bindTriangleTextureCoordinates is in the "RayTracer.cu" file
-	extern "C" void bindTriangleTextureCoordinates(float *cudaDevicePointer, unsigned int triangleTotal);
+	void bindTriangleTextureCoordinates(float *cudaDevicePointer, unsigned int triangleTotal);
+	// Implementation of bindTriangleObjectIDs is in the "RayTracer.cu" file
+	void bindTriangleObjectIDs(float *cudaDevicePointer, unsigned int triangleTotal);
 	// Implementation of bindTriangleMaterialIDs is in the "RayTracer.cu" file
-	extern "C" void bindTriangleMaterialIDs(float *cudaDevicePointer, unsigned int triangleTotal);
+	void bindTriangleMaterialIDs(float *cudaDevicePointer, unsigned int triangleTotal);
 
 	// Implementation of bindMaterialDiffuseProperties is in the "RayTracer.cu" file
-	extern "C" void bindMaterialDiffuseProperties(float *cudaDevicePointer, unsigned int materialTotal);
+	void bindMaterialDiffuseProperties(float *cudaDevicePointer, unsigned int materialTotal);
 	// Implementation of bindMaterialSpecularProperties is in the "RayTracer.cu" file
-	extern "C" void bindMaterialSpecularProperties(float *cudaDevicePointer, unsigned int materialTotal);
+	void bindMaterialSpecularProperties(float *cudaDevicePointer, unsigned int materialTotal);
 
 	// Implementation of bindLightPositions is in the "RayTracer.cu" file
-	extern "C" void bindLightPositions(float *cudaDevicePointer, unsigned int lightTotal);
+	void bindLightPositions(float *cudaDevicePointer, unsigned int lightTotal);
 	// Implementation of bindLightColors is in the "RayTracer.cu" file
-	extern "C" void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal);
+	void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal);
 	// Implementation of bindLightIntensities is in the "RayTracer.cu" file
-	extern "C" void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal);
+	void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal);
+	
+	// Implementation of mallocTrianglePositionsArray is in the "RayTracer.cu" file
+	void mallocTrianglePositionsArray(unsigned int triangleTotal);
+	// Implementation of mallocTriangleNormalsArray is in the "RayTracer.cu" file
+	void mallocTriangleNormalsArray(unsigned int triangleTotal);
+	
+	// Implementation of mallocModelMatrixArray is in the "RayTracer.cu" file
+	void mallocModelMatrixArray(float4* modelMatricesDP, unsigned int matrixTotal);
+	// Implementation of mallocNormalMatrixArray is in the "RayTracer.cu" file
+	void mallocNormalMatrixArray(float4* mormalMatricesDP, unsigned int matrixTotal);
+	
+	// Implementation of memCopyModelMatrixArray is in the "RayTracer.cu" file
+	void memCopyModelMatrixArray(float* modelMatricesDP, unsigned int matrixTotal);
+	// Implementation of memCopyNormalMatrixArray is in the "RayTracer.cu" file
+	void memCopyNormalMatrixArray(float* normalMatricesDP, unsigned int matrixTotal);
+}
 
 // [Scene Functions]
 
@@ -242,7 +276,7 @@ void display() {
 
 		// Draw to the Screen
 		sceneManager->draw();
-		
+
 	// Unbind the Buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -265,20 +299,107 @@ void display() {
 	// Get the Device Pointer References
 	unsigned int* pixelBufferDevicePointer = pixelBuffer->getDevicePointer();
 
+	// Get the Camera Positions 
 	Vector position = sceneManager->getActiveCamera()->getEye();
-	
-	Vector up = sceneManager->getActiveCamera()->getUp();
-	Vector right = sceneManager->getActiveCamera()->getRight();
-	Vector direction = sceneManager->getActiveCamera()->getDirection();
+
+	// Get the Updated Model and Normal Matrices
+	map<string, Object*> objectMap = sceneManager->getObjectMap();
+
+	float* modelMatrices = new float[objectMap.size() * 16];
+	float* normalMatrices = new float[objectMap.size() * 16];
+
+	for(map<string,Object*>::const_iterator objectIterator = objectMap.begin(); objectIterator != objectMap.end(); objectIterator++) {
+
+		Object* object = objectIterator->second;
+
+		// Model Matrix/
+		Matrix modelMatrix = object->getTransform()->getModelMatrix();
+		modelMatrix.getValue(&modelMatrices[object->getID() * 16]);
+		
+		// Normal Matrix
+		Matrix normalMatrix = object->getTransform()->getModelMatrix();
+		normalMatrix.removeTranslation();
+		normalMatrix.transpose();
+		normalMatrix.invert();
+		normalMatrix.getValue(&normalMatrices[object->getID() * 16]);
+
+		/*map<int, Vertex*> vertexMap = object->getMesh()->getVertexMap();
+
+		printf("\nFirst List (%s) (%d)\n\n", object->getName().c_str(), vertexMap.size());
+
+		for(map<int, Vertex*>::const_iterator vertexIterator = vertexMap.begin(); vertexIterator != vertexMap.end(); vertexIterator++) {
+
+			// Get the vertex from the mesh 
+			Vertex* vertex = vertexIterator->second;
+
+			// Position: Multiply the original vertex using the objects model matrix
+			Vector originalPosition = vertex->getPosition();
+			Vector modifiedPosition = modelMatrix * originalPosition;
+			
+			printf("1 Vertex[%d] = [%.2f] [%.2f] [%.2f]\n", vertexIterator->first, modifiedPosition[VX], modifiedPosition[VY], modifiedPosition[VZ]);
+
+			// Normal: Multiply the original normal using the objects inverted transposed model matrix	
+			Vector originalNormal = vertex->getNormal();
+			Vector modifiedNormal = normalMatrix * originalNormal;
+			modifiedNormal.normalize();
+			
+			printf("1 Normal[%d] = [%.2f] [%.2f] [%.2f]\n", vertexIterator->first, modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ]);
+		}*/
+	}
+
+	// Copy the Matrices to CUDA	
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedModelMatricesDP, &modelMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedNormalMatricesDP, &normalMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
 
 	// Kernel Launch
 	RayTraceWrapper(
 		pixelBufferDevicePointer,
-		windowWidth, windowHeight, 
+		windowWidth, windowHeight,
+		cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP,
+		cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP,
 		triangleTotal,
 		lightTotal,
-		make_float3(position[VX], position[VY], position[VZ]),
-		make_float3(up[VX], up[VY], up[VZ]), make_float3(right[VX], right[VY], right[VZ]), make_float3(direction[VX], direction[VY], direction[VZ]));
+		make_float3(position[VX], position[VY], position[VZ]));
+
+	/*float* models = new float[objectMap.size() * 16];
+	float* normals = new float[objectMap.size() * 16];
+	
+	// Copy the Matrices to CUDA	
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&models[0], cudaUpdatedModelMatricesDP, objectMap.size() * 16 * sizeof(float), cudaMemcpyDeviceToHost));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&normals[0], cudaUpdatedNormalMatricesDP, objectMap.size() * 16 * sizeof(float), cudaMemcpyDeviceToHost));
+
+	printf("\nSecond Matrices List (%d)\n\n", objectMap.size());
+
+	for(int i=0; i<objectMap.size(); i++) {
+
+		printf("Model Matrix\n");
+		for(int j=0; j<4; j++)
+			printf("[%.2f][%.2f][%.2f][%.2f]\n", models[j * 4],  models[j * 4 + 1],  models[j * 4 + 2],  models[j * 4 + 3]);
+	
+		printf("Normal Matrix\n");
+		for(int j=0; j<4; j++)
+			printf("[%.2f][%.2f][%.2f][%.2f]\n", normals[j * 4],  normals[j * 4 + 1],  normals[j * 4 + 2],  normals[j * 4 + 3]);
+	}
+
+	float4* trianglePositions = new float4[triangleTotal * 3];
+	float4* triangleNormals = new float4[triangleTotal * 3];
+	
+	// Copy the Matrices to CUDA	
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trianglePositions[0], cudaUpdatedTrianglePositionsDP, triangleTotal * 3 * sizeof(float4), cudaMemcpyDeviceToHost));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&triangleNormals[0], cudaUpdatedTriangleNormalsDP, triangleTotal * 3 * sizeof(float4), cudaMemcpyDeviceToHost));
+
+	printf("\nSecond Vertices List (%d)\n\n", triangleTotal*3);
+
+	for(int i=0; i<triangleTotal*3; i++) {
+
+		float4 position = trianglePositions[i];
+	
+		printf("2 Vertex[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, position.x, position.y, position.z, position.w);
+
+		float4 normal = triangleNormals[i];
+	
+		printf("2 Normal[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, normal.x, normal.y, normal.z, normal.w);
+	}*/
 
 	// Unmap the used CUDA Resources
 	frameBuffer->unmapCudaResource();
@@ -565,8 +686,6 @@ void initializeCUDA() {
 
 // Initialize CUDA Memory with the necessary space for the Meshes 
 void initializeCUDAmemory() {
-
-	////////////////////////////////////////////////////////////// BUFFER OBJECT AND SCREEN TEXTURE ///////////////////////////////////////////////////////////////
 		
 	// Create the FrameBuffer to output the Rendering result.
 	frameBuffer = new FrameBuffer(windowWidth, windowHeight);
@@ -672,13 +791,13 @@ void initializeLights() {
 	positionalLight1->setPosition(Vector(0.0f, 10.0f, 0.0f, 1.0f));
 	positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
 
-	positionalLight1->setAmbientIntensity(0.05f);
-	positionalLight1->setDiffuseIntensity(0.55f);
-	positionalLight1->setSpecularIntensity(0.55f);
+	positionalLight1->setAmbientIntensity(0.25f);
+	positionalLight1->setDiffuseIntensity(1.5f);
+	positionalLight1->setSpecularIntensity(0.25f);
 
-	positionalLight1->setConstantAttenuation(0.5f);
-	positionalLight1->setLinearAttenuation(0.000675f);
-	positionalLight1->setExponentialAttenuation(0.00025f);
+	positionalLight1->setConstantAttenuation(0.025f);
+	positionalLight1->setLinearAttenuation(0.0075f);
+	positionalLight1->setExponentialAttenuation(0.00075f);
 	
 	lightMap[positionalLight1->getIdentifier()] = positionalLight1;
 	sceneManager->addLight(positionalLight1);
@@ -761,7 +880,7 @@ void initializeCameras() {
 
 	/* Create Perspective Camera */
 	Camera* perspectiveCamera = new Camera(PERSPECTIVE_NAME);
-	perspectiveCamera->setPosition(Vector(-5.0f, 2.5f, 0.0f,1.0f));
+	perspectiveCamera->setPosition(Vector(0.0f,0.0f, 0.0f,1.0f));
 	perspectiveCamera->loadPerspectiveProjection();
 	perspectiveCamera->loadView();
 	perspectiveCamera->setLatitude(0.0f);
@@ -776,8 +895,8 @@ void initializeCameras() {
 
 void init(int argc, char* argv[]) {
 
-	//freopen("output.txt","w",stderr);
-	//freopen("output.txt","w",stdout);
+	freopen("output.txt","w",stderr);
+	freopen("output.txt","w",stdout);
 
 	// Initialize OpenGL
 	initializeGLUT(argc, argv);
@@ -801,18 +920,18 @@ void init(int argc, char* argv[]) {
 	Object* tableSurface = new Object(TABLE_SURFACE);
 
 		// Set the Objects Mesh
-		Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "TableSurface.obj");
+		Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "Cube.obj");
 		tableSurface->setMesh(tableSurfaceMesh);
 
 		// Set the Objects Transform
 		Transform* tableSurfaceTransform = new Transform(TABLE_SURFACE);
-		tableSurfaceTransform->setPosition(Vector(0.0f,-5.0f, 0.0f, 1.0f));
-		tableSurfaceTransform->setScale(Vector(10.0f, 1.0f, 10.0f, 1.0f));
+		tableSurfaceTransform->setPosition(Vector(0.0f,-7.5f, 0.0f, 1.0f));
+		tableSurfaceTransform->setScale(Vector(50.0f, 0.5f, 50.0f, 1.0f));
 
 		tableSurface->setTransform(tableSurfaceTransform);
 
 		// Set the Objects Material
-		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "TableSurface.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "Cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 		tableSurface->setMaterial(tableSurfaceMaterial);
 
 		// Initialize the Object
@@ -824,33 +943,90 @@ void init(int argc, char* argv[]) {
 	// Add the Object to the Map (CUDA Loading)
 	objectMap[tableSurface->getID()] = tableSurface;
 
-	// Blinn-Phong
-	Object* blinnPhongObject = new Object(BLINN_PHONG_OBJECT);
+	// Blinn-Phong Sphere 0
+	/*Object* sphere0Object = new Object(SPHERE_0);
 
 		// Set the Objects Mesh
-		Mesh* blinnPhongObjectMesh = new Mesh(BLINN_PHONG_OBJECT, "teapot/teapot2.obj");
-		blinnPhongObject->setMesh(blinnPhongObjectMesh);
+		Mesh* sphere0Mesh = new Mesh(SPHERE_0, "sphere.obj");
+		sphere0Object->setMesh(sphere0Mesh);
 
 		// Set the Objects Transform
-		Transform* blinnPhongObjectTransform = new Transform(BLINN_PHONG_OBJECT);
-		blinnPhongObjectTransform->setPosition(Vector(0.0f,0.5f,0.0f,1.0f));
-		blinnPhongObjectTransform->setRotation(Vector(0.0f,90.0f,0.0f,1.0f));
-		blinnPhongObjectTransform->setScale(Vector(0.25f,0.25f,0.25f,1.0f));
+		Transform* sphere0Transform = new Transform(SPHERE_0);
+		sphere0Transform->setPosition(Vector(2.5f,0.5f,0.0f,1.0f));
+		sphere0Transform->setRotation(Vector(0.0f,90.0f,0.0f,1.0f));
+		sphere0Transform->setScale(Vector(1.0f,1.0f,1.0f,1.0f));
 
-		blinnPhongObject->setTransform(blinnPhongObjectTransform);
+		sphere0Object->setTransform(sphere0Transform);
 
 		// Set the Objects Material
-		Material* blinnPhongObjectMaterial = new Material(BLINN_PHONG_OBJECT, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
-		blinnPhongObject->setMaterial(blinnPhongObjectMaterial);
+		Material* sphere0Material = new Material(SPHERE_0, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		sphere0Object->setMaterial(sphere0Material);
 
 		// Initialize the Object
-		blinnPhongObject->createMesh();
-		blinnPhongObject->setID(sceneManager->getObjectID());
+		sphere0Object->createMesh();
+		sphere0Object->setID(sceneManager->getObjectID());
 
 	// Add the Object to the Scene Manager
-	sceneManager->addObject(blinnPhongObject);
+	sceneManager->addObject(sphere0Object);
 	// Add the Object to the Map (CUDA Loading)
-	objectMap[blinnPhongObject->getID()] = blinnPhongObject;
+	objectMap[sphere0Object->getID()] = sphere0Object;
+
+	// Blinn-Phong Sphere 1
+	Object* sphere1Object = new Object(SPHERE_1);
+
+		// Set the Objects Mesh
+		Mesh* sphere1Mesh = new Mesh(SPHERE_1, "sphere.obj");
+		sphere1Object->setMesh(sphere1Mesh);
+
+		// Set the Objects Transform
+		Transform* sphere1Transform = new Transform(SPHERE_1);
+		sphere1Transform->setPosition(Vector(-2.5f,0.5f,2.5f,1.0f));
+		sphere1Transform->setRotation(Vector(0.0f,90.0f,0.0f,1.0f));
+		sphere1Transform->setScale(Vector(1.0f,1.0f,1.0f,1.0f));
+
+		sphere1Object->setTransform(sphere1Transform);
+
+		// Set the Objects Material
+		Material* sphere1Material = new Material(SPHERE_1, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		sphere1Object->setMaterial(sphere1Material);
+
+		// Initialize the Object
+		sphere1Object->createMesh();
+		sphere1Object->setID(sceneManager->getObjectID());
+
+	// Add the Object to the Scene Manager
+	sceneManager->addObject(sphere1Object);
+	// Add the Object to the Map (CUDA Loading)
+	objectMap[sphere1Object->getID()] = sphere1Object;*/
+
+	// Blinn-Phong Sphere 2
+	Object* sphere2Object = new Object(SPHERE_2);
+
+		// Set the Objects Mesh
+		Mesh* sphere2Mesh = new Mesh(SPHERE_2, "sphere.obj");
+		sphere2Object->setMesh(sphere2Mesh);
+
+		// Set the Objects Transform
+		Transform* sphere2Transform = new Transform(SPHERE_2);
+		//sphere2Transform->setPosition(Vector(-2.5f,0.5f,-2.5f,1.0f));
+		sphere2Transform->setPosition(Vector(0.0f, 0.0f, 0.0f, 1.0f));
+		sphere2Transform->setRotation(Vector(0.0f,0.0f,0.0f,1.0f));
+		sphere2Transform->setScale(Vector(5.0f,5.0f,5.0f,1.0f));
+
+		sphere2Object->setTransform(sphere2Transform);
+
+		// Set the Objects Material
+		Material* sphere2Material = new Material(SPHERE_2, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		sphere2Object->setMaterial(sphere2Material);
+
+		// Initialize the Object
+		sphere2Object->createMesh();
+		sphere2Object->setID(sceneManager->getObjectID());
+
+	// Add the Object to the Scene Manager
+	sceneManager->addObject(sphere2Object);
+	// Add the Object to the Map (CUDA Loading)
+	objectMap[sphere2Object->getID()] = sphere2Object;
 
 	cout << endl;
 
@@ -862,12 +1038,20 @@ void init(int argc, char* argv[]) {
 	SceneNode* tableSurfaceNode = new SceneNode(TABLE_SURFACE);
 	tableSurfaceNode->setObject(tableSurface);
 
-	SceneNode* blinnPhongObjectNode = new SceneNode(BLINN_PHONG_OBJECT);
-	blinnPhongObjectNode->setObject(blinnPhongObject);
+	/*SceneNode* sphere0ObjectNode = new SceneNode(SPHERE_0);
+	sphere0ObjectNode->setObject(sphere0Object);
+
+	SceneNode* sphere1ObjectNode = new SceneNode(SPHERE_1);
+	sphere1ObjectNode->setObject(sphere1Object);*/
+
+	SceneNode* sphere2ObjectNode = new SceneNode(SPHERE_2);
+	sphere2ObjectNode->setObject(sphere2Object);
 
 	// Add the Root Nodes to the Scene
 	sceneManager->addSceneNode(tableSurfaceNode);
-	sceneManager->addSceneNode(blinnPhongObjectNode);
+	/*sceneManager->addSceneNode(sphere0ObjectNode);
+	sceneManager->addSceneNode(sphere1ObjectNode);*/
+	sceneManager->addSceneNode(sphere2ObjectNode);
 
 	// Init the SceneManager
 	sceneManager->init();
@@ -878,10 +1062,10 @@ void init(int argc, char* argv[]) {
 	// Stores the Triangles Information in the form of Arrays
 	vector<float4> trianglePositionList;
 	vector<float4> triangleNormalList;
-	vector<float4> triangleTangentList;
 	vector<float2> triangleTextureCoordinateList;
 
 	// References which Material each Triangle is using
+	vector<int1> triangleObjectIDList;
 	vector<int1> triangleMaterialIDList;
 
 	// Stores the Materials Information in the form of Arrays
@@ -906,19 +1090,18 @@ void init(int argc, char* argv[]) {
 			trianglePositionList.push_back(position);
 
 			// Normal
-			Vector originalNormal = vertex->getPosition();
+			Vector originalNormal = vertex->getNormal();
 			float4 normal = { originalNormal[VX], originalNormal[VY], originalNormal[VZ], 0.0f};
 			triangleNormalList.push_back(normal);
-
-			// Tangent
-			Vector originalTangent = vertex->getTangent();
-			float4 tangent = { originalTangent[VX], originalTangent[VY], originalTangent[VZ], originalTangent[VW]};
-			triangleTangentList.push_back(tangent);
 
 			// Texture Coordinates
 			Vector originalTextureCoordinates = vertex->getTextureCoordinates();
 			float2 textureCoordinates = { originalTextureCoordinates[VX], originalTextureCoordinates[VY] };
 			triangleTextureCoordinateList.push_back(textureCoordinates);
+
+			// Object ID
+			int1 objectID = { object->getID() };
+			triangleObjectIDList.push_back(objectID);
 
 			// Material ID
 			int1 materialID = { materialTotal };
@@ -949,15 +1132,15 @@ void init(int argc, char* argv[]) {
 
 	cout << "[Initialization] Total number of triangles:" << triangleTotal << endl;
 
-	// Each triangle contains Position, Normal, Tangent, Texture UV and Material Properties for 3 vertices
+	// Each triangle contains Position, Normal, Texture UV and Material Properties for 3 vertices
 	size_t trianglePositionListSize = trianglePositionList.size() * sizeof(float4);
 	cout << "[Initialization] Triangle Positions Storage Size: " << trianglePositionListSize << " (" << trianglePositionList.size() << " float4s)" << endl;
 	size_t triangleNormalListSize = triangleNormalList.size() * sizeof(float4);
 	cout << "[Initialization] Triangle Normals Storage Size: " << triangleNormalListSize << " (" << triangleNormalList.size() << " float4s)" << endl;
-	size_t triangleTangentListSize = triangleTangentList.size() * sizeof(float4);
-	cout << "[Initialization] Triangle Tangents Storage Size: " << triangleTangentListSize << " (" << triangleTangentList.size() << " float4s)" << endl;
 	size_t triangleTextureCoordinateListSize = triangleTextureCoordinateList.size() * sizeof(float2);
 	cout << "[Initialization] Triangle Texture Coordinates Storage Size: " << triangleTextureCoordinateListSize << " (" << triangleTextureCoordinateList.size() << " float2s)" << endl;
+	size_t triangleObjectIDListSize = triangleObjectIDList.size() * sizeof(int1);
+	cout << "[Initialization] Triangle Object IDs Storage Size: " << triangleObjectIDListSize << " (" << triangleObjectIDList.size() << " int1s)" << endl;
 	size_t triangleMaterialIDListSize = triangleMaterialIDList.size() * sizeof(int1);
 	cout << "[Initialization] Triangle Material IDs Storage Size: " << triangleMaterialIDListSize << " (" << triangleMaterialIDList.size() << " int1s)" << endl;
 
@@ -976,23 +1159,39 @@ void init(int argc, char* argv[]) {
 
 		bindTriangleNormals(cudaTriangleNormalsDP, triangleTotal);
 
-		// Load the Triangle Tangents
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleTangentsDP, triangleTangentListSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleTangentsDP, &triangleTangentList[0], triangleTangentListSize, cudaMemcpyHostToDevice));
-
-		bindTriangleTangents(cudaTriangleTangentsDP, triangleTotal);
-
 		// Load the Triangle Texture Coordinates
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleTextureCoordinatesDP, triangleTextureCoordinateListSize));
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleTextureCoordinatesDP, &triangleTextureCoordinateList[0], triangleTextureCoordinateListSize, cudaMemcpyHostToDevice));
 
 		bindTriangleTextureCoordinates(cudaTriangleTextureCoordinatesDP, triangleTotal);
 
+		// Load the Triangle Object IDs
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleObjectIDsDP, triangleObjectIDListSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleObjectIDsDP, &triangleObjectIDList[0], triangleObjectIDListSize, cudaMemcpyHostToDevice));
+
+		bindTriangleMaterialIDs(cudaTriangleObjectIDsDP, triangleTotal);
+
 		// Load the Triangle Material IDs
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleMaterialIDsDP, triangleMaterialIDListSize));
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleMaterialIDsDP, &triangleMaterialIDList[0], triangleMaterialIDListSize, cudaMemcpyHostToDevice));
 
 		bindTriangleMaterialIDs(cudaTriangleMaterialIDsDP, triangleTotal);
+
+		// Allocate array and copy image data
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleObjectIDsDP, triangleObjectIDListSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleObjectIDsDP, &triangleObjectIDList[0], triangleObjectIDListSize, cudaMemcpyHostToDevice));
+		
+		bindTriangleObjectIDs(cudaTriangleObjectIDsDP, triangleTotal);
+
+		// Triangle Positions Memory Allocation
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedTrianglePositionsDP, triangleTotal * sizeof(float4) * 3));
+		// Triangle Normals Memory Allocation
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedTriangleNormalsDP, triangleTotal * sizeof(float4) * 3));
+
+		// Model Matrices Memory Allocation
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedModelMatricesDP, objectMap.size() * sizeof(float) * 16));
+		// Normal Matrices Memory Allocation
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedNormalMatricesDP, objectMap.size() * sizeof(float) * 16));
 	}
 
 	cout << endl;

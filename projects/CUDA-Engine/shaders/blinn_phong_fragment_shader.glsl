@@ -10,20 +10,20 @@
 #define SPOTLIGHT_OUTER_ANGLE 0.97
 
 /* Input Attributes (Passed from the Blinn-Phong Vertex Shader) */
-in vec4 FragmentPosition;
+smooth in vec4 FragmentPosition;
 
-in vec3 FragmentNormal;
+smooth in vec3 FragmentNormal;
 
 in vec4 FragmentAmbient;
 in vec4 FragmentDiffuse;
 in vec4 FragmentSpecular;
 in float FragmentShininess;
 
-in vec4 FragmentRayOrigin;
-in vec4 FragmentRayDirection;
+smooth in vec4 FragmentRayOrigin;
+smooth in vec4 FragmentRayNormal;
 
-in vec3 LightDirection[LIGHT_COUNT];
-in vec3 HalfwayVector[LIGHT_COUNT];
+smooth in vec3 LightDirection[LIGHT_COUNT];
+smooth in vec3 HalfwayVector[LIGHT_COUNT];
 
 /* Uniforms */
 uniform mat4 ModelMatrix;
@@ -71,7 +71,7 @@ vec4 positionalLight(int i, vec3 Normal) {
 	float LightDistance = length(ViewMatrix * LightSources[i].Position - FragmentPosition);
 
 	/* Light Intensity */
-	float LightIntensity = 1.0f / (LightSources[i].ConstantAttenuation + LightSources[i].LinearAttenuation * LightDistance + LightSources[i].ExponentialAttenuation * LightDistance * LightDistance);
+	float LightIntensity = 1.0f / (1.0f + LightSources[i].ConstantAttenuation + LightSources[i].LinearAttenuation * LightDistance + LightSources[i].ExponentialAttenuation * LightDistance * LightDistance);
 
 	/* Ambient Component */
 	vec4 AmbientColor = FragmentAmbient * LightSources[i].Color * LightSources[i].AmbientIntensity;
@@ -189,7 +189,7 @@ void main() {
 	/* Ray Origin */
 	RayOrigin = FragmentRayOrigin;
 	/* Ray Reflection */
-	RayReflection = FragmentRayDirection; //reflect(, Normal);
+	RayReflection = normalize(FragmentRayNormal);
 	/* Ray Refraction */
-	RayRefraction = FragmentRayDirection; //refract(ray.direction, Normal, 1.0f / 0.5f);
+	RayRefraction = vec4(refract(FragmentRayNormal.xyz, Normal, 1.0f / 0.5f), 1.0f);
 }

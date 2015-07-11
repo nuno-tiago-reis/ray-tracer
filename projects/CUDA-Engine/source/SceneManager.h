@@ -115,6 +115,14 @@ class SceneManager {
 		/* Getters */
 		Camera* getActiveCamera();
 
+		map<string,Sound*> getSoundMap();
+		map<string,Light*> getLightMap();
+		map<string,Camera*> getCameraMap();
+
+		map<string,Object*> getObjectMap();
+		map<string,SceneNode*> getSceneNodeMap();
+		map<string,ShaderProgram*> getShaderProgramMap();
+
 		/* Setters */
 		void setActiveCamera(Camera* camera);
 

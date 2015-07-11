@@ -14,7 +14,7 @@ Camera::Camera(string name) {
 	this->width = WIDTH;
 	this->height = HEIGHT;
 
-	this->zoom = 1.0f;
+	this->zoom = 3.5f;
 	this->longitude = 89.9f;
 	this->latitude = 89.9f;
 

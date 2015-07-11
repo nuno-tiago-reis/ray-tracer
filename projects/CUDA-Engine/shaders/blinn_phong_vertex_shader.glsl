@@ -54,20 +54,20 @@ layout(std140) uniform SharedLightSources {
 };
 
 /* Output Attributes (Same as the Blinn-Phong Fragment Shader) */
-out vec4 FragmentPosition;
+smooth out vec4 FragmentPosition;
 
-out vec3 FragmentNormal;
+smooth out vec3 FragmentNormal;
 
 out vec4 FragmentAmbient;
 out vec4 FragmentDiffuse;
 out vec4 FragmentSpecular;
 out float FragmentShininess;
 
-out vec4 FragmentRayOrigin;
-out vec4 FragmentRayDirection;
+smooth out vec4 FragmentRayOrigin;
+smooth out vec4 FragmentRayNormal;
 
-out vec3 LightDirection[LIGHT_COUNT];
-out vec3 HalfwayVector[LIGHT_COUNT];
+smooth out vec3 LightDirection[LIGHT_COUNT];
+smooth out vec3 HalfwayVector[LIGHT_COUNT];
 
 void main() {
 
@@ -87,7 +87,7 @@ void main() {
 
 	/* Ray Tracing */
 	FragmentRayOrigin = ModelMatrix * VertexPosition;
-	FragmentRayDirection = normalize(ModelMatrix * VertexPosition - vec4((-transpose(mat3(ViewMatrix)) * ViewMatrix[3].xyz), 1.0));
+	FragmentRayNormal = vec4(inverse(transpose(mat3(ModelMatrix))) * vec3(VertexNormal), 1.0f);
 
 	/* Lighting calculations */
 	for(int i=0; i<LIGHT_COUNT; i++) {

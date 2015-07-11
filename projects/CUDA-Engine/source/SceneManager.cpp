@@ -118,7 +118,7 @@ void SceneManager::update(GLfloat elapsedTime) {
 	readMouse(elapsedTime);
 	readKeyboard(elapsedTime);
 
-	Object* activeTeapot;
+	/*Object* activeTeapot;
 
 	switch(this->currentObject) {
 	
@@ -186,7 +186,7 @@ void SceneManager::update(GLfloat elapsedTime) {
 				rotation[VZ] += 50.00f * elapsedTime;
 				activeTeapot->getTransform()->setRotation(rotation);
 				break;
-	}
+	}*/
 
 	this->fmodSystem->update();
 
@@ -236,7 +236,7 @@ void SceneManager::readKeyboard(GLfloat elapsedTime) {
 		this->lightMap["Positional Light 1"]->loadUniforms();
 	}
 
-	if(handler->isSpecialKeyPressed(GLUT_KEY_RIGHT) && handler->wasSpecialKeyPressed(GLUT_KEY_RIGHT) == true) {
+	/*if(handler->isSpecialKeyPressed(GLUT_KEY_RIGHT) && handler->wasSpecialKeyPressed(GLUT_KEY_RIGHT) == true) {
 
 		Vector position = this->lightMap["Spot Light 2"]->getPosition();
 
@@ -254,7 +254,7 @@ void SceneManager::readKeyboard(GLfloat elapsedTime) {
 
 		this->lightMap["Spot Light 2"]->setPosition(position);
 		this->lightMap["Spot Light 2"]->loadUniforms();
-	}
+	}*/
 
 	/* Sound Buttons */
 	if(handler->isSpecialKeyPressed(GLUT_KEY_F1) && handler->wasSpecialKeyPressed(GLUT_KEY_F1) == false) {
@@ -455,6 +455,36 @@ void SceneManager::setActiveCamera(Camera* camera) {
 Camera* SceneManager::getActiveCamera() {
 
 	return _activeCamera;
+}
+
+map<string,Sound*> SceneManager::getSoundMap() {
+
+	return this->soundMap;
+}
+
+map<string,Light*> SceneManager::getLightMap() {
+
+	return this->lightMap;
+}
+
+map<string,Camera*> SceneManager::getCameraMap() {
+
+	return this->cameraMap;
+}
+
+map<string,Object*> SceneManager::getObjectMap() {
+
+	return this->objectMap;
+}
+
+map<string,SceneNode*> SceneManager::getSceneNodeMap() {
+
+	return this->sceneNodeMap;
+}
+
+map<string,ShaderProgram*> SceneManager::getShaderProgramMap() {
+
+	return this->shaderProgramMap;
 }
 
 void SceneManager::addCamera(Camera* camera) {

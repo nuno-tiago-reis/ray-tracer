@@ -943,7 +943,7 @@ void cleanup() {
 	screenTexture->deleteTexture();
 
 	// Delete the Shading Textures
-	shadingTexture->deleteTexture();
+	//shadingTexture->deleteTexture();
 
 	// Delete the CudaDevicePointers to the uploaded Triangle Information 
 	Utility::checkCUDAError("cudaFree()",  cudaFree(cudaTrianglePositionsDP));
@@ -972,14 +972,14 @@ void rayTrace() {
 
 	// Map the necessary CUDA Resources
 	bufferObject->mapCudaResource();
-	shadingTexture->mapCudaResource();
+	//shadingTexture->mapCudaResource();
 
 	// Get the Device Pointer Reference
 	unsigned int* bufferObjectDevicePointer = bufferObject->getDevicePointer();
 	// Get the CUDA Array Reference and Bind it
-	cudaArray* shadingTextureCudaArray = shadingTexture->getArrayPointer();
+	//cudaArray* shadingTextureCudaArray = shadingTexture->getArrayPointer();
 
-	bindTextureArray(shadingTextureCudaArray);
+	//bindTextureArray(shadingTextureCudaArray);
 
 	// Kernel Launch
 	RayTraceWrapper(bufferObjectDevicePointer,
@@ -991,7 +991,7 @@ void rayTrace() {
 
 	// Unmap the used CUDA Resources
 	bufferObject->unmapCudaResource();
-	shadingTexture->unmapCudaResource();
+	//shadingTexture->unmapCudaResource();
 
 	// Copy the Output to the Texture
 	screenTexture->replaceTexture();

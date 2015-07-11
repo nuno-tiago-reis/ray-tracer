@@ -220,10 +220,11 @@ void Vector::dump() {
 
 	cout.precision(5);
 
-	cout << "<Vector Dump> = ";
+	//cout << "<Vector Dump> = ";
 
-	for(int i=0; i<4; i++)
-		cout << " [" << this->vector[i] << "]";
+	for(int i=0; i<3; i++)
+		printf("[%.2f]", this->vector[i]);
+		//cout << " [" << this->vector[i] << "]";
 
 	cout << endl;
 }
