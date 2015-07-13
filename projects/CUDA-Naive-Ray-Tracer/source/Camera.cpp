@@ -7,7 +7,7 @@ Camera::Camera(unsigned int width, unsigned int height) {
 
 	this->fieldOfView = 0.0f;
 
-	this->zoom = 0.25f;
+	this->zoom = 0.75f;
 	this->longitude = 180.0f;
 	this->latitude = 45.00f;
 }

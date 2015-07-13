@@ -4,29 +4,30 @@ FrameBuffer::FrameBuffer(GLint width, GLint height) {
 
 	this->width = width;
 	this->height = height;
-
+	
+	// Initialize the OpenGL Texture Handlers
 	this->frameBufferHandler = UINT_MAX;
 	this->depthBufferHandler = UINT_MAX;
 
-	this->renderTextureHandler = UINT_MAX;
+	this->diffuseTextureHandler = UINT_MAX;
+	this->specularTextureHandler = UINT_MAX;
 
-	this->rayOriginTextureHandler = UINT_MAX;
-	this->rayReflectionTextureHandler = UINT_MAX;
-	this->rayRefractionTextureHandler = UINT_MAX;
+	this->fragmentPositionTextureHandler = UINT_MAX;
+	this->fragmentNormalTextureHandler = UINT_MAX;
 
 	// Initialize the CUDA Array references
-	this->renderCudaArray = NULL;
+	this->diffuseTextureCudaArray = NULL;
+	this->specularTextureCudaArray = NULL;
 
-	this->rayOriginCudaArray = NULL;
-	this->rayReflectionCudaArray = NULL;
-	this->rayRefractionCudaArray = NULL;
+	this->fragmentPositionCudaArray = NULL;
+	this->fragmentNormalCudaArray = NULL;
 	
 	// Initialize the CUDA Graphics Resource references
-	this->renderCudaGraphicsResource = NULL;
+	this->diffuseTextureCudaGraphicsResource = NULL;
+	this->specularTextureCudaGraphicsResource = NULL;
 		
-	this->rayOriginCudaGraphicsResource = NULL;
-	this->rayReflectionCudaGraphicsResource = NULL;
-	this->rayRefractionCudaGraphicsResource = NULL;
+	this->fragmentPositionCudaGraphicsResource = NULL;
+	this->fragmentNormalCudaGraphicsResource = NULL;
 }
 
 FrameBuffer::~FrameBuffer() {
@@ -40,26 +41,11 @@ void FrameBuffer::createFrameBuffer() {
 	// Delete the FrameBuffer in case it already exists.
 	this->deleteFrameBuffer();
 	
-	// Generate the Render Texture
-	glGenTextures(1, &this->renderTextureHandler);
-	Utility::checkOpenGLError("ERROR: Failed to create the Render Texture.");
+	// Generate the Diffuse Texture
+	glGenTextures(1, &this->diffuseTextureHandler);
+	Utility::checkOpenGLError("ERROR: Failed to create the Diffuse Texture.");
 
-    glBindTexture(GL_TEXTURE_2D, this->renderTextureHandler);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-	// Generate the Ray Origin Texture
-	glGenTextures(1, &this->rayOriginTextureHandler);
-	Utility::checkOpenGLError("ERROR: Failed to create the Ray Origin Texture.");
-
-    glBindTexture(GL_TEXTURE_2D, this->rayOriginTextureHandler);
+    glBindTexture(GL_TEXTURE_2D, this->diffuseTextureHandler);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -70,11 +56,11 @@ void FrameBuffer::createFrameBuffer() {
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-	// Generate the Ray Reflection Texture
-	glGenTextures(1, &this->rayReflectionTextureHandler);
-	Utility::checkOpenGLError("ERROR: Failed to create the Ray Reflection Texture.");
+	// Generate the Diffuse Texture
+	glGenTextures(1, &this->specularTextureHandler);
+	Utility::checkOpenGLError("ERROR: Failed to create the Specular Texture.");
 
-    glBindTexture(GL_TEXTURE_2D, this->rayReflectionTextureHandler);
+    glBindTexture(GL_TEXTURE_2D, this->specularTextureHandler);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -85,11 +71,26 @@ void FrameBuffer::createFrameBuffer() {
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-	// Generate the Ray Refraction Texture
-	glGenTextures(1, &this->rayRefractionTextureHandler);
-	Utility::checkOpenGLError("ERROR: Failed to create the Ray Refraction Texture.");
+	// Generate the Fragment Position Texture
+	glGenTextures(1, &this->fragmentPositionTextureHandler);
+	Utility::checkOpenGLError("ERROR: Failed to create the Fragment Position Texture.");
 
-    glBindTexture(GL_TEXTURE_2D, this->rayRefractionTextureHandler);
+    glBindTexture(GL_TEXTURE_2D, this->fragmentPositionTextureHandler);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, this->width, this->height, 0, GL_RGBA, GL_FLOAT, NULL);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+	// Generate the Fragment Normal Texture
+	glGenTextures(1, &this->fragmentNormalTextureHandler);
+	Utility::checkOpenGLError("ERROR: Failed to create the Fragment Normal Texture.");
+
+    glBindTexture(GL_TEXTURE_2D, this->fragmentNormalTextureHandler);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -116,10 +117,10 @@ void FrameBuffer::createFrameBuffer() {
 
 	glBindFramebuffer(GL_FRAMEBUFFER, this->frameBufferHandler);
 
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->renderTextureHandler, 0);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, this->rayOriginTextureHandler, 0);		
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, this->rayReflectionTextureHandler, 0);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, this->rayRefractionTextureHandler, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->diffuseTextureHandler, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, this->specularTextureHandler, 0);		
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, this->fragmentPositionTextureHandler, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, this->fragmentNormalTextureHandler, 0);
 
 		Utility::checkOpenGLError("ERROR: Failed to attached the Textures to the FrameBuffer.");
 
@@ -133,10 +134,10 @@ void FrameBuffer::createFrameBuffer() {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	
 	// Register the Textures with CUDA.
-	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->renderCudaGraphicsResource, this->renderTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
-	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->rayOriginCudaGraphicsResource, this->rayOriginTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
-	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->rayReflectionCudaGraphicsResource, this->rayReflectionTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
-	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->rayRefractionCudaGraphicsResource, this->rayRefractionTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
+	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->diffuseTextureCudaGraphicsResource, this->diffuseTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
+	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->specularTextureCudaGraphicsResource, this->specularTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
+	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->fragmentPositionCudaGraphicsResource, this->fragmentPositionTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
+	Utility::checkCUDAError("cudaGraphicsGLRegisterImage()", cudaGraphicsGLRegisterImage(&this->fragmentNormalCudaGraphicsResource, this->fragmentNormalTextureHandler, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly));
 }
 
 void FrameBuffer::deleteFrameBuffer() {
@@ -146,15 +147,14 @@ void FrameBuffer::deleteFrameBuffer() {
 	// Delete the DepthBuffer from OpenGL 
 	glDeleteRenderbuffers(1, &this->depthBufferHandler);
 
-	// Delete the Render Texture from OpenGL 
-	glDeleteTextures(1, &this->renderTextureHandler);
-
-	// Delete the Ray Origin Texture from OpenGL 
-	glDeleteTextures(1, &this->rayOriginTextureHandler);
-	// Delete the Ray Reflection Texture from OpenGL 
-	glDeleteTextures(1, &this->rayReflectionTextureHandler);
-	// Delete the Ray Refraction Texture from OpenGL 
-	glDeleteTextures(1, &this->rayRefractionTextureHandler);
+	// Delete the Diffuse Texture from OpenGL 
+	glDeleteTextures(1, &this->diffuseTextureHandler);
+	// Delete the Specular Texture from OpenGL 
+	glDeleteTextures(1, &this->specularTextureHandler);
+	// Delete the Fragment Position Texture from OpenGL 
+	glDeleteTextures(1, &this->fragmentPositionTextureHandler);
+	// Delete the Fragment Normal Texture from OpenGL 
+	glDeleteTextures(1, &this->fragmentNormalTextureHandler);
 
 	Utility::checkOpenGLError("deleteFrameBuffer()");
 }
@@ -165,28 +165,28 @@ void FrameBuffer::reshape(GLint width, GLint height) {
 	this->height = height;
 
 	// Reshape the Render Texture
-	glBindTexture(GL_TEXTURE_2D, this->renderTextureHandler);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, this->width, this->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glBindTexture(GL_TEXTURE_2D, this->diffuseTextureHandler);
+	
+		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, this->width, this->height, 0, GL_RGBA, GL_FLOAT, NULL);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Reshape the Ray Origin Texture
-	glBindTexture(GL_TEXTURE_2D, this->rayOriginTextureHandler);
+	glBindTexture(GL_TEXTURE_2D, this->specularTextureHandler);
 	
 		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, this->width, this->height, 0, GL_RGBA, GL_FLOAT, NULL);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Reshape the Ray Reflection Texture
-	glBindTexture(GL_TEXTURE_2D, this->rayReflectionTextureHandler);
+	glBindTexture(GL_TEXTURE_2D, this->fragmentPositionTextureHandler);
 	
 		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, this->width, this->height, 0, GL_RGBA, GL_FLOAT, NULL);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Reshape the Ray Refraction Texture
-	glBindTexture(GL_TEXTURE_2D, this->rayRefractionTextureHandler);
+	glBindTexture(GL_TEXTURE_2D, this->fragmentNormalTextureHandler);
 	
 		glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA32F_ARB, this->width, this->height, 0, GL_RGBA, GL_FLOAT, NULL);
 
@@ -203,19 +203,19 @@ void FrameBuffer::reshape(GLint width, GLint height) {
 void FrameBuffer::bindCudaResources() {
 
 	// Bind the CUDA Arrays to the Resources
-	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->renderCudaArray, this->renderCudaGraphicsResource, 0, 0));
-	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->rayOriginCudaArray, this->rayOriginCudaGraphicsResource, 0, 0));
-	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->rayReflectionCudaArray, this->rayReflectionCudaGraphicsResource, 0, 0));
-	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->rayRefractionCudaArray, this->rayRefractionCudaGraphicsResource, 0, 0));
+	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->diffuseTextureCudaArray, this->diffuseTextureCudaGraphicsResource, 0, 0));
+	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->specularTextureCudaArray, this->specularTextureCudaGraphicsResource, 0, 0));
+	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->fragmentPositionCudaArray, this->fragmentPositionCudaGraphicsResource, 0, 0));
+	Utility::checkCUDAError("cudaGraphicsSubResourceGetMappedArray()", cudaGraphicsSubResourceGetMappedArray(&this->fragmentNormalCudaArray, this->fragmentNormalCudaGraphicsResource, 0, 0));
 }
 
 void FrameBuffer::mapCudaResource() {
 
 	// Map the used CUDA Resources
-	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->renderCudaGraphicsResource, 0));
-	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->rayOriginCudaGraphicsResource, 0));
-	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->rayReflectionCudaGraphicsResource, 0));
-	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->rayRefractionCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->diffuseTextureCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->specularTextureCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->fragmentPositionCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsMapResources()", cudaGraphicsMapResources(1, &this->fragmentNormalCudaGraphicsResource, 0));
 
 	this->bindCudaResources();
 }
@@ -223,10 +223,10 @@ void FrameBuffer::mapCudaResource() {
 void FrameBuffer::unmapCudaResource() {
 
 	// Unmap the used CUDA Resources
-	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->renderCudaGraphicsResource, 0));
-	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->rayOriginCudaGraphicsResource, 0));
-	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->rayReflectionCudaGraphicsResource, 0));
-	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->rayRefractionCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->diffuseTextureCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->specularTextureCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->fragmentPositionCudaGraphicsResource, 0));
+	Utility::checkCUDAError("cudaGraphicsUnmapResources()", cudaGraphicsUnmapResources(1, &this->fragmentNormalCudaGraphicsResource, 0));
 }
 
 GLint FrameBuffer::getWidth() {
@@ -249,49 +249,63 @@ GLuint FrameBuffer::getDepthBufferHandler() {
 	return this->depthBufferHandler;
 }
 
-GLuint FrameBuffer::getRenderTextureHandler() {
+GLuint FrameBuffer::getDiffuseTextureHandler() {
 
-	return this->renderTextureHandler;
+	return this->diffuseTextureHandler;
+}
+
+GLuint FrameBuffer::getSpecularTextureHandler() {
+
+	return this->specularTextureHandler;
+}
+
+GLuint FrameBuffer::getFragmentPositionTextureHandler() {
+
+	return this->fragmentPositionTextureHandler;
+}
+
+GLuint FrameBuffer::getFragmentNormalTextureHandler() {
+
+	return this->fragmentNormalTextureHandler;
 }
 		
-cudaArray* FrameBuffer::getRenderCudaArray() {
+cudaArray* FrameBuffer::getDiffuseTextureCudaArray() {
 
-	return this->renderCudaArray;
+	return this->diffuseTextureCudaArray;
+}
+cudaArray* FrameBuffer::getSpecularTextureCudaArray() {
+
+	return this->specularTextureCudaArray;
 }
 
-cudaArray* FrameBuffer::getRayOriginCudaArray() {
+cudaArray* FrameBuffer::getFragmentPositionCudaArray() {
 
-	return this->rayOriginCudaArray;
+	return this->fragmentPositionCudaArray;
 }
 
-cudaArray* FrameBuffer::getRayReflectionCudaArray() {
+cudaArray* FrameBuffer::getFragmentNormalCudaArray() {
 
-	return this->rayReflectionCudaArray;
+	return this->fragmentNormalCudaArray;
 }
 
-cudaArray* FrameBuffer::getRayRefractionCudaArray() {
+cudaGraphicsResource* FrameBuffer::getDiffuseTextureCudaGraphicsResource() {
 
-	return this->rayRefractionCudaArray;
+	return this->diffuseTextureCudaGraphicsResource;
 }
 
-cudaGraphicsResource* FrameBuffer::getRenderCudaGraphicsResource() {
+cudaGraphicsResource* FrameBuffer::getSpecularTextureCudaGraphicsResource() {
 
-	return this->renderCudaGraphicsResource;
+	return this->specularTextureCudaGraphicsResource;
 }
 
-cudaGraphicsResource* FrameBuffer::getRayOriginCudaGraphicsResource() {
+cudaGraphicsResource* FrameBuffer::getFragmentPositionCudaGraphicsResource() {
 
-	return this->rayOriginCudaGraphicsResource;
-} 
-
-cudaGraphicsResource* FrameBuffer::getRayReflectionCudaGraphicsResource() {
-
-	return this->rayReflectionCudaGraphicsResource;
+	return this->fragmentPositionCudaGraphicsResource;
 }
 
-cudaGraphicsResource* FrameBuffer::getRayRefractionCudaGraphicsResource() {
+cudaGraphicsResource* FrameBuffer::getFragmentNormalCudaGraphicsResource() {
 
-	return this->rayRefractionCudaGraphicsResource;
+	return this->fragmentNormalCudaGraphicsResource;
 }
 
 void FrameBuffer::setWidth(GLint width) {
@@ -314,62 +328,62 @@ void FrameBuffer::setDepthBufferHandler(GLuint depthBufferHandler) {
 	this->depthBufferHandler = depthBufferHandler;
 }
 
-void FrameBuffer::setRenderTextureHandler(GLuint renderTextureHandler) {
+void FrameBuffer::setDiffuseTextureHandler(GLuint diffuseTextureHandler) {
 
-	this->renderTextureHandler = renderTextureHandler;
+	this->diffuseTextureHandler = diffuseTextureHandler;
 }
 
-void FrameBuffer::setRayOriginTextureHandler(GLuint rayOriginTextureHandler) {
+void FrameBuffer::setSpecularTextureHandler(GLuint specularTextureHandler) {
 
-	this->rayOriginTextureHandler = rayOriginTextureHandler;
+	this->specularTextureHandler = specularTextureHandler;
+}
+	
+void FrameBuffer::setFragmentPositionTextureHandler(GLuint fragmentPositionTextureHandler) {
+
+	this->fragmentPositionTextureHandler = fragmentPositionTextureHandler;
+}
+
+void FrameBuffer::setFragmentNormalTextureHandler(GLuint fragmentNormalTextureHandler) {
+
+	this->fragmentNormalTextureHandler = fragmentNormalTextureHandler;
 }
 		
-void FrameBuffer::setRayReflectionTextureHandler(GLuint rayReflectionTextureHandler) {
+void FrameBuffer::setDiffuseTextureCudaArray(cudaArray* diffuseTextureCudaArray) {
 
-	this->rayReflectionTextureHandler = rayReflectionTextureHandler;
+	this->diffuseTextureCudaArray = diffuseTextureCudaArray;
 }
 
-void FrameBuffer::setRayRefractionTextureHandler(GLuint rayRefractionTextureHandler) {
+void FrameBuffer::setSpecularTextureCudaArray(cudaArray* specularTextureCudaArray) {
 
-	this->rayRefractionTextureHandler = rayRefractionTextureHandler;
+	this->specularTextureCudaArray = specularTextureCudaArray;
 }
 
-void FrameBuffer::setRenderCudaArray(cudaArray* renderCudaArray) {
+void FrameBuffer::setFragmentPositionCudaArray(cudaArray* fragmentPositionCudaArray) {
 
-	this->renderCudaArray = renderCudaArray;
+	this->fragmentPositionCudaArray = fragmentPositionCudaArray;
 }
 
-void FrameBuffer::setRayOriginCudaArray(cudaArray* rayOriginCudaArray) {
+void FrameBuffer::setFragmentNormalCudaArray(cudaArray* fragmentNormalCudaArray) {
 
-	this->rayOriginCudaArray = rayOriginCudaArray;
-}
-
-void FrameBuffer::setRayReflectionCudaArray(cudaArray* rayReflectionCudaArray) {
-
-	this->rayReflectionCudaArray = rayReflectionCudaArray;
-}
-
-void FrameBuffer::setRayRefractionCudaArray(cudaArray* rayRefractionCudaArray) {
-
-	this->rayRefractionCudaArray = rayRefractionCudaArray;
+	this->fragmentNormalCudaArray = fragmentNormalCudaArray;
 }
 			
-void FrameBuffer::setRenderCudaGraphicsResource(cudaGraphicsResource* renderCudaGraphicsResource) {
+void FrameBuffer::setDiffuseTextureCudaGraphicsResource(cudaGraphicsResource* diffuseTextureCudaGraphicsResource) {
 
-	this->renderCudaGraphicsResource = renderCudaGraphicsResource;
+	this->diffuseTextureCudaGraphicsResource = diffuseTextureCudaGraphicsResource;
 }
 
-void FrameBuffer::setRayOriginCudaGraphicsResource(cudaGraphicsResource* rayOriginCudaGraphicsResource) {
+void FrameBuffer::setSpecularTextureCudaGraphicsResource(cudaGraphicsResource* specularTextureCudaGraphicsResource) {
 
-	this->rayOriginCudaGraphicsResource = rayOriginCudaGraphicsResource;
+	this->specularTextureCudaGraphicsResource = specularTextureCudaGraphicsResource;
 }
 
-void FrameBuffer::setRayReflectionCudaGraphicsResource(cudaGraphicsResource* rayReflectionCudaGraphicsResource) {
+void FrameBuffer::setFragmentPositionCudaGraphicsResource(cudaGraphicsResource* fragmentPositionCudaGraphicsResource) {
 
-	this->rayReflectionCudaGraphicsResource = rayReflectionCudaGraphicsResource;
+	this->fragmentPositionCudaGraphicsResource = fragmentPositionCudaGraphicsResource;
 }
 
-void FrameBuffer::setRayRefractionCudaGraphicsResource(cudaGraphicsResource* rayRefractionCudaGraphicsResource) {
+void FrameBuffer::setFragmentNormalCudaGraphicsResource(cudaGraphicsResource* fragmentNormalCudaGraphicsResource) {
 
-	this->rayRefractionCudaGraphicsResource = rayRefractionCudaGraphicsResource;
+	this->fragmentNormalCudaGraphicsResource = fragmentNormalCudaGraphicsResource;
 }

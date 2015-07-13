@@ -154,13 +154,13 @@ extern "C" {
 							float3 cameraPosition);
 
 	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
-	void bindRenderTextureArray(cudaArray *renderArray);
+	void bindDiffuseTextureArray(cudaArray *diffuseTextureArray);
 	// Implementation of bindRayOriginTextureArray is in the "RayTracer.cu" file
-	void bindRayOriginTextureArray(cudaArray *renderArray);
+	void bindSpecularTextureArray(cudaArray *specularTextureArray);
 	// Implementation of bindRayReflectionTextureArray is in the "RayTracer.cu" file
-	void bindRayReflectionTextureArray(cudaArray *renderArray);
+	void bindFragmentPositionArray(cudaArray *fragmentPositionArray);
 	// Implementation of bindRayRefractionTextureArray is in the "RayTracer.cu" file
-	void bindRayRefractionTextureArray(cudaArray *renderArray);
+	void bindFragmentNormalArray(cudaArray *fragmentNormalArray);
 
 	// Implementation of bindTrianglePositions is in the "RayTracer.cu" file
 	void bindTrianglePositions(float *cudaDevicePointer, unsigned int triangleTotal);
@@ -285,16 +285,16 @@ void display() {
 	pixelBuffer->mapCudaResource();
 	
     // Get the CUDA arrays references
-	cudaArray* renderTextureArray = frameBuffer->getRenderCudaArray();
-	cudaArray* rayOriginTextureArray = frameBuffer->getRayOriginCudaArray();
-	cudaArray* rayReflectionTextureArray = frameBuffer->getRayReflectionCudaArray();
-	cudaArray* rayRefractionTextureArray = frameBuffer->getRayRefractionCudaArray();
+	cudaArray* diffuseTextureArray = frameBuffer->getDiffuseTextureCudaArray();
+	cudaArray* specularTextureArray = frameBuffer->getSpecularTextureCudaArray();
+	cudaArray* fragmentPositionArray = frameBuffer->getFragmentPositionCudaArray();
+	cudaArray* fragmentNormalArray = frameBuffer->getFragmentNormalCudaArray();
 
     // Bind the textures to CUDA arrays
-    bindRenderTextureArray(renderTextureArray);
-	bindRayOriginTextureArray(rayOriginTextureArray);
-	bindRayReflectionTextureArray(rayReflectionTextureArray);
-	bindRayRefractionTextureArray(rayRefractionTextureArray);
+    bindDiffuseTextureArray(diffuseTextureArray);
+	bindSpecularTextureArray(specularTextureArray);
+	bindFragmentPositionArray(fragmentPositionArray);
+	bindFragmentNormalArray(fragmentNormalArray);
 
 	// Get the Device Pointer References
 	unsigned int* pixelBufferDevicePointer = pixelBuffer->getDevicePointer();
@@ -371,17 +371,19 @@ void display() {
 	printf("\nSecond Matrices List (%d)\n\n", objectMap.size());
 
 	for(int i=0; i<objectMap.size(); i++) {
+		
+		int offset = i*16;
 
 		printf("Model Matrix\n");
 		for(int j=0; j<4; j++)
-			printf("[%.2f][%.2f][%.2f][%.2f]\n", models[j * 4],  models[j * 4 + 1],  models[j * 4 + 2],  models[j * 4 + 3]);
+			printf("[%.2f][%.2f][%.2f][%.2f]\n", models[offset + j * 4],  models[offset + j * 4 + 1],  models[offset + j * 4 + 2],  models[offset + j * 4 + 3]);
 	
 		printf("Normal Matrix\n");
 		for(int j=0; j<4; j++)
-			printf("[%.2f][%.2f][%.2f][%.2f]\n", normals[j * 4],  normals[j * 4 + 1],  normals[j * 4 + 2],  normals[j * 4 + 3]);
-	}
+			printf("[%.2f][%.2f][%.2f][%.2f]\n", normals[offset + j * 4],  normals[offset + j * 4 + 1],  normals[offset + j * 4 + 2],  normals[offset + j * 4 + 3]);
+	}*/
 
-	float4* trianglePositions = new float4[triangleTotal * 3];
+	/*float4* trianglePositions = new float4[triangleTotal * 3];
 	float4* triangleNormals = new float4[triangleTotal * 3];
 	
 	// Copy the Matrices to CUDA	
@@ -400,7 +402,7 @@ void display() {
 	
 		printf("2 Normal[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, normal.x, normal.y, normal.z, normal.w);
 	}*/
-
+		
 	// Unmap the used CUDA Resources
 	frameBuffer->unmapCudaResource();
 	pixelBuffer->unmapCudaResource();
@@ -792,8 +794,8 @@ void initializeLights() {
 	positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
 
 	positionalLight1->setAmbientIntensity(0.25f);
-	positionalLight1->setDiffuseIntensity(1.5f);
-	positionalLight1->setSpecularIntensity(0.25f);
+	positionalLight1->setDiffuseIntensity(0.75f);
+	positionalLight1->setSpecularIntensity(0.75f);
 
 	positionalLight1->setConstantAttenuation(0.025f);
 	positionalLight1->setLinearAttenuation(0.0075f);
@@ -883,7 +885,6 @@ void initializeCameras() {
 	perspectiveCamera->setPosition(Vector(0.0f,0.0f, 0.0f,1.0f));
 	perspectiveCamera->loadPerspectiveProjection();
 	perspectiveCamera->loadView();
-	perspectiveCamera->setLatitude(0.0f);
 
 	sceneManager->addCamera(perspectiveCamera);
 
@@ -920,7 +921,7 @@ void init(int argc, char* argv[]) {
 	Object* tableSurface = new Object(TABLE_SURFACE);
 
 		// Set the Objects Mesh
-		Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "Cube.obj");
+		Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "cube.obj");
 		tableSurface->setMesh(tableSurfaceMesh);
 
 		// Set the Objects Transform
@@ -931,7 +932,7 @@ void init(int argc, char* argv[]) {
 		tableSurface->setTransform(tableSurfaceTransform);
 
 		// Set the Objects Material
-		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "Cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 		tableSurface->setMaterial(tableSurfaceMaterial);
 
 		// Initialize the Object
@@ -944,7 +945,7 @@ void init(int argc, char* argv[]) {
 	objectMap[tableSurface->getID()] = tableSurface;
 
 	// Blinn-Phong Sphere 0
-	/*Object* sphere0Object = new Object(SPHERE_0);
+	Object* sphere0Object = new Object(SPHERE_0);
 
 		// Set the Objects Mesh
 		Mesh* sphere0Mesh = new Mesh(SPHERE_0, "sphere.obj");
@@ -952,9 +953,9 @@ void init(int argc, char* argv[]) {
 
 		// Set the Objects Transform
 		Transform* sphere0Transform = new Transform(SPHERE_0);
-		sphere0Transform->setPosition(Vector(2.5f,0.5f,0.0f,1.0f));
-		sphere0Transform->setRotation(Vector(0.0f,90.0f,0.0f,1.0f));
-		sphere0Transform->setScale(Vector(1.0f,1.0f,1.0f,1.0f));
+		sphere0Transform->setPosition(Vector(5.0f, 0.5f,0.0f,1.0f));
+		sphere0Transform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
+		sphere0Transform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
 
 		sphere0Object->setTransform(sphere0Transform);
 
@@ -980,9 +981,9 @@ void init(int argc, char* argv[]) {
 
 		// Set the Objects Transform
 		Transform* sphere1Transform = new Transform(SPHERE_1);
-		sphere1Transform->setPosition(Vector(-2.5f,0.5f,2.5f,1.0f));
+		sphere1Transform->setPosition(Vector(-5.0f,0.5f,5.0f,1.0f));
 		sphere1Transform->setRotation(Vector(0.0f,90.0f,0.0f,1.0f));
-		sphere1Transform->setScale(Vector(1.0f,1.0f,1.0f,1.0f));
+		sphere1Transform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
 
 		sphere1Object->setTransform(sphere1Transform);
 
@@ -997,7 +998,7 @@ void init(int argc, char* argv[]) {
 	// Add the Object to the Scene Manager
 	sceneManager->addObject(sphere1Object);
 	// Add the Object to the Map (CUDA Loading)
-	objectMap[sphere1Object->getID()] = sphere1Object;*/
+	objectMap[sphere1Object->getID()] = sphere1Object;
 
 	// Blinn-Phong Sphere 2
 	Object* sphere2Object = new Object(SPHERE_2);
@@ -1008,10 +1009,9 @@ void init(int argc, char* argv[]) {
 
 		// Set the Objects Transform
 		Transform* sphere2Transform = new Transform(SPHERE_2);
-		//sphere2Transform->setPosition(Vector(-2.5f,0.5f,-2.5f,1.0f));
-		sphere2Transform->setPosition(Vector(0.0f, 0.0f, 0.0f, 1.0f));
+		sphere2Transform->setPosition(Vector(-5.0f,0.5f,-5.0f,1.0f));
 		sphere2Transform->setRotation(Vector(0.0f,0.0f,0.0f,1.0f));
-		sphere2Transform->setScale(Vector(5.0f,5.0f,5.0f,1.0f));
+		sphere2Transform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
 
 		sphere2Object->setTransform(sphere2Transform);
 
@@ -1038,19 +1038,17 @@ void init(int argc, char* argv[]) {
 	SceneNode* tableSurfaceNode = new SceneNode(TABLE_SURFACE);
 	tableSurfaceNode->setObject(tableSurface);
 
-	/*SceneNode* sphere0ObjectNode = new SceneNode(SPHERE_0);
+	SceneNode* sphere0ObjectNode = new SceneNode(SPHERE_0);
 	sphere0ObjectNode->setObject(sphere0Object);
-
 	SceneNode* sphere1ObjectNode = new SceneNode(SPHERE_1);
-	sphere1ObjectNode->setObject(sphere1Object);*/
-
+	sphere1ObjectNode->setObject(sphere1Object);
 	SceneNode* sphere2ObjectNode = new SceneNode(SPHERE_2);
 	sphere2ObjectNode->setObject(sphere2Object);
 
 	// Add the Root Nodes to the Scene
 	sceneManager->addSceneNode(tableSurfaceNode);
-	/*sceneManager->addSceneNode(sphere0ObjectNode);
-	sceneManager->addSceneNode(sphere1ObjectNode);*/
+	sceneManager->addSceneNode(sphere0ObjectNode);
+	sceneManager->addSceneNode(sphere1ObjectNode);
 	sceneManager->addSceneNode(sphere2ObjectNode);
 
 	// Init the SceneManager

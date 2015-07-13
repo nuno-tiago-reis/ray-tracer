@@ -12,12 +12,12 @@
 #include "Utility.h"
 
 // Ray initial depth 
-const int initialDepth = 2;
+const int initialDepth = 0;
 // Ray initial refraction index
 const float initialRefractionIndex = 1.0f;
 
 // Ray testing Constant
-__device__ const float epsilon = 0.0001f;
+__device__ const float epsilon = 0.01f;
 
 // Shadow Grid Dimensions and pre-calculated Values
 /*__device__ const int shadowGridWidth = 3;
@@ -30,13 +30,12 @@ __device__ const float shadowGridDimensionInverse = 1.0f/9.0f;
 
 __device__ const float shadowCellSize = 0.20f;*/
 
-// OpenGL Rendering Texture
-texture<uchar4, cudaTextureType2D, cudaReadModeElementType> renderTexture;
-
-// OpenGL Ray Origin, Reflection and Refraction Textures
-texture<float4, cudaTextureType2D, cudaReadModeElementType> rayOriginTexture;
-texture<float4, cudaTextureType2D, cudaReadModeElementType> rayReflectionTexture;
-texture<float4, cudaTextureType2D, cudaReadModeElementType> rayRefractionTexture;
+// OpenGL Diffuse and Specular Textures
+texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
+texture<float4, cudaTextureType2D, cudaReadModeElementType> specularTexture;
+// OpenGL Fragment Position and Normal Textures
+texture<float4, cudaTextureType2D, cudaReadModeElementType> fragmentPositionTexture;
+texture<float4, cudaTextureType2D, cudaReadModeElementType> fragmentNormalTexture;
 
 // CUDA Triangle Textures
 texture<float4, 1, cudaReadModeElementType> trianglePositionsTexture;
@@ -173,8 +172,170 @@ __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, 
 	return dot(edge2, qvec) * determinant;  
 }  
 
+
+// Implementation of Matrix Multiplication
+__global__ void MultiplyVertex(
+							// Updated Normal Matrices Array
+							float* modelMatricesArray,
+							// Updated Normal Matrices Array
+							float* normalMatricesArray,
+							// Updated Triangle Positions Array
+							float4* trianglePositionsArray,
+							// Updated Triangle Normals Array
+							float4* triangleNormalsArray,
+							// Total Number of Vertices in the Scene
+							int vertexTotal) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= vertexTotal)
+		return;
+
+	// Matrices ID
+	int matrixID = tex1Dfetch(triangleObjectIDsTexture, x).x;
+
+	// Vertices
+	float modelMatrix[16];
+
+	for(int i=0; i<16; i++)
+		modelMatrix[i] = modelMatricesArray[matrixID * 16 + i];
+	
+	float4 vertex = tex1Dfetch(trianglePositionsTexture, x);
+
+	float updatedVertex[4];
+
+	for(int i=0; i<4; i++) {
+
+		updatedVertex[i] = 0.0f;
+		updatedVertex[i] += modelMatrix[i * 4 + 0] * vertex.x;
+		updatedVertex[i] += modelMatrix[i * 4 + 1] * vertex.y;
+		updatedVertex[i] += modelMatrix[i * 4 + 2] * vertex.z;
+		updatedVertex[i] += modelMatrix[i * 4 + 3] * vertex.w;
+	}
+	
+	trianglePositionsArray[x] = make_float4(updatedVertex[0], updatedVertex[1], updatedVertex[2], matrixID);
+
+	// Normals
+	float normalMatrix[16];
+
+	for(int i=0; i<16; i++)
+		normalMatrix[i] = normalMatricesArray[matrixID * 16 + i];
+
+	float4 normal = tex1Dfetch(triangleNormalsTexture, x);
+
+	float updatedNormal[4];
+
+	for(int i=0; i<4; i++) {
+
+		updatedNormal[i] = 0.0f;
+		updatedNormal[i] += normalMatrix[i * 4 + 0] * normal.x;
+		updatedNormal[i] += normalMatrix[i * 4 + 1] * normal.y;
+		updatedNormal[i] += normalMatrix[i * 4 + 2] * normal.z;
+		updatedNormal[i] += normalMatrix[i * 4 + 3] * normal.w;
+	}
+
+	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
+}
+
 // Casts a Ray and tests for intersections with the scenes geometry
-__device__ float3 RayCast(	Ray ray, 
+__device__ float3 PrimaryRayCast(
+							Ray ray,
+							// Updated Triangle Position Array
+							float4* trianglePositionsArray,
+							// Updated Triangle Position Array
+							float4* triangleNormalsArray,
+							// Total Number of Triangles in the Scene
+							const int triangleTotal,
+							// Total Number of Lights in the Scene
+							const int lightTotal) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;		
+
+	// Fragment Color
+	float3 fragmentColor = make_float3(0.0f);
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = ray.origin;
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	// Triangle Material Properties
+	float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
+	float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
+
+	for(int l = 0; l < lightTotal; l++) {
+
+		float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
+
+		// Light Direction and Distance
+		float3 lightDirection = lightPosition - fragmentPosition;
+
+		float lightDistance = length(lightDirection);
+		lightDirection = normalize(lightDirection);
+
+		// Diffuse Factor
+		float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
+		clamp(diffuseFactor, 0.0f, 1.0f);
+
+		if(diffuseFactor > 0.0f) {
+
+			bool shadow = false;
+
+			Ray shadowRay(fragmentPosition + lightDirection * epsilon, lightDirection);
+			
+			// Test Shadow Rays for each Triangle
+			for(int k = 0; k < triangleTotal; k++) {
+
+				float4 v0 = trianglePositionsArray[k * 3];
+				float4 e1 = trianglePositionsArray[k * 3 + 1];
+				e1 = e1 - v0;
+				float4 e2 = trianglePositionsArray[k * 3 + 2];
+				e2 = e2 - v0;
+
+				float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
+
+				if(hitTime > epsilon) {
+
+					shadow = true;
+					break;
+				}
+			}
+
+			if(shadow == false) {
+
+				// Blinn-Phong approximation Halfway Vector
+				float3 halfwayVector = lightDirection - ray.direction;
+				halfwayVector = normalize(halfwayVector);
+
+				// Light Color
+				float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
+				// Light Intensity (x = diffuse, y = specular)
+				float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+				// Light Attenuation (x = constant, y = linear, z = exponential)
+				float3 lightAttenuation = make_float3(0.0f, 0.0f, 0.0f);
+
+				float attenuation = 1.0f / (1.0f + lightAttenuation.x + lightDistance * lightAttenuation.y + lightDistance * lightDistance * lightAttenuation.z);
+
+				// Diffuse Component
+				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
+
+				// Specular Factor
+				float specularFactor = powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w);
+				clamp(specularFactor, 0.0f, 1.0f);
+
+				// Specular Component
+				if(specularFactor > 0.0f)
+					fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
+			}
+		}
+	}
+
+	return fragmentColor;
+}
+
+// Casts a Ray and tests for intersections with the scenes geometry
+__device__ float3 SecondaryRayCast(	
+							Ray ray, 
 							// Updated Triangle Position Array
 							float4* trianglePositionsArray,
 							// Updated Triangle Position Array
@@ -212,55 +373,39 @@ __device__ float3 RayCast(	Ray ray,
 	// If any Triangle was intersected
 	if(hitRecord.triangleIndex >= 0) {
 
-		// Needed for Ray Reflections
-		float specularConstant;
-		// Needed for Ray Refractions
-		float refractionConstant;
+		// Illumination
 
 		// Initialize the hit Color
 		hitRecord.color = make_float3(0.0f, 0.0f, 0.0f);
 		// Calculate the hit Triangle point
 		hitRecord.point = ray.origin + ray.direction * hitRecord.time;
-
-		float areaABC;
-		float areaPBC;
-		float areaPCA;
-
-		// Calculate the hit Normal
-		if(hitRecord.triangleIndex >= 0) {
 			
-			// Fetch the hit Triangles vertices
-			float4 v0 = trianglePositionsArray[hitRecord.triangleIndex * 3];
-			float4 v1 = trianglePositionsArray[hitRecord.triangleIndex * 3 + 1];
-			float4 v2 = trianglePositionsArray[hitRecord.triangleIndex * 3 + 2];
+		// Fetch the hit Triangles vertices
+		float4 v0 = trianglePositionsArray[hitRecord.triangleIndex * 3];
+		float4 v1 = trianglePositionsArray[hitRecord.triangleIndex * 3 + 1];
+		float4 v2 = trianglePositionsArray[hitRecord.triangleIndex * 3 + 2];
 
-			// Fetch the hit Triangles normals
-			float4 n0 = triangleNormalsArray[hitRecord.triangleIndex * 3];
-			float4 n1 = triangleNormalsArray[hitRecord.triangleIndex * 3 + 1];
-			float4 n2 = triangleNormalsArray[hitRecord.triangleIndex * 3 + 2];
+		// Fetch the hit Triangles normals
+		float4 n0 = triangleNormalsArray[hitRecord.triangleIndex * 3];
+		float4 n1 = triangleNormalsArray[hitRecord.triangleIndex * 3 + 1];
+		float4 n2 = triangleNormalsArray[hitRecord.triangleIndex * 3 + 2];
 
-			// Normal calculation using Barycentric Interpolation
-			areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
-			areaPBC = length(cross(make_float3(v1) - hitRecord.point, make_float3(v2) - hitRecord.point));
-			areaPCA = length(cross(make_float3(v0) - hitRecord.point, make_float3(v2) - hitRecord.point));
+		// Normal calculation using Barycentric Interpolation
+		float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
+		float areaPBC = length(cross(make_float3(v1) - hitRecord.point, make_float3(v2) - hitRecord.point));
+		float areaPCA = length(cross(make_float3(v0) - hitRecord.point, make_float3(v2) - hitRecord.point));
 
-			hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
-		}
+		hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
 
-		// Blinn-Phong Shading (Soft Shadows - START)
-
-		// Material Properties
-		float4 diffuseColor;
-		float4 specularColor;
-
-		// Triangle Material Properties
+		// Triangle Material Identifier
 		int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
 
-		diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
-		specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+		// Triangle Material Properties
+		float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+		float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
 
-		specularConstant = specularColor.w;
-		refractionConstant = diffuseColor.w;
+		float specularConstant = specularColor.w;
+		float refractionConstant = diffuseColor.w;
 
 		for(int l = 0; l < lightTotal; l++) {
 
@@ -293,7 +438,7 @@ __device__ float3 RayCast(	Ray ray,
 
 					float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
 
-					if(hitTime > epsilon) {
+					if(hitTime < hitRecord.time && hitTime > epsilon) {
 
 						shadow = true;
 						break;
@@ -327,103 +472,10 @@ __device__ float3 RayCast(	Ray ray,
 						hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
 				}
 			}
-
-			// Light Direction perpendicular plane base vectors 
-			/*float3 lightPlaneAxisA;
-			float3 lightPlaneAxisB;
-			float3 w;
-
-			// Check which is the component with the smallest coeficient
-			float m = min(abs(lightDirection.x),max(abs(lightDirection.y),abs(lightDirection.z)));
-
-			if(abs(lightDirection.x) == m) {
-
-				w = make_float3(1.0f,0.0f,0.0f);
-			}
-			else if(abs(lightDirection.y) == m) {
-
-				w = make_float3(0.0f,1.0f,0.0f);
-			}
-			else { //if(abs(lightDirection.z) == m) {
-
-				w = make_float3(0.0f,0.0f,1.0f);
-			}
-
-			// Calculate the perpendicular plane base vectors
-			lightPlaneAxisA = cross(w, lightDirection);
-			lightPlaneAxisB = cross(lightDirection,lightPlaneAxisA);
-
-			// Shadow Grid for Soft Shadows
-			for(int i=0; i<shadowGridWidth; i++) {
-				for(int j=0; j<shadowGridHeight; j++) {
-
-					float3 interpolatedPosition = lightPosition + lightPlaneAxisA * (i-shadowGridHalfWidth) * shadowCellSize + lightPlaneAxisB * (j-shadowGridHalfHeight) * shadowCellSize;
-
-					float3 interpolatedDirection = interpolatedPosition - hitRecord.point;
-					interpolatedDirection = normalize(interpolatedDirection);
-
-					// Diffuse Factor
-					float diffuseFactor = max(dot(interpolatedDirection, hitRecord.normal), 0.0f);
-					clamp(diffuseFactor, 0.0f, 1.0f);
-
-					if(diffuseFactor > 0.0f) {
-
-						bool shadow = false;
-
-						Ray shadowRay(hitRecord.point + interpolatedDirection * epsilon, interpolatedDirection);
-			
-						// Test Shadow Rays for each Triangle
-						for(int k = 0; k < triangleTotal; k++) {
-
-							float4 v0 = tex1Dfetch(trianglePositionsTexture, k * 3);
-							float4 e1 = tex1Dfetch(trianglePositionsTexture, k * 3 + 1);
-							e1 = e1 - v0;
-							float4 e2 = tex1Dfetch(trianglePositionsTexture, k * 3 + 2);
-							e2 = e2 - v0;
-
-							float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-
-							if(hitTime > epsilon) {
-
-								shadow = true;
-								break;
-							}
-						}
-
-						if(shadow == false) {
-
-							// Blinn-Phong approximation Halfway Vector
-							float3 halfwayVector = interpolatedDirection - ray.direction;
-							halfwayVector = normalize(halfwayVector);
-
-							// Light Color
-							float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
-							// Light Intensity (x = diffuse, y = specular)
-							float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
-							// Light Attenuation (x = constant, y = linear, z = exponential)
-							float3 lightAttenuation = make_float3(0.0f, 0.0f, 0.0f);
-
-							float attenuation = 1.0f / (lightAttenuation.x + lightDistance * lightAttenuation.y + lightDistance * lightDistance * lightAttenuation.z);
-
-							// Diffuse Component
-							hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation * shadowGridDimensionInverse;
-
-							// Specular Factor
-							float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0f), specularConstant);
-							clamp(specularFactor, 0.0f, 1.0f);
-
-							// Specular Component
-							if(specularFactor > 0.0f)
-								hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightIntensity.y * attenuation * shadowGridDimensionInverse;
-						}
-					}
-				}
-			}*/
 		}
-		// Blinn-Phong Shading - END
 
-		// If max depth wasn't reached yet
-		if(depth > 0)	{
+		// Ray Bounces
+		if(depth > 0) {
 
 			// If the Object Hit is reflective
 			if(specularConstant > 0.0f) {
@@ -431,20 +483,17 @@ __device__ float3 RayCast(	Ray ray,
 				// Calculate the Reflected Rays Direction
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
-				Ray reflectedRay(hitRecord.point + reflectedDirection * epsilon, reflectedDirection);
-
 				// Cast the Reflected Ray
-				hitRecord.color += RayCast(	reflectedRay, 
-											trianglePositionsArray,
-											triangleNormalsArray, 
-											triangleTotal, 
-											lightTotal, 
-											depth-1, 
-											refractionIndex) * 1.50f;
+				hitRecord.color = 
+					SecondaryRayCast(
+						Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), 
+						trianglePositionsArray,
+						triangleNormalsArray, 
+						triangleTotal, lightTotal, depth-1, refractionIndex) * 0.50f;
 			}
 
 			// If the Object Hit is translucid
-			if(refractionConstant > 0.0f) {
+			/*if(refractionConstant > 0.0f) {
 
 				float newRefractionIndex;
 
@@ -456,88 +505,14 @@ __device__ float3 RayCast(	Ray ray,
 				// Calculate the Refracted Rays Direction
 				float3 refractedDirection = refract(ray.direction, hitRecord.normal, refractionIndex / newRefractionIndex);
 
-				Ray refractedRay(hitRecord.point + refractedDirection * epsilon, refractedDirection);
-
 				// Cast the Refracted Ray
-				if( false /*length(refractedDirection) > 0.0f*/) {
-
-					hitRecord.color += RayCast(	refractedRay, 
-												trianglePositionsArray,
-												triangleNormalsArray, 
-												triangleTotal, 
-												lightTotal, 
-												depth-1, 
-												newRefractionIndex) * 1.50f;
-				}
-			}
+				if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
+					hitRecord.color += SecondaryRayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, lightTotal, depth-1, newRefractionIndex) * 0.50f;
+			}*/
 		}
 	}
 
 	return hitRecord.color;
-}
-
-// Implementation of Matrix Multiplication
-__global__ void MultiplyVertex(
-							// Updated Normal Matrices Array
-							float* modelMatricesArray,
-							// Updated Normal Matrices Array
-							float* normalMatricesArray,
-							// Updated Triangle Positions Array
-							float4* trianglePositionsArray,
-							// Updated Triangle Normals Array
-							float4* triangleNormalsArray,
-							// Total Number of Vertices in the Scene
-							int vertexTotal) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	if(x >= vertexTotal)
-		return;
-
-	// Matrices ID
-	int matrixID = tex1Dfetch(triangleObjectIDsTexture, x).x;
-
-	// Vertices
-	float modelMatrix[16];
-
-	for(int i=0; i<16; i++)
-		modelMatrix[i] = modelMatricesArray[matrixID + i];
-	
-	float4 vertex = tex1Dfetch(trianglePositionsTexture, x);
-
-	float updatedVertex[4];
-
-	for(int i=0; i<4; i++) {
-
-		updatedVertex[i] = 0.0f;
-		updatedVertex[i] += modelMatrix[i * 4 + 0] * vertex.x;
-		updatedVertex[i] += modelMatrix[i * 4 + 1] * vertex.y;
-		updatedVertex[i] += modelMatrix[i * 4 + 2] * vertex.z;
-		updatedVertex[i] += modelMatrix[i * 4 + 3] * vertex.w;
-	}
-	
-	trianglePositionsArray[x] = make_float4(updatedVertex[0], updatedVertex[1], updatedVertex[2], 1.0f);
-
-	// Normals
-	float normalMatrix[16];
-
-	for(int i=0; i<16; i++)
-		normalMatrix[i] = normalMatricesArray[matrixID + i];
-
-	float4 normal = tex1Dfetch(triangleNormalsTexture, x);
-
-	float updatedNormal[4];
-
-	for(int i=0; i<4; i++) {
-
-		updatedNormal[i] = 0.0f;
-		updatedNormal[i] += normalMatrix[i * 4 + 0] * normal.x;
-		updatedNormal[i] += normalMatrix[i * 4 + 1] * normal.y;
-		updatedNormal[i] += normalMatrix[i * 4 + 2] * normal.z;
-		updatedNormal[i] += normalMatrix[i * 4 + 3] * normal.w;
-	}
-
-	triangleNormalsArray[x] = make_float4(updatedNormal[0], updatedNormal[1], updatedNormal[2], 0.0f);
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -565,34 +540,25 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 	if(x >= width || y >= height)
 		return;
-	
-	// Pixel Color
-	int3 pixelColor;
-	pixelColor.x = tex2D(renderTexture, x, y).x;
-	pixelColor.y = tex2D(renderTexture, x, y).y;
-	pixelColor.z = tex2D(renderTexture, x, y).z;
-	
-	int rgb = pixelColor.x + (pixelColor.y << 8) +  (pixelColor.z << 16);
-
-	//pixelBufferObject[y * width + x] = rgb;
 
 	// Ray Creation
-	float3 rayOrigin = make_float3(tex2D(rayOriginTexture, x,y));
-	float3 rayDirection = reflect(normalize(rayOrigin - cameraPosition), make_float3(tex2D(rayReflectionTexture, x,y)));
-	//float3 rayDirection = make_float3(tex2D(rayReflectionTexture, x,y));
-	//float3 rayDirection =  normalize(rayOrigin - cameraPosition);
+	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), normalize(make_float3(tex2D(fragmentNormalTexture, x,y))));
 
 	if(length(rayOrigin) != 0.0f) {
 
-		Ray ray(rayOrigin + rayDirection * 1.01f, rayDirection);
+		Ray ray(rayOrigin + rayDirection * epsilon, rayDirection);
+
+		// Calculate the +Primary Ray Shadows
+		float3 primaryColor = PrimaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal);
+		// Calculate the Primary Ray Bounces
+		float3 secondaryColor = SecondaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal, depth, refractionIndex);
+			
+		// Calculate the Final Color
+		float3 finalColor = primaryColor + secondaryColor;
 		
-		// Calculate the Ray Color
-		//float3 rayColor = RayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal, depth, refractionIndex);
-		float3 rayColor = rayDirection * 2.0f + 1.0f;
-
-
 		// Update the Pixel Buffer
-		pixelBufferObject[y * width + x] = rgbToInt(rayColor.x * 255, rayColor.y * 255, rayColor.z * 255);
+		pixelBufferObject[y * width + x] = rgbToInt(finalColor.x * 255, finalColor.y * 255, finalColor.z * 255);
 	}
 	else {
 	
@@ -642,49 +608,48 @@ extern "C" {
 	}
 
 	// OpenGL Texture Binding Functions
-	void bindRenderTextureArray(cudaArray *renderArray) {
+	void bindDiffuseTextureArray(cudaArray *diffuseTextureArray) {
 	
-		renderTexture.normalized = false;					// access with normalized texture coordinates
-		renderTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
-		renderTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
-		renderTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
-
-		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<uchar4>();
-		cudaBindTextureToArray(renderTexture, renderArray, channelDescriptor);
-	}
-
-	// OpenGL Texture Binding Functions
-	void bindRayOriginTextureArray(cudaArray *rayOriginArray) {
-	
-		rayOriginTexture.normalized = false;					// access with normalized texture coordinates
-		rayOriginTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
-		rayOriginTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
-		rayOriginTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+		diffuseTexture.normalized = false;					// access with normalized texture coordinates
+		diffuseTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		diffuseTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		diffuseTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
-		cudaBindTextureToArray(rayOriginTexture, rayOriginArray, channelDescriptor);
+		cudaBindTextureToArray(diffuseTexture, diffuseTextureArray, channelDescriptor);
 	}
 
-	void bindRayReflectionTextureArray(cudaArray *rayReflectionArray) {
+	void bindSpecularTextureArray(cudaArray *specularTextureArray) {
 	
-		rayReflectionTexture.normalized = false;					// access with normalized texture coordinates
-		rayReflectionTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
-		rayReflectionTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
-		rayReflectionTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+		specularTexture.normalized = false;					// access with normalized texture coordinates
+		specularTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		specularTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		specularTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
-		cudaBindTextureToArray(rayReflectionTexture, rayReflectionArray, channelDescriptor);
+		cudaBindTextureToArray(specularTexture, specularTextureArray, channelDescriptor);
 	}
 
-	void bindRayRefractionTextureArray(cudaArray *rayRefractionArray) {
+	void bindFragmentPositionArray(cudaArray *fragmentPositionArray) {
 	
-		rayRefractionTexture.normalized = false;					// access with normalized texture coordinates
-		rayRefractionTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
-		rayRefractionTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
-		rayRefractionTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+		fragmentPositionTexture.normalized = false;					// access with normalized texture coordinates
+		fragmentPositionTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		fragmentPositionTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		fragmentPositionTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
-		cudaBindTextureToArray(rayRefractionTexture, rayRefractionArray, channelDescriptor);
+		cudaBindTextureToArray(fragmentPositionTexture, fragmentPositionArray, channelDescriptor);
+	}
+
+	void bindFragmentNormalArray(cudaArray *fragmentNormalArray) {
+	
+		fragmentNormalTexture.normalized = false;					// access with normalized texture coordinates
+		fragmentNormalTexture.filterMode = cudaFilterModePoint;		// Point mode, so no 
+		fragmentNormalTexture.addressMode[0] = cudaAddressModeWrap;	// wrap texture coordinates
+		fragmentNormalTexture.addressMode[1] = cudaAddressModeWrap;	// wrap texture coordinates
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTextureToArray(fragmentNormalTexture, fragmentNormalArray, channelDescriptor);
 	}
 
 	// CUDA Triangle Texture Binding Functions

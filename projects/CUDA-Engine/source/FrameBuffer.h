@@ -32,26 +32,26 @@ class FrameBuffer {
 		GLuint depthBufferHandler;
 		
 		// FrameBuffers Rendering Textures
-		GLuint renderTextureHandler;
+		GLuint diffuseTextureHandler;
+		GLuint specularTextureHandler;
 
 		// FrameBuffers Ray-Tracing Textures
-		GLuint rayOriginTextureHandler;
-		GLuint rayReflectionTextureHandler;
-		GLuint rayRefractionTextureHandler;
+		GLuint fragmentPositionTextureHandler;
+		GLuint fragmentNormalTextureHandler;
 		
 		/* CUDA Array references that store the Textures in CUDA */
-		cudaArray *renderCudaArray;
+		cudaArray *diffuseTextureCudaArray;
+		cudaArray *specularTextureCudaArray;
 
-		cudaArray *rayOriginCudaArray;
-		cudaArray *rayReflectionCudaArray;
-		cudaArray *rayRefractionCudaArray;
+		cudaArray *fragmentPositionCudaArray;
+		cudaArray *fragmentNormalCudaArray;
 
 		/* CUDA Graphics Resource references that bind the Textures to CUDA */
-		cudaGraphicsResource *renderCudaGraphicsResource;
+		cudaGraphicsResource *diffuseTextureCudaGraphicsResource;
+		cudaGraphicsResource *specularTextureCudaGraphicsResource;
 		
-		cudaGraphicsResource *rayOriginCudaGraphicsResource;
-		cudaGraphicsResource *rayReflectionCudaGraphicsResource;
-		cudaGraphicsResource *rayRefractionCudaGraphicsResource;
+		cudaGraphicsResource *fragmentPositionCudaGraphicsResource;
+		cudaGraphicsResource *fragmentNormalCudaGraphicsResource;
 
 	public:
 
@@ -78,23 +78,23 @@ class FrameBuffer {
 		GLuint getFrameBufferHandler();
 		GLuint getDepthBufferHandler();
 
-		GLuint getRenderTextureHandler();
+		GLuint getDiffuseTextureHandler();
+		GLuint getSpecularTextureHandler();
 
-		GLuint getRayOriginTextureHandler();
-		GLuint getRayReflectionTextureHandler();
-		GLuint getRayRefractionTextureHandler();
+		GLuint getFragmentPositionTextureHandler();
+		GLuint getFragmentNormalTextureHandler();
 		
-		cudaArray* getRenderCudaArray();
+		cudaArray* getDiffuseTextureCudaArray();
+		cudaArray* getSpecularTextureCudaArray();
 
-		cudaArray* getRayOriginCudaArray();
-		cudaArray* getRayReflectionCudaArray();
-		cudaArray* getRayRefractionCudaArray();
+		cudaArray* getFragmentPositionCudaArray();
+		cudaArray* getFragmentNormalCudaArray();
 
-		cudaGraphicsResource* getRenderCudaGraphicsResource();
+		cudaGraphicsResource* getDiffuseTextureCudaGraphicsResource();
+		cudaGraphicsResource* getSpecularTextureCudaGraphicsResource();
 
-		cudaGraphicsResource* getRayOriginCudaGraphicsResource();
-		cudaGraphicsResource* getRayReflectionCudaGraphicsResource();
-		cudaGraphicsResource* getRayRefractionCudaGraphicsResource();
+		cudaGraphicsResource* getFragmentPositionCudaGraphicsResource();
+		cudaGraphicsResource* getFragmentNormalCudaGraphicsResource();
 
 		/* Setters */
 		void setWidth(GLint width);
@@ -103,23 +103,23 @@ class FrameBuffer {
 		void setFrameBufferHandler(GLuint frameBufferHandler);
 		void setDepthBufferHandler(GLuint depthBufferHandler);
 
-		void setRenderTextureHandler(GLuint renderTextureHandler);
+		void setDiffuseTextureHandler(GLuint diffuseTextureHandler);
+		void setSpecularTextureHandler(GLuint specularTextureHandler);
 	
-		void setRayOriginTextureHandler(GLuint rayOriginTextureHandler);
-		void setRayReflectionTextureHandler(GLuint rayReflectionTextureHandler);
-		void setRayRefractionTextureHandler(GLuint rayRefractionTextureHandler);
+		void setFragmentPositionTextureHandler(GLuint fragmentPositionTextureHandler);
+		void setFragmentNormalTextureHandler(GLuint fragmentNormalTextureHandler);
 		
-		void setRenderCudaArray(cudaArray* renderCudaArray);
+		void setDiffuseTextureCudaArray(cudaArray* diffuseTextureCudaArray);
+		void setSpecularTextureCudaArray(cudaArray* specularTextureCudaArray);
 
-		void setRayOriginCudaArray(cudaArray* rayOriginCudaArray);
-		void setRayReflectionCudaArray(cudaArray* rayReflectionCudaArray);
-		void setRayRefractionCudaArray(cudaArray* rayRefractionCudaArray);
+		void setFragmentPositionCudaArray(cudaArray* fragmentPositionCudaArray);
+		void setFragmentNormalCudaArray(cudaArray* fragmentNormalCudaArray);
 			
-		void setRenderCudaGraphicsResource(cudaGraphicsResource* renderCudaGraphicsResource);
+		void setDiffuseTextureCudaGraphicsResource(cudaGraphicsResource* diffuseTextureCudaGraphicsResource);
+		void setSpecularTextureCudaGraphicsResource(cudaGraphicsResource* specularTextureCudaGraphicsResource);
 
-		void setRayOriginCudaGraphicsResource(cudaGraphicsResource* rayOriginCudaGraphicsResource);
-		void setRayReflectionCudaGraphicsResource(cudaGraphicsResource* rayReflectionCudaGraphicsResource);
-		void setRayRefractionCudaGraphicsResource(cudaGraphicsResource* rayRefractionCudaGraphicsResource);
+		void setFragmentPositionCudaGraphicsResource(cudaGraphicsResource* fragmentPositionCudaGraphicsResource);
+		void setFragmentNormalCudaGraphicsResource(cudaGraphicsResource* fragmentNormalCudaGraphicsResource);
 };
 
 #endif

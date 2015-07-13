@@ -40,9 +40,9 @@ const int initialDepth = 3;
 const float initialRefractionIndex = 1.0f;
 
 // Hard coded for testing purposes
-__device__ const int sphereTotal = 1;
+__device__ const int sphereTotal = 4;
 
-__device__ const float sphereRadius = 1.25f;
+__device__ const float sphereRadius = 5.0f;
 
 __device__ const float4 sphereDiffuses[] = {	{ 0.50754000f, 0.50754000f, 0.50754000f, 0.00f }, 
 												{ 0.75164000f, 0.60648000f, 0.22648000f, 0.00f }, 
@@ -56,7 +56,7 @@ __device__ const float4 sphereSpeculars[] = {	{ 0.50827300f, 0.50827300f, 0.5082
 												{ 0.63300000f, 0.72781100f, 0.63300000f, 155.0f },
 												{ 0.50827300f, 0.50827300f, 0.50827300f,   0.0f } };
 
-__device__ const float3 spherePositions[] = {	{   0.0f,  0.5f,   0.0f }, 
+__device__ const float3 spherePositions[] = {	{  10.0f, -2.5f,  10.0f }, 
 												{ -10.0f, -2.5f,  10.0f }, 
 												{ -10.0f, -2.5f, -10.0f }, 
 												{  10.0f, -2.5f, -10.0f },
@@ -278,9 +278,6 @@ __device__ float3 RayCast(	Ray ray,
 
 	// Hit Record used to store Ray-Triangle Hit information - Initialized with Background Colour
 	HitRecord hitRecord(make_float3(0.15f,0.15f,0.15f));
-
-	if(depth == 2)
-		return ray.direction;
 		
 	// Search through the triangles and find the nearest hit point
 	for(int i = 0; i < triangleTotal; i++) {
@@ -370,17 +367,17 @@ __device__ float3 RayCast(	Ray ray,
 		if(hitRecord.triangleIndex >= 0) {
 
 			// Triangle Material Properties
-			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
+			/*int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
 
 			diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
 			specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
 
 			specularConstant = specularColor.w;
-			refractionConstant = diffuseColor.w;
+			refractionConstant = diffuseColor.w;*/
 
 			//If using Textures
 
-			/*float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
+			float2 uv0 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3);
 			float2 uv1 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 1);
 			float2 uv2 = tex1Dfetch(triangleTextureCoordinatesTexture, hitRecord.triangleIndex * 3 + 2);
 
@@ -392,7 +389,7 @@ __device__ float3 RayCast(	Ray ray,
 			specularColor = make_float4((float)textureColor.x / 255.0f, (float)textureColor.y / 255.0f, (float)textureColor.z / 255.0f, 1.0f);
 
 			specularConstant = 150.0f;
-			refractionConstant = 0.0f;*/
+			refractionConstant = 0.0f;
 		}
 		else { //if(hitRecord.sphereIndex >= 0) {
 				
@@ -530,14 +527,13 @@ __device__ float3 RayCast(	Ray ray,
 				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
 
 				// Cast the Reflected Ray
-				//hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, lightTotal, depth-1, refractionIndex) * 0.50f;
-				hitRecord.color = RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, lightTotal, depth-1, refractionIndex) * 0.50f;
+				hitRecord.color += RayCast(Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), triangleTotal, lightTotal, depth-1, refractionIndex) * 0.50f;
 			}
 
 			// If the Object Hit is translucid
 			if(refractionConstant > 0.0f) {
 
-				/*float newRefractionIndex;
+				float newRefractionIndex;
 
 				if(refractionIndex == 1.0f)
 					newRefractionIndex = 1.50f;
@@ -549,7 +545,7 @@ __device__ float3 RayCast(	Ray ray,
 
 				// Cast the Refracted Ray
 				if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
-					hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, lightTotal, depth-1, newRefractionIndex) * 0.50f;*/
+					hitRecord.color += RayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, lightTotal, depth-1, newRefractionIndex) * 0.50f;
 			}
 		}
 	}
@@ -577,10 +573,21 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
+	/*// Ray Creation
+	float3 rayOrigin = cameraPosition;
+	float3 rayDirection = cameraDirection + cameraUp * (y / ((float)height) - 0.5f) + cameraRight * (x / ((float)width) - 0.5f);
+
+	// Ray used to store Origin and Direction information
+	Ray ray(rayOrigin, rayDirection);
+
+	float3 pixelColor = RayCast(ray, triangleTotal, depth, refractionIndex);
+
+	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);*/
+
 	float3 pixelColor = make_float3(0.0f);
 
 	//Anti-Aliasing - 4x Super Sampling
-	/*for(int i=0; i<antiAliasingGridWidth; i++) {
+	for(int i=0; i<antiAliasingGridWidth; i++) {
 
 		for(int j=0; j<antiAliasingGridHeight; j++) {
 
@@ -595,7 +602,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 			pixelColor += RayCast(ray, triangleTotal, lightTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
 		}
-	}*/
+	}
 
 	// Ray Creation
 	float3 rayOrigin = cameraPosition;
@@ -604,8 +611,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	// Ray used to store Origin and Direction information
 	Ray ray(rayOrigin, rayDirection);
 
-	//pixelColor += RayCast(ray, triangleTotal, lightTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
-	pixelColor = RayCast(ray, triangleTotal, lightTotal, depth, refractionIndex);
+	pixelColor += RayCast(ray, triangleTotal, lightTotal, depth, refractionIndex) * antiAliasingGridDimensionInverse;
 
 	pixelBufferObject[y * width + x] = rgbToInt(pixelColor.x * 255, pixelColor.y * 255, pixelColor.z * 255);
 }
