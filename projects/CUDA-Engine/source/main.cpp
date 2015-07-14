@@ -896,8 +896,8 @@ void initializeCameras() {
 
 void init(int argc, char* argv[]) {
 
-	freopen("output.txt","w",stderr);
-	freopen("output.txt","w",stdout);
+	//freopen("output.txt","w",stderr);
+	//freopen("output.txt","w",stdout);
 
 	// Initialize OpenGL
 	initializeGLUT(argc, argv);

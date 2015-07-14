@@ -5,6 +5,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CUDA Naive Ray Tracer", "pr
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CUDA Engine", "projects\CUDA-Engine\Engine.vcxproj", "{32F9991F-30E3-4B87-81D8-F5C958610FDC}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CUDA Naive Engine", "projects\CUDA-Naive-Engine\CUDA Naive Engine.vcxproj", "{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -23,6 +25,12 @@ Global
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.output|Win32.Build.0 = Release|Win32
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Release|Win32.ActiveCfg = Release|Win32
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Release|Win32.Build.0 = Release|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Debug|Win32.Build.0 = Debug|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.output|Win32.ActiveCfg = Release|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.output|Win32.Build.0 = Release|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Release|Win32.ActiveCfg = Release|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

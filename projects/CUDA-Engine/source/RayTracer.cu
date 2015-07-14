@@ -541,6 +541,16 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	if(x >= width || y >= height)
 		return;
 
+	// add aliasing increasing the kernel width and height only no need to alter textures
+	// ray indexing
+	// ray compression
+	// ray sorting
+	// ray decompression
+
+	// structure creation (bottom and then N-level)
+
+	// structure traversal
+
 	// Ray Creation
 	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
 	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), normalize(make_float3(tex2D(fragmentNormalTexture, x,y))));

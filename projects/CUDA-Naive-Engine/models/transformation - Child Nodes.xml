@@ -1,0 +1,28 @@
+<?xml version="1.0" standalone="no" ?>
+<geometry>
+
+    <model identifier="Mallet" parent="None">
+		<boundingVolume type="Bounding Sphere" radius="0.500000"/>
+        <initial px="0.000000" py="-2.500000" pz="0.0000" sx="0.500000" sy="0.500000" sz="0.500000" rx="0.000000" ry="0.000000" rz="0.000000"/>
+    </model>
+
+    <model identifier="Puck" parent="None">
+		<boundingVolume type="Bounding Sphere" radius="0.150000"/>
+        <initial px="0.000000" py="0.000000" pz="0.00000" sx="0.50000" sy="0.50000" sz="0.5000000" rx="0.000000" ry="0.000000" rz="0.000000"/>
+    </model>
+ 
+    <model identifier="Table" parent="None">
+		<boundingVolume type="None"/>
+        <initial px="0.000000" py="-7.500000" pz="0.00000" sx="10.00000" sy="10.000000" sz="10.000000" rx="0.000000" ry="0.000000" rz="0.000000"/>
+    </model>
+    <model identifier="Table Surface" parent="None">
+		<boundingVolume type="None"/>
+        <initial px="0.000000" py="-7.500000" pz="0.00000" sx="10.00000" sy="1.000000" sz="10.000000" rx="0.000000" ry="0.000000" rz="0.000000"/>
+    </model>
+	
+	<model identifier="Platform" parent="None">
+		<boundingVolume type="Bounding Box" height="0.025000" width="5.000000" depth="5.000000"/>
+        <initial px="0.000000" py="0.000000" pz="0.000000" sx="8.5.000000" sy="13.000000" sz="0.250000" rx="0.000000" ry="0.000000" rz="0.000000"/>
+    </model>
+
+</geometry>

@@ -1,0 +1,95 @@
+[Initialization] GLUT Initialization Successfull
+
+[Initialization] Status: Using GLEW 1.10.0
+[Initialization] GLEW Initialization Successfull
+
+[Initialization] Status: Using OpenGL v4.5.0 NVIDIA 352.86
+[Initialization] OpenGL Initialization Successfull
+
+[Initialization] CUDA Initialization Successfull
+
+[Initialization] CUDA Memory Initialization Successfull
+
+[Initialization] Shader Initialization Successfull
+
+[Initialization] Total number of lights:1
+[Initialization] Light Positions Storage Size: 16 (1 float4s)
+[Initialization] Light Color Storage Size: 16 (1 float4s)
+[Initialization] Light Intensity Storage Size: 8 (1 float2s)
+[Initialization] Light Initialization Successfull
+
+[Initialization] Camera Initialization Successfull
+
+[Initialization] LoadMesh(cube.obj);
+[Initialization] LoadMaterial(cube.mtl);
+[Initialization] LoadMesh(sphere.obj);
+[Initialization] LoadMaterial(teapot/GoldTeapot.mtl);
+[Initialization] LoadMesh(sphere.obj);
+[Initialization] LoadMaterial(teapot/GoldTeapot.mtl);
+[Initialization] LoadMesh(sphere.obj);
+[Initialization] LoadMaterial(teapot/GoldTeapot.mtl);
+
+[Initialization] Total number of triangles:2172
+[Initialization] Triangle Positions Storage Size: 104256 (6516 float4s)
+[Initialization] Triangle Normals Storage Size: 104256 (6516 float4s)
+[Initialization] Triangle Texture Coordinates Storage Size: 52128 (6516 float2s)
+[Initialization] Triangle Object IDs Storage Size: 26064 (6516 int1s)
+[Initialization] Triangle Material IDs Storage Size: 26064 (6516 int1s)
+
+[Initialization] Total number of Materials:4
+[Initialization] Material Diffuse Properties Storage Size: 64 (4 float4s)
+[Initialization] Material Specular Properties Storage Size: 64 (4 float4s)
+
+[Callback] Update Successfull
+[Callback] Reshape Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Update Successfull
+[Callback] Display Successfull
+[Callback] Display Successfull
+[Blinn Phong] ProgramID = 3
+[Blinn Phong] VertexProgramID = 1
+[Blinn Phong] FragmentProgramID = 2
+[Bump Mapping] ProgramID = 6
+[Bump Mapping] VertexProgramID = 4
+[Bump Mapping] FragmentProgramID = 5
+[Cube Mapping] ProgramID = 12
+[Cube Mapping] VertexProgramID = 10
+[Cube Mapping] FragmentProgramID = 11
+[Fire] ProgramID = 18
+[Fire] VertexProgramID = 16
+[Fire] FragmentProgramID = 17
+[Realistic Wood] ProgramID = 15
+[Realistic Wood] VertexProgramID = 13
+[Realistic Wood] FragmentProgramID = 14
+[Sphere Mapping] ProgramID = 9
+[Sphere Mapping] VertexProgramID = 7
+[Sphere Mapping] FragmentProgramID = 8
+[Callback] Cleanup Successfull
