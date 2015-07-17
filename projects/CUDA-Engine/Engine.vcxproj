@@ -154,7 +154,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)output\</OutDir>
-    <IncludePath>$(SolutionDir)\dependencies\cuda\include;$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\tinyxml\include;$(SolutionDir)\dependencies\fmodex\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir)\dependencies\cub\include;$(SolutionDir)\dependencies\cuda\include;$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\fmodex\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\tinyxml\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(SolutionDir)\dependencies\cuda\lib\Win32;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(SolutionDir)\dependencies\fmodex\lib;$(LibraryPath)</LibraryPath>
     <SourcePath>$(ProjectDir)\source</SourcePath>
   </PropertyGroup>

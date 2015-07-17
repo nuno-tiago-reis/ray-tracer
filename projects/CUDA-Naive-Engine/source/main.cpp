@@ -1,9 +1,3 @@
-/*
- * TODO: Add Spotlights and Directional Lights
- * TODO: Fix Refraction
- *
- */
-
 // OpenGL definitions
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -184,21 +178,6 @@ extern "C" {
 	void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal);
 	// Implementation of bindLightIntensities is in the "RayTracer.cu" file
 	void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal);
-	
-	// Implementation of mallocTrianglePositionsArray is in the "RayTracer.cu" file
-	void mallocTrianglePositionsArray(unsigned int triangleTotal);
-	// Implementation of mallocTriangleNormalsArray is in the "RayTracer.cu" file
-	void mallocTriangleNormalsArray(unsigned int triangleTotal);
-	
-	// Implementation of mallocModelMatrixArray is in the "RayTracer.cu" file
-	void mallocModelMatrixArray(float4* modelMatricesDP, unsigned int matrixTotal);
-	// Implementation of mallocNormalMatrixArray is in the "RayTracer.cu" file
-	void mallocNormalMatrixArray(float4* mormalMatricesDP, unsigned int matrixTotal);
-	
-	// Implementation of memCopyModelMatrixArray is in the "RayTracer.cu" file
-	void memCopyModelMatrixArray(float* modelMatricesDP, unsigned int matrixTotal);
-	// Implementation of memCopyNormalMatrixArray is in the "RayTracer.cu" file
-	void memCopyNormalMatrixArray(float* normalMatricesDP, unsigned int matrixTotal);
 }
 
 // [Scene Functions]

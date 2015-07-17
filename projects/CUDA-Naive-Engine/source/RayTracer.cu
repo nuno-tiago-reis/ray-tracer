@@ -19,17 +19,6 @@ const float initialRefractionIndex = 1.0f;
 // Ray testing Constant
 __device__ const float epsilon = 0.01f;
 
-// Shadow Grid Dimensions and pre-calculated Values
-/*__device__ const int shadowGridWidth = 3;
-__device__ const int shadowGridHeight = 3;
-
-__device__ const int shadowGridHalfWidth = 1;
-__device__ const int shadowGridHalfHeight = 1;
-
-__device__ const float shadowGridDimensionInverse = 1.0f/9.0f;
-
-__device__ const float shadowCellSize = 0.20f;*/
-
 // OpenGL Diffuse and Specular Textures
 texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
 texture<float4, cudaTextureType2D, cudaReadModeElementType> specularTexture;
@@ -540,16 +529,6 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 	if(x >= width || y >= height)
 		return;
-
-	// add aliasing increasing the kernel width and height only no need to alter textures
-	// ray indexing
-	// ray compression
-	// ray sorting
-	// ray decompression
-
-	// structure creation (bottom and then N-level)
-
-	// structure traversal
 
 	// Ray Creation
 	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));

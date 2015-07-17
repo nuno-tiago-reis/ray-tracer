@@ -1,9 +1,3 @@
-/*
- * TODO: Add Spotlights and Directional Lights
- * TODO: Fix Refraction
- *
- */
-
 // OpenGL definitions
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -16,7 +10,7 @@
 #include "vector_types.h"
 #include "vector_functions.h"
 
-//Custom
+// Custom
 #include "helper_cuda.h"
 #include "helper_math.h"
 
@@ -34,9 +28,6 @@
 
 // Object
 #include "Object.h"
-
-// Particle Systems
-#include "ParticleSystem.h"
 
 // Lighting
 #include "SpotLight.h"
@@ -64,13 +55,13 @@
 // CUDA-OpenGL Interop
 #include "FrameBuffer.h"
 #include "PixelBuffer.h"
-
 #include "ScreenTexture.h"
 
 // Utility
 #include "XML_Reader.h"
 #include "OBJ_Reader.h"
 
+// Frame Cap
 #define FPS_60	1000/60
 
 #define CAPTION	"OpenGL-CUDA Engine 2015"
@@ -99,6 +90,9 @@ PixelBuffer *pixelBuffer;
 // Screens Textures Wrapper
 ScreenTexture *screenTexture;
 
+// Secondary Rays per Pixel
+int raysPerPixel = 7;
+
 // Total number of Triangles - Used for the memory necessary to allocate
 int triangleTotal = 0;
 // Total number of Materials - Used for the memory necessary to allocate
@@ -124,16 +118,30 @@ float *cudaLightPositionsDP = NULL;
 float *cudaLightColorsDP = NULL;
 float *cudaLightIntensitiesDP = NULL;
 
-// CUDA DevicePointers Arrays
+// CUDA DevicePointers to the Update Triangles
 float4* cudaUpdatedTrianglePositionsDP = NULL;
 float4* cudaUpdatedTriangleNormalsDP = NULL;
 
+// CUDA DevicePointers to the Updated Matrices
 float* cudaUpdatedModelMatricesDP = NULL;
 float* cudaUpdatedNormalMatricesDP = NULL;
 
+// CUDA DevicePointers to the Sorting Auxiliary Arrays
+int* cudaRayIndexArrayDP = NULL;
+int* cudaSortedRayIndexArrayDP = NULL;
+
+int* cudaHeadFlagsArrayDP = NULL;
+int* cudaSkeletonArrayDP = NULL;
+int* cudaScanArrayDP = NULL;
+
+int* cudaChunkBaseArrayDP = NULL;
+int* cudaChunkSizeArrayDP = NULL;
+int* cudaSortedChunkBaseArrayDP = NULL;
+int* cudaSortedChunkSizeArrayDP = NULL;
+
 // [CUDA-OpenGL Interop] 
 extern "C" {
-
+	
 	// Implementation of RayTraceWrapper is in the "RayTracer.cu" file
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
 							// Screen Dimensions
@@ -152,6 +160,18 @@ extern "C" {
 							int lightTotal,
 							// Camera Definitions
 							float3 cameraPosition);
+	
+	// Implementation of MultiplyVertex is in the "RayTracer.cu" file
+	void MultiplyVertex(// Updated Normal Matrices Array
+						float* modelMatricesArray,
+						// Updated Normal Matrices Array
+						float* normalMatricesArray,
+						// Updated Triangle Positions Array
+						float4* trianglePositionsArray,
+						// Updated Triangle Normals Array
+						float4* triangleNormalsArray,
+						// Total Number of Vertices in the Scene
+						int vertexTotal);
 
 	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
 	void bindDiffuseTextureArray(cudaArray *diffuseTextureArray);
@@ -184,21 +204,6 @@ extern "C" {
 	void bindLightColors(float *cudaDevicePointer, unsigned int lightTotal);
 	// Implementation of bindLightIntensities is in the "RayTracer.cu" file
 	void bindLightIntensities(float *cudaDevicePointer, unsigned int lightTotal);
-	
-	// Implementation of mallocTrianglePositionsArray is in the "RayTracer.cu" file
-	void mallocTrianglePositionsArray(unsigned int triangleTotal);
-	// Implementation of mallocTriangleNormalsArray is in the "RayTracer.cu" file
-	void mallocTriangleNormalsArray(unsigned int triangleTotal);
-	
-	// Implementation of mallocModelMatrixArray is in the "RayTracer.cu" file
-	void mallocModelMatrixArray(float4* modelMatricesDP, unsigned int matrixTotal);
-	// Implementation of mallocNormalMatrixArray is in the "RayTracer.cu" file
-	void mallocNormalMatrixArray(float4* mormalMatricesDP, unsigned int matrixTotal);
-	
-	// Implementation of memCopyModelMatrixArray is in the "RayTracer.cu" file
-	void memCopyModelMatrixArray(float* modelMatricesDP, unsigned int matrixTotal);
-	// Implementation of memCopyNormalMatrixArray is in the "RayTracer.cu" file
-	void memCopyNormalMatrixArray(float* normalMatricesDP, unsigned int matrixTotal);
 }
 
 // [Scene Functions]
@@ -240,7 +245,6 @@ extern "C" {
 // [Scene Initialization]
 
 	void initializeShaders();
-
 	void initializeLights();
 	void initializeCameras();
 
@@ -486,6 +490,25 @@ void reshape(int weight, int height) {
 
 	screenTexture->createTexture();
 
+	// Update the Array Size 
+	int arraySize = windowWidth * windowHeight * raysPerPixel * sizeof(int);
+	
+	// Update the CUDA Ray and Sorted Ray Index Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize));
+
+	// Update the CUDA Head Flags, Skeleton and Scan Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize));
+
+	// Update the CUDA Chunks Base and Size Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBaseArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizeArrayDP, arraySize));
+	// Update the CUDA Sorted Chunks Base and Size Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkBaseArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkSizeArrayDP, arraySize));
+
 	cout << "[Callback] Reshape Successfull" << endl;
 }
 
@@ -701,6 +724,25 @@ void initializeCUDAmemory() {
 	screenTexture = new ScreenTexture("Screen Texture", windowWidth, windowHeight);
 	screenTexture->createTexture();
 
+	// Calculate the Array Size 
+	int arraySize = windowWidth * windowHeight * raysPerPixel * sizeof(int);
+	
+	// Create the CUDA Ray and Sorted Ray Index Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize));
+
+	// Create the CUDA Head Flags, Skeleton and Scan Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize));
+
+	// Create the CUDA Chunks Base and Size Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBaseArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizeArrayDP, arraySize));
+	// Create the CUDA Sorted Chunks Base and Size Arrays
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkBaseArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkSizeArrayDP, arraySize));
+
 	cout << "[Initialization] CUDA Memory Initialization Successfull" << endl << endl;
 }
 
@@ -769,21 +811,6 @@ void initializeLights() {
 
 	// Light Map
 	map<int, Light*> lightMap;
-
-	// Light Source 0
-	DirectionalLight* directionalLight0 = new DirectionalLight(DIRECTIONAL_LIGHT_0);
-
-	directionalLight0->setIdentifier(LIGHT_SOURCE_0);
-
-	directionalLight0->setDirection(Vector(0.0f, 1.0f, 0.0f, 1.0f));
-	directionalLight0->setColor(Vector(0.0f, 0.0f, 1.0f, 1.0f));
-
-	directionalLight0->setAmbientIntensity(0.05f);
-	directionalLight0->setDiffuseIntensity(1.0f);
-	directionalLight0->setSpecularIntensity(1.0f);
-
-	//lightMap[directionalLight0->getIdentifier()] = directionalLight0;
-	//sceneManager->addLight(directionalLight0);
 
 	// Light Source 1
 	PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);

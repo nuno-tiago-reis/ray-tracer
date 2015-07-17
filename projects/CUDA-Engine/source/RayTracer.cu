@@ -1,34 +1,36 @@
+// CUDA definitions
+#include <cuda_runtime.h>
+// CUB definitions
+#include <cub.cuh>
+
+// Math Includes 
+#include <helper_math.h>
+#include <math_functions.h>
+// Vector Includes
+#include <vector_types.h>
+#include <vector_functions.h>
+
+// C++ Includes
 #include <stdio.h>
-
-#include "cuda_runtime.h"
-
-#include "math_functions.h"
-
-#include "helper_math.h"
-
-#include "vector_types.h"
-#include "vector_functions.h"
-
+// Utility Includes
 #include "Utility.h"
 
-// Ray initial depth 
-const int initialDepth = 0;
-// Ray initial refraction index
-const float initialRefractionIndex = 1.0f;
+// Secondary Ray Depth
+const int depth = 0;
+// Air Refraction Index
+const float refractionIndex = 1.0f;
 
 // Ray testing Constant
 __device__ const float epsilon = 0.01f;
 
 // Shadow Grid Dimensions and pre-calculated Values
-/*__device__ const int shadowGridWidth = 3;
+__device__ const int shadowGridWidth = 3;
 __device__ const int shadowGridHeight = 3;
-
 __device__ const int shadowGridHalfWidth = 1;
 __device__ const int shadowGridHalfHeight = 1;
 
 __device__ const float shadowGridDimensionInverse = 1.0f/9.0f;
-
-__device__ const float shadowCellSize = 0.20f;*/
+__device__ const float shadowCellSize = 0.2f;
 
 // OpenGL Diffuse and Specular Textures
 texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
@@ -42,10 +44,9 @@ texture<float4, 1, cudaReadModeElementType> trianglePositionsTexture;
 texture<float4, 1, cudaReadModeElementType> triangleNormalsTexture;
 texture<float2, 1, cudaReadModeElementType> triangleTextureCoordinatesTexture;
 
+// CUDA Triangle ID Textures
 texture<int1, 1, cudaReadModeElementType> triangleObjectIDsTexture;
 texture<int1, 1, cudaReadModeElementType> triangleMaterialIDsTexture;
-
-texture<float2, 1, cudaReadModeElementType> triangleModelMatrixTexture;
 
 // CUDA Material Textures
 texture<float4, 1, cudaReadModeElementType> materialDiffusePropertiesTexture;
@@ -171,71 +172,6 @@ __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, 
 
 	return dot(edge2, qvec) * determinant;  
 }  
-
-
-// Implementation of Matrix Multiplication
-__global__ void MultiplyVertex(
-							// Updated Normal Matrices Array
-							float* modelMatricesArray,
-							// Updated Normal Matrices Array
-							float* normalMatricesArray,
-							// Updated Triangle Positions Array
-							float4* trianglePositionsArray,
-							// Updated Triangle Normals Array
-							float4* triangleNormalsArray,
-							// Total Number of Vertices in the Scene
-							int vertexTotal) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	if(x >= vertexTotal)
-		return;
-
-	// Matrices ID
-	int matrixID = tex1Dfetch(triangleObjectIDsTexture, x).x;
-
-	// Vertices
-	float modelMatrix[16];
-
-	for(int i=0; i<16; i++)
-		modelMatrix[i] = modelMatricesArray[matrixID * 16 + i];
-	
-	float4 vertex = tex1Dfetch(trianglePositionsTexture, x);
-
-	float updatedVertex[4];
-
-	for(int i=0; i<4; i++) {
-
-		updatedVertex[i] = 0.0f;
-		updatedVertex[i] += modelMatrix[i * 4 + 0] * vertex.x;
-		updatedVertex[i] += modelMatrix[i * 4 + 1] * vertex.y;
-		updatedVertex[i] += modelMatrix[i * 4 + 2] * vertex.z;
-		updatedVertex[i] += modelMatrix[i * 4 + 3] * vertex.w;
-	}
-	
-	trianglePositionsArray[x] = make_float4(updatedVertex[0], updatedVertex[1], updatedVertex[2], matrixID);
-
-	// Normals
-	float normalMatrix[16];
-
-	for(int i=0; i<16; i++)
-		normalMatrix[i] = normalMatricesArray[matrixID * 16 + i];
-
-	float4 normal = tex1Dfetch(triangleNormalsTexture, x);
-
-	float updatedNormal[4];
-
-	for(int i=0; i<4; i++) {
-
-		updatedNormal[i] = 0.0f;
-		updatedNormal[i] += normalMatrix[i * 4 + 0] * normal.x;
-		updatedNormal[i] += normalMatrix[i * 4 + 1] * normal.y;
-		updatedNormal[i] += normalMatrix[i * 4 + 2] * normal.z;
-		updatedNormal[i] += normalMatrix[i * 4 + 3] * normal.w;
-	}
-
-	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
-}
 
 // Casts a Ray and tests for intersections with the scenes geometry
 __device__ float3 PrimaryRayCast(
@@ -515,6 +451,70 @@ __device__ float3 SecondaryRayCast(
 	return hitRecord.color;
 }
 
+// Implementation of Matrix Multiplication
+__global__ void MultiplyVertex(
+							// Updated Normal Matrices Array
+							float* modelMatricesArray,
+							// Updated Normal Matrices Array
+							float* normalMatricesArray,
+							// Updated Triangle Positions Array
+							float4* trianglePositionsArray,
+							// Updated Triangle Normals Array
+							float4* triangleNormalsArray,
+							// Total Number of Vertices in the Scene
+							int vertexTotal) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= vertexTotal)
+		return;
+
+	// Matrices ID
+	int matrixID = tex1Dfetch(triangleObjectIDsTexture, x).x;
+
+	// Vertices
+	float modelMatrix[16];
+
+	for(int i=0; i<16; i++)
+		modelMatrix[i] = modelMatricesArray[matrixID * 16 + i];
+	
+	float4 vertex = tex1Dfetch(trianglePositionsTexture, x);
+
+	float updatedVertex[4];
+
+	for(int i=0; i<4; i++) {
+
+		updatedVertex[i] = 0.0f;
+		updatedVertex[i] += modelMatrix[i * 4 + 0] * vertex.x;
+		updatedVertex[i] += modelMatrix[i * 4 + 1] * vertex.y;
+		updatedVertex[i] += modelMatrix[i * 4 + 2] * vertex.z;
+		updatedVertex[i] += modelMatrix[i * 4 + 3] * vertex.w;
+	}
+	
+	trianglePositionsArray[x] = make_float4(updatedVertex[0], updatedVertex[1], updatedVertex[2], matrixID);
+
+	// Normals
+	float normalMatrix[16];
+
+	for(int i=0; i<16; i++)
+		normalMatrix[i] = normalMatricesArray[matrixID * 16 + i];
+
+	float4 normal = tex1Dfetch(triangleNormalsTexture, x);
+
+	float updatedNormal[4];
+
+	for(int i=0; i<4; i++) {
+
+		updatedNormal[i] = 0.0f;
+		updatedNormal[i] += normalMatrix[i * 4 + 0] * normal.x;
+		updatedNormal[i] += normalMatrix[i * 4 + 1] * normal.y;
+		updatedNormal[i] += normalMatrix[i * 4 + 2] * normal.z;
+		updatedNormal[i] += normalMatrix[i * 4 + 3] * normal.w;
+	}
+
+	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
+}
+
 // Implementation of Whitteds Ray-Tracing Algorithm
 __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 								// Screen Dimensions
@@ -538,18 +538,10 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;		
 
+	// add aliasing increasing the kernel width and height only no need to alter textures
+
 	if(x >= width || y >= height)
 		return;
-
-	// add aliasing increasing the kernel width and height only no need to alter textures
-	// ray indexing
-	// ray compression
-	// ray sorting
-	// ray decompression
-
-	// structure creation (bottom and then N-level)
-
-	// structure traversal
 
 	// Ray Creation
 	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
@@ -562,10 +554,10 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 		// Calculate the +Primary Ray Shadows
 		float3 primaryColor = PrimaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal);
 		// Calculate the Primary Ray Bounces
-		float3 secondaryColor = SecondaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal, depth, refractionIndex);
+		//float3 secondaryColor = SecondaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal, depth, refractionIndex);
 			
 		// Calculate the Final Color
-		float3 finalColor = primaryColor + secondaryColor;
+		float3 finalColor = primaryColor;// + secondaryColor;
 		
 		// Update the Pixel Buffer
 		pixelBufferObject[y * width + x] = rgbToInt(finalColor.x * 255, finalColor.y * 255, finalColor.z * 255);
@@ -579,7 +571,7 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 extern "C" {
 
-	void RayTraceWrapper(	unsigned int *pixelBufferObject,
+void RayTraceWrapper(	unsigned int *pixelBufferObject,
 							// Screen Dimensions
 							int width, int height, 			
 							// Updated Normal Matrices Array
@@ -603,6 +595,54 @@ extern "C" {
 
 		MultiplyVertex<<<multiplicationBlock, multiplicationGrid>>>(modelMatricesArray, normalMatricesArray, trianglePositionsArray, triangleNormalsArray, triangleTotal * 3);
 
+		// Ray Indexing		
+			//
+			// Use Directional Indexing first (24 bits)
+			// Use Positional Indexing second (8 bits)
+			//
+			// Output
+			//		Ray index Array
+
+		// Ray Compression - Compress Rays with the same index into chunks 
+			//
+			// Create the Head Flags Array (Initialized with 0)
+			//		Head: (ray[i] != ray[i-1] => head[i] = 1 : head[i] = 0)
+			//
+			// Exclusive Scan on the Head Array (Initialized with 0)
+			//		Scan: Sum of the Head Array
+			//
+			// Create the Chucks and Size Array (Initialized with 0 and 0)
+			//		Base: (head[i] != head[i+1] => base[i] = i) 
+			//		Size: (size[i] = base[i+1] - base[i])
+			// 
+			// Output 
+			//		Base Array with the starting index of the chunk 
+			//		Size Array with the size of the chunk
+
+		// Ray Sorting - Radix Sort the Base Array and the Size Array
+			//
+			// Radix Sort on the Base Array
+			//
+			// Size Array doesn't have to be sorted, just needs to follow the sorting of the Base Array
+
+		// Ray Decompression - Decompress Rays from the sorted chunks
+			//
+			// Exclusive Scan on the sorted Size Array
+			//		Scan: Sum of the sorted Size Array
+			//
+			// Create the Skeleton and Head Flags Array (Initialized with 1 and 0)
+			//		Skeleton: skeleton[i] = base[scan[i]]
+			//		Head: head[i] = (skeleton[i] != 0)
+			//
+			// Inclusive Segmented Scan on the Skeleton and Head Arrays
+			//
+			// Output 
+			//		Sorted ray index Array
+
+		// Structure Creation (bottom and then N-level)
+
+		// Structure Traversal
+
 		// Ray-Casting
 		dim3 rayCastingBlock(32,32);
 		dim3 rayCastingGrid(width/rayCastingBlock.x + 1,height/rayCastingBlock.y + 1);
@@ -613,7 +653,8 @@ extern "C" {
 															triangleNormalsArray,
 															triangleTotal,
 															lightTotal,
-															initialDepth, initialRefractionIndex,
+															depth, 
+															refractionIndex,
 															cameraPosition);
 	}
 
