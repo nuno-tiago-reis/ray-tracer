@@ -90,8 +90,9 @@ PixelBuffer *pixelBuffer;
 // Screens Textures Wrapper
 ScreenTexture *screenTexture;
 
-// Secondary Rays per Pixel
-int raysPerPixel = 7;
+// Secondary Rays per Pixel (9 Shadow Rays per Light Source, 1 Reflection Ray, 1 Refraction Ray)
+int lightSourceMaximum = 10;
+int raysPerPixel = lightSourceMaximum + 2;
 
 // Total number of Triangles - Used for the memory necessary to allocate
 int triangleTotal = 0;
@@ -127,20 +128,76 @@ float* cudaUpdatedModelMatricesDP = NULL;
 float* cudaUpdatedNormalMatricesDP = NULL;
 
 // CUDA DevicePointers to the Sorting Auxiliary Arrays
-int* cudaRayIndexArrayDP = NULL;
-int* cudaSortedRayIndexArrayDP = NULL;
+float3* cudaRayArrayDP = NULL;
+
+int2* cudaRayIndexArrayDP = NULL;
+int2* cudaSortedRayIndexArrayDP = NULL;
 
 int* cudaHeadFlagsArrayDP = NULL;
 int* cudaSkeletonArrayDP = NULL;
 int* cudaScanArrayDP = NULL;
 
-int* cudaChunkBaseArrayDP = NULL;
-int* cudaChunkSizeArrayDP = NULL;
-int* cudaSortedChunkBaseArrayDP = NULL;
-int* cudaSortedChunkSizeArrayDP = NULL;
+int2* cudaChunkArrayDP = NULL;
+int2* cudaSortedChunkArrayDP = NULL;
 
 // [CUDA-OpenGL Interop] 
 extern "C" {
+	
+	// Implementation of RayCreationWrapper is in the "RayTracer.cu" file
+	void RayCreationWrapper(
+							// Input Array containing the unsorted Rays
+							float3* rayArray,
+							// Screen Dimensions
+							int windowWidth, int windowHeight,
+							// Total number of Light Sources in the Scene
+							int lightTotal,
+							// Cameras Position in the Scene
+							float3 cameraPosition,
+							// Output Array containing the unsorted Ray Indices
+							int2* rayIndicesArray);
+	
+	// Implementation of RayCompressionWrapper is in the "RayTracer.cu" file
+	void RayCompressionWrapper(	
+							// Input Array containing the unsorted Ray Indices
+							int2* rayIndicesArray,
+							// Auxiliary Array containing the head flags result
+							int* headFlagsArray, 
+							// Auxiliary Array containing the exclusing scan result
+							int* scanArray, 
+							// Output Array containing the unsorted Ray Chunks
+							int2* chunkArray);
+	
+	// Implementation of RaySortingWrapper is in the "RayTracer.cu" file
+	void RaySortingWrapper(	
+							// Input Array containing the unsorted Ray Chunks
+							int2* chunkArray, 
+							// Output Array containing the sorted Ray Chunks
+							int2* sortedChunkArray);
+	
+	// Implementation of RayDecompressionWrapper is in the "RayTracer.cu" file
+	void RayDecompressionWrapper(	
+							// Input Array containing the sorted Ray Chunks
+							int2* sortedChunkArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays head flags 
+							int* headFlagsArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							int* skeletonArray,
+							// Auxiliary Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Output Array containing the sorted Ray Indices
+							int2* sortedRayIndicesArray);
+	
+	// Implementation of TriangleUpdateWrapper is in the "RayTracer.cu" file
+	void TriangleUpdateWrapper(	// Array containing the updated Model Matrices
+								float* modelMatricesArray,
+								// Array containing the updated Normal Matrices
+								float* normalMatricesArray,
+								// Array containing the updated Triangle Positions
+								float4* trianglePositionsArray,
+								// Array containing the updated Triangle Normals
+								float4* triangleNormalsArray,
+								// Total Number of Triangles in the Scene
+								int triangleTotal);
 	
 	// Implementation of RayTraceWrapper is in the "RayTracer.cu" file
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
@@ -150,28 +207,18 @@ extern "C" {
 							float* modelMatricesArray,
 							// Updated Normal Matrices Array
 							float* normalMatricesArray,
-							// Updated Triangle Positions Array
-							float4* trianglePositionArray,
-							// Updated Triangle Normals Array
-							float4* triangleNormalArray,
+							// Updated Triangle Position Array
+							float4* trianglePositionsArray,
+							// Updated Triangle Position Array
+							float4* triangleNormalsArray,
+							// Input Array containing the unsorted Rays
+							float3* rayArray,
 							// Total Number of Triangles in the Scene
 							int triangleTotal,
 							// Total Number of Lights in the Scene
 							int lightTotal,
 							// Camera Definitions
 							float3 cameraPosition);
-	
-	// Implementation of MultiplyVertex is in the "RayTracer.cu" file
-	void MultiplyVertex(// Updated Normal Matrices Array
-						float* modelMatricesArray,
-						// Updated Normal Matrices Array
-						float* normalMatricesArray,
-						// Updated Triangle Positions Array
-						float4* trianglePositionsArray,
-						// Updated Triangle Normals Array
-						float4* triangleNormalsArray,
-						// Total Number of Vertices in the Scene
-						int vertexTotal);
 
 	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
 	void bindDiffuseTextureArray(cudaArray *diffuseTextureArray);
@@ -304,7 +351,7 @@ void display() {
 	unsigned int* pixelBufferDevicePointer = pixelBuffer->getDevicePointer();
 
 	// Get the Camera Positions 
-	Vector position = sceneManager->getActiveCamera()->getEye();
+	Vector cameraPosition = sceneManager->getActiveCamera()->getEye();
 
 	// Get the Updated Model and Normal Matrices
 	map<string, Object*> objectMap = sceneManager->getObjectMap();
@@ -326,85 +373,54 @@ void display() {
 		normalMatrix.transpose();
 		normalMatrix.invert();
 		normalMatrix.getValue(&normalMatrices[object->getID() * 16]);
-
-		/*map<int, Vertex*> vertexMap = object->getMesh()->getVertexMap();
-
-		printf("\nFirst List (%s) (%d)\n\n", object->getName().c_str(), vertexMap.size());
-
-		for(map<int, Vertex*>::const_iterator vertexIterator = vertexMap.begin(); vertexIterator != vertexMap.end(); vertexIterator++) {
-
-			// Get the vertex from the mesh 
-			Vertex* vertex = vertexIterator->second;
-
-			// Position: Multiply the original vertex using the objects model matrix
-			Vector originalPosition = vertex->getPosition();
-			Vector modifiedPosition = modelMatrix * originalPosition;
-			
-			printf("1 Vertex[%d] = [%.2f] [%.2f] [%.2f]\n", vertexIterator->first, modifiedPosition[VX], modifiedPosition[VY], modifiedPosition[VZ]);
-
-			// Normal: Multiply the original normal using the objects inverted transposed model matrix	
-			Vector originalNormal = vertex->getNormal();
-			Vector modifiedNormal = normalMatrix * originalNormal;
-			modifiedNormal.normalize();
-			
-			printf("1 Normal[%d] = [%.2f] [%.2f] [%.2f]\n", vertexIterator->first, modifiedNormal[VX], modifiedNormal[VY], modifiedNormal[VZ]);
-		}*/
 	}
 
 	// Copy the Matrices to CUDA	
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedModelMatricesDP, &modelMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedNormalMatricesDP, &normalMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-	// Kernel Launch
-	RayTraceWrapper(
-		pixelBufferDevicePointer,
-		windowWidth, windowHeight,
-		cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP,
-		cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP,
-		triangleTotal,
-		lightTotal,
-		make_float3(position[VX], position[VY], position[VZ]));
+	// Kernel Launches
 
-	/*float* models = new float[objectMap.size() * 16];
-	float* normals = new float[objectMap.size() * 16];
+		// Create the Rays and Index them
+		RayCreationWrapper(cudaRayArrayDP, windowWidth, windowHeight, lightTotal, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]), cudaRayIndexArrayDP);
+
+		// Compress the Ray Indices into Chunks
+		RayCompressionWrapper(cudaRayIndexArrayDP, cudaHeadFlagsArrayDP, cudaScanArrayDP, cudaChunkArrayDP);
+		// Sort the Chunks
+		RaySortingWrapper(cudaChunkArrayDP, cudaSortedChunkArrayDP);
+		// Decompress the Chunks into the Ray Indices
+		RayDecompressionWrapper(cudaSortedChunkArrayDP, cudaHeadFlagsArrayDP, cudaSkeletonArrayDP, cudaScanArrayDP, cudaSortedRayIndexArrayDP);
+
+		// Update the Triangle Positions and Normals
+		TriangleUpdateWrapper(cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP, cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP, triangleTotal);
+
+		// Draw
+		RayTraceWrapper(
+			pixelBufferDevicePointer,
+			windowWidth, windowHeight,
+			cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP,
+			cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP,
+			cudaRayArrayDP,
+			triangleTotal,
+			lightTotal,
+			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));
+
+	// Kernel Launches
+
+	exit(0);
+
+	/*float3* rayDirections = new float3[windowWidth * windowHeight * raysPerPixel];
 	
 	// Copy the Matrices to CUDA	
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&models[0], cudaUpdatedModelMatricesDP, objectMap.size() * 16 * sizeof(float), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&normals[0], cudaUpdatedNormalMatricesDP, objectMap.size() * 16 * sizeof(float), cudaMemcpyDeviceToHost));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayDirections[0], cudaRayArrayDP, windowWidth * windowHeight * raysPerPixel * sizeof(float3), cudaMemcpyDeviceToHost));
 
-	printf("\nSecond Matrices List (%d)\n\n", objectMap.size());
+	printf("\nRay List (%d)\n\n", windowWidth * windowHeight * raysPerPixel);
 
-	for(int i=0; i<objectMap.size(); i++) {
-		
-		int offset = i*16;
+	for(int i=0; i<windowWidth * windowHeight * raysPerPixel; i++) {
 
-		printf("Model Matrix\n");
-		for(int j=0; j<4; j++)
-			printf("[%.2f][%.2f][%.2f][%.2f]\n", models[offset + j * 4],  models[offset + j * 4 + 1],  models[offset + j * 4 + 2],  models[offset + j * 4 + 3]);
+		float3 direction = rayDirections[i];
 	
-		printf("Normal Matrix\n");
-		for(int j=0; j<4; j++)
-			printf("[%.2f][%.2f][%.2f][%.2f]\n", normals[offset + j * 4],  normals[offset + j * 4 + 1],  normals[offset + j * 4 + 2],  normals[offset + j * 4 + 3]);
-	}*/
-
-	/*float4* trianglePositions = new float4[triangleTotal * 3];
-	float4* triangleNormals = new float4[triangleTotal * 3];
-	
-	// Copy the Matrices to CUDA	
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trianglePositions[0], cudaUpdatedTrianglePositionsDP, triangleTotal * 3 * sizeof(float4), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&triangleNormals[0], cudaUpdatedTriangleNormalsDP, triangleTotal * 3 * sizeof(float4), cudaMemcpyDeviceToHost));
-
-	printf("\nSecond Vertices List (%d)\n\n", triangleTotal*3);
-
-	for(int i=0; i<triangleTotal*3; i++) {
-
-		float4 position = trianglePositions[i];
-	
-		printf("2 Vertex[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, position.x, position.y, position.z, position.w);
-
-		float4 normal = triangleNormals[i];
-	
-		printf("2 Normal[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, normal.x, normal.y, normal.z, normal.w);
+		printf("Direction[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, direction.x, direction.y, direction.z);
 	}*/
 		
 	// Unmap the used CUDA Resources
@@ -491,23 +507,23 @@ void reshape(int weight, int height) {
 	screenTexture->createTexture();
 
 	// Update the Array Size 
-	int arraySize = windowWidth * windowHeight * raysPerPixel * sizeof(int);
+	int arraySize = windowWidth * windowHeight * raysPerPixel;
 	
+	// Update the CUDA Ray Array
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3)));
+
 	// Update the CUDA Ray and Sorted Ray Index Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize * sizeof(int2)));
 
 	// Update the CUDA Head Flags, Skeleton and Scan Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize * sizeof(int)));
 
 	// Update the CUDA Chunks Base and Size Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBaseArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizeArrayDP, arraySize));
-	// Update the CUDA Sorted Chunks Base and Size Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkBaseArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkSizeArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkArrayDP, arraySize * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkArrayDP, arraySize * sizeof(int2)));
 
 	cout << "[Callback] Reshape Successfull" << endl;
 }
@@ -725,23 +741,23 @@ void initializeCUDAmemory() {
 	screenTexture->createTexture();
 
 	// Calculate the Array Size 
-	int arraySize = windowWidth * windowHeight * raysPerPixel * sizeof(int);
+	int arraySize = windowWidth * windowHeight * raysPerPixel;
+	
+	// Create the CUDA Ray Array
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3)));
 	
 	// Create the CUDA Ray and Sorted Ray Index Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize));
-
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize * sizeof(int2)));
+	
 	// Create the CUDA Head Flags, Skeleton and Scan Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize));
-
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize * sizeof(int)));
+	
 	// Create the CUDA Chunks Base and Size Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBaseArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizeArrayDP, arraySize));
-	// Create the CUDA Sorted Chunks Base and Size Arrays
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkBaseArrayDP, arraySize));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkSizeArrayDP, arraySize));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkArrayDP, arraySize * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedChunkArrayDP, arraySize * sizeof(int2)));
 
 	cout << "[Initialization] CUDA Memory Initialization Successfull" << endl << endl;
 }
@@ -1194,7 +1210,7 @@ void init(int argc, char* argv[]) {
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleObjectIDsDP, triangleObjectIDListSize));
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleObjectIDsDP, &triangleObjectIDList[0], triangleObjectIDListSize, cudaMemcpyHostToDevice));
 
-		bindTriangleMaterialIDs(cudaTriangleObjectIDsDP, triangleTotal);
+		bindTriangleObjectIDs(cudaTriangleObjectIDsDP, triangleTotal);
 
 		// Load the Triangle Material IDs
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleMaterialIDsDP, triangleMaterialIDListSize));
@@ -1202,20 +1218,12 @@ void init(int argc, char* argv[]) {
 
 		bindTriangleMaterialIDs(cudaTriangleMaterialIDsDP, triangleTotal);
 
-		// Allocate array and copy image data
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleObjectIDsDP, triangleObjectIDListSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleObjectIDsDP, &triangleObjectIDList[0], triangleObjectIDListSize, cudaMemcpyHostToDevice));
-		
-		bindTriangleObjectIDs(cudaTriangleObjectIDsDP, triangleTotal);
-
-		// Triangle Positions Memory Allocation
+		// Triangle Positions and Normals Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedTrianglePositionsDP, triangleTotal * sizeof(float4) * 3));
-		// Triangle Normals Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedTriangleNormalsDP, triangleTotal * sizeof(float4) * 3));
 
-		// Model Matrices Memory Allocation
+		// Model and Normal Matrices Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedModelMatricesDP, objectMap.size() * sizeof(float) * 16));
-		// Normal Matrices Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedNormalMatricesDP, objectMap.size() * sizeof(float) * 16));
 	}
 

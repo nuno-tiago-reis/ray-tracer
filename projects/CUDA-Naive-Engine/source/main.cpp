@@ -749,21 +749,6 @@ void initializeLights() {
 	// Light Map
 	map<int, Light*> lightMap;
 
-	// Light Source 0
-	DirectionalLight* directionalLight0 = new DirectionalLight(DIRECTIONAL_LIGHT_0);
-
-	directionalLight0->setIdentifier(LIGHT_SOURCE_0);
-
-	directionalLight0->setDirection(Vector(0.0f, 1.0f, 0.0f, 1.0f));
-	directionalLight0->setColor(Vector(0.0f, 0.0f, 1.0f, 1.0f));
-
-	directionalLight0->setAmbientIntensity(0.05f);
-	directionalLight0->setDiffuseIntensity(1.0f);
-	directionalLight0->setSpecularIntensity(1.0f);
-
-	//lightMap[directionalLight0->getIdentifier()] = directionalLight0;
-	//sceneManager->addLight(directionalLight0);
-
 	// Light Source 1
 	PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
 
@@ -1146,7 +1131,7 @@ void init(int argc, char* argv[]) {
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleObjectIDsDP, triangleObjectIDListSize));
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleObjectIDsDP, &triangleObjectIDList[0], triangleObjectIDListSize, cudaMemcpyHostToDevice));
 
-		bindTriangleMaterialIDs(cudaTriangleObjectIDsDP, triangleTotal);
+		bindTriangleObjectIDs(cudaTriangleObjectIDsDP, triangleTotal);
 
 		// Load the Triangle Material IDs
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleMaterialIDsDP, triangleMaterialIDListSize));
@@ -1154,20 +1139,12 @@ void init(int argc, char* argv[]) {
 
 		bindTriangleMaterialIDs(cudaTriangleMaterialIDsDP, triangleTotal);
 
-		// Allocate array and copy image data
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTriangleObjectIDsDP, triangleObjectIDListSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaTriangleObjectIDsDP, &triangleObjectIDList[0], triangleObjectIDListSize, cudaMemcpyHostToDevice));
-		
-		bindTriangleObjectIDs(cudaTriangleObjectIDsDP, triangleTotal);
-
-		// Triangle Positions Memory Allocation
+		// Triangle Positions and Normals Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedTrianglePositionsDP, triangleTotal * sizeof(float4) * 3));
-		// Triangle Normals Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedTriangleNormalsDP, triangleTotal * sizeof(float4) * 3));
 
-		// Model Matrices Memory Allocation
+		// Model and Normal Matrices Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedModelMatricesDP, objectMap.size() * sizeof(float) * 16));
-		// Normal Matrices Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedNormalMatricesDP, objectMap.size() * sizeof(float) * 16));
 	}
 

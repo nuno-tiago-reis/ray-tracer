@@ -14,23 +14,36 @@
 #include <stdio.h>
 // Utility Includes
 #include "Utility.h"
+#include "Constants.h"
 
 // Secondary Ray Depth
-const int depth = 0;
+static const int depth = 0;
 // Air Refraction Index
-const float refractionIndex = 1.0f;
+static const float refractionIndex = 1.0f;
 
 // Ray testing Constant
-__device__ const float epsilon = 0.01f;
+static const float epsilon = 0.01f;
 
-// Shadow Grid Dimensions and pre-calculated Values
-__device__ const int shadowGridWidth = 3;
-__device__ const int shadowGridHeight = 3;
-__device__ const int shadowGridHalfWidth = 1;
-__device__ const int shadowGridHalfHeight = 1;
+// Light Maximum Amount
+static const int lightSourceMaximum = 10;
+static const int raysPerPixel = 12;
 
-__device__ const float shadowGridDimensionInverse = 1.0f/9.0f;
-__device__ const float shadowCellSize = 0.2f;
+// Ray indexing Constants
+__constant__ __device__ static const unsigned int bit_mask_1_4 = 15;
+__constant__ __device__ static const unsigned int bit_mask_1_5 = 31;
+__constant__ __device__ static const unsigned int bit_mask_1_9 = 511;
+
+__constant__ __device__ static const unsigned int half_bit_mask_1_4 = 7;
+__constant__ __device__ static const unsigned int half_bit_mask_1_5 = 15;
+__constant__ __device__ static const unsigned int half_bit_mask_1_9 = 255;
+
+__constant__ __device__ static const float bit_mask_1_4_f = 15.0f;
+__constant__ __device__ static const float bit_mask_1_5_f = 31.0f;
+__constant__ __device__ static const float bit_mask_1_9_f = 511.0f;
+
+__constant__ __device__ static const float half_bit_mask_1_4_f = 7.0f;
+__constant__ __device__ static const float half_bit_mask_1_5_f = 15.0f;
+__constant__ __device__ static const float half_bit_mask_1_9_f = 255.0f;
 
 // OpenGL Diffuse and Specular Textures
 texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
@@ -128,6 +141,46 @@ __device__ int rgbToInt(float red, float green, float blue) {
 	return (int(red)) | (int(green)<<8) | (int(blue)<<16); // notice switch red and blue to counter the GL_BGRA
 }
 
+// Converts a Direction Vector to Spherical Coordinates
+__device__ float2 vectorToSpherical(float3 direction) {
+
+	float azimuth = atan(direction.y / direction.x) * 2.0f;
+	float polar = acos(direction.z);
+
+	return make_float2(azimuth,polar);
+}
+
+// Converts Spherical Coordinates to a Direction Vector
+__device__ float3 sphericalToVector(float2 spherical) {
+
+	float x = cos(spherical.x) * sin(spherical.y);
+	float y = sin(spherical.x) * sin(spherical.y);
+	float z = cos(spherical.y);
+
+	return make_float3(x,y,z);
+}
+
+// Converts a ray to an integer hash value
+__device__ int rayToIndex(float3 origin, float3 direction) {
+
+	// 32 bits
+	//	- 14 bits for the origin (4 for x, 5 for y and 5 for z)
+	//  - 18 bits for the direction (10 for longitude, 10 for latitude)
+	int index = 0;
+
+	// Convert the Direction to Spherical Coordinates
+	index = (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
+	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
+
+	// Clamp the Origin to the 0-15 range
+	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f , 0.0f, bit_mask_1_4_f);
+	index = (index << 5) | (unsigned int)clamp(origin.y + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+	index = (index << 5) | (unsigned int)clamp(origin.z + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+
+	return index;
+}
+
+
 // Ray - BoundingBox Intersection Code
 __device__ int RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, const float3 &RayOrigin, const float3 &RayDirectionInverse, float &tmin, float &tmax) {
 
@@ -173,285 +226,7 @@ __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, 
 	return dot(edge2, qvec) * determinant;  
 }  
 
-// Casts a Ray and tests for intersections with the scenes geometry
-__device__ float3 PrimaryRayCast(
-							Ray ray,
-							// Updated Triangle Position Array
-							float4* trianglePositionsArray,
-							// Updated Triangle Position Array
-							float4* triangleNormalsArray,
-							// Total Number of Triangles in the Scene
-							const int triangleTotal,
-							// Total Number of Lights in the Scene
-							const int lightTotal) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;		
-
-	// Fragment Color
-	float3 fragmentColor = make_float3(0.0f);
-
-	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
-	float3 fragmentPosition = ray.origin;
-	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
-
-	// Triangle Material Properties
-	float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
-	float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
-
-	for(int l = 0; l < lightTotal; l++) {
-
-		float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
-
-		// Light Direction and Distance
-		float3 lightDirection = lightPosition - fragmentPosition;
-
-		float lightDistance = length(lightDirection);
-		lightDirection = normalize(lightDirection);
-
-		// Diffuse Factor
-		float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
-		clamp(diffuseFactor, 0.0f, 1.0f);
-
-		if(diffuseFactor > 0.0f) {
-
-			bool shadow = false;
-
-			Ray shadowRay(fragmentPosition + lightDirection * epsilon, lightDirection);
-			
-			// Test Shadow Rays for each Triangle
-			for(int k = 0; k < triangleTotal; k++) {
-
-				float4 v0 = trianglePositionsArray[k * 3];
-				float4 e1 = trianglePositionsArray[k * 3 + 1];
-				e1 = e1 - v0;
-				float4 e2 = trianglePositionsArray[k * 3 + 2];
-				e2 = e2 - v0;
-
-				float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-
-				if(hitTime > epsilon) {
-
-					shadow = true;
-					break;
-				}
-			}
-
-			if(shadow == false) {
-
-				// Blinn-Phong approximation Halfway Vector
-				float3 halfwayVector = lightDirection - ray.direction;
-				halfwayVector = normalize(halfwayVector);
-
-				// Light Color
-				float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
-				// Light Intensity (x = diffuse, y = specular)
-				float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
-				// Light Attenuation (x = constant, y = linear, z = exponential)
-				float3 lightAttenuation = make_float3(0.0f, 0.0f, 0.0f);
-
-				float attenuation = 1.0f / (1.0f + lightAttenuation.x + lightDistance * lightAttenuation.y + lightDistance * lightDistance * lightAttenuation.z);
-
-				// Diffuse Component
-				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
-
-				// Specular Factor
-				float specularFactor = powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w);
-				clamp(specularFactor, 0.0f, 1.0f);
-
-				// Specular Component
-				if(specularFactor > 0.0f)
-					fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
-			}
-		}
-	}
-
-	return fragmentColor;
-}
-
-// Casts a Ray and tests for intersections with the scenes geometry
-__device__ float3 SecondaryRayCast(	
-							Ray ray, 
-							// Updated Triangle Position Array
-							float4* trianglePositionsArray,
-							// Updated Triangle Position Array
-							float4* triangleNormalsArray,
-							// Total Number of Triangles in the Scene
-							const int triangleTotal,
-							// Total Number of Lights in the Scene
-							const int lightTotal,
-							// Ray Bounce Depth
-							const int depth,
-							// Medium Refraction Index
-							const float refractionIndex) {
-
-	// Hit Record used to store Ray-Triangle Hit information - Initialized with Background Colour
-	HitRecord hitRecord(make_float3(0.0f,0.0f,0.0f));
-
-	// Search through the triangles and find the nearest hit point
-	for(int i = 0; i < triangleTotal; i++) {
-
-		float4 v0 = trianglePositionsArray[i * 3];
-		float4 e1 = trianglePositionsArray[i * 3 + 1];
-		e1 = e1 - v0;
-		float4 e2 = trianglePositionsArray[i * 3 + 2];
-		e2 = e2 - v0;
-
-		float hitTime = RayTriangleIntersection(ray, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-
-		if(hitTime < hitRecord.time && hitTime > epsilon) {
-
-			hitRecord.time = hitTime;
-			hitRecord.triangleIndex = i;
-		}
-	}
-
-	// If any Triangle was intersected
-	if(hitRecord.triangleIndex >= 0) {
-
-		// Illumination
-
-		// Initialize the hit Color
-		hitRecord.color = make_float3(0.0f, 0.0f, 0.0f);
-		// Calculate the hit Triangle point
-		hitRecord.point = ray.origin + ray.direction * hitRecord.time;
-			
-		// Fetch the hit Triangles vertices
-		float4 v0 = trianglePositionsArray[hitRecord.triangleIndex * 3];
-		float4 v1 = trianglePositionsArray[hitRecord.triangleIndex * 3 + 1];
-		float4 v2 = trianglePositionsArray[hitRecord.triangleIndex * 3 + 2];
-
-		// Fetch the hit Triangles normals
-		float4 n0 = triangleNormalsArray[hitRecord.triangleIndex * 3];
-		float4 n1 = triangleNormalsArray[hitRecord.triangleIndex * 3 + 1];
-		float4 n2 = triangleNormalsArray[hitRecord.triangleIndex * 3 + 2];
-
-		// Normal calculation using Barycentric Interpolation
-		float areaABC = length(cross(make_float3(v1) - make_float3(v0), make_float3(v2) - make_float3(v0)));
-		float areaPBC = length(cross(make_float3(v1) - hitRecord.point, make_float3(v2) - hitRecord.point));
-		float areaPCA = length(cross(make_float3(v0) - hitRecord.point, make_float3(v2) - hitRecord.point));
-
-		hitRecord.normal = (areaPBC / areaABC) * make_float3(n0) + (areaPCA / areaABC) * make_float3(n1) + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(n2);
-
-		// Triangle Material Identifier
-		int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hitRecord.triangleIndex * 3);
-
-		// Triangle Material Properties
-		float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
-		float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
-
-		float specularConstant = specularColor.w;
-		float refractionConstant = diffuseColor.w;
-
-		for(int l = 0; l < lightTotal; l++) {
-
-			float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
-
-			// Light Direction and Distance
-			float3 lightDirection = lightPosition - hitRecord.point;
-
-			float lightDistance = length(lightDirection);
-			lightDirection = normalize(lightDirection);
-
-			// Diffuse Factor
-			float diffuseFactor = max(dot(lightDirection, hitRecord.normal), 0.0f);
-			clamp(diffuseFactor, 0.0f, 1.0f);
-
-			if(diffuseFactor > 0.0f) {
-
-				bool shadow = false;
-
-				Ray shadowRay(hitRecord.point + lightDirection * epsilon, lightDirection);
-			
-				// Test Shadow Rays for each Triangle
-				for(int k = 0; k < triangleTotal; k++) {
-
-					float4 v0 = trianglePositionsArray[k * 3];
-					float4 e1 = trianglePositionsArray[k * 3 + 1];
-					e1 = e1 - v0;
-					float4 e2 = trianglePositionsArray[k * 3 + 2];
-					e2 = e2 - v0;
-
-					float hitTime = RayTriangleIntersection(shadowRay, make_float3(v0.x,v0.y,v0.z), make_float3(e1.x,e1.y,e1.z), make_float3(e2.x,e2.y,e2.z));
-
-					if(hitTime < hitRecord.time && hitTime > epsilon) {
-
-						shadow = true;
-						break;
-					}
-				}
-
-				if(shadow == false) {
-
-					// Blinn-Phong approximation Halfway Vector
-					float3 halfwayVector = lightDirection - ray.direction;
-					halfwayVector = normalize(halfwayVector);
-
-					// Light Color
-					float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
-					// Light Intensity (x = diffuse, y = specular)
-					float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
-					// Light Attenuation (x = constant, y = linear, z = exponential)
-					float3 lightAttenuation = make_float3(0.0f, 0.0f, 0.0f);
-
-					float attenuation = 1.0f / (1.0f + lightAttenuation.x + lightDistance * lightAttenuation.y + lightDistance * lightDistance * lightAttenuation.z);
-
-					// Diffuse Component
-					hitRecord.color += make_float3(diffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
-
-					// Specular Factor
-					float specularFactor = powf(max(dot(halfwayVector, hitRecord.normal), 0.0f), specularConstant);
-					clamp(specularFactor, 0.0f, 1.0f);
-
-					// Specular Component
-					if(specularFactor > 0.0f)
-						hitRecord.color += make_float3(specularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
-				}
-			}
-		}
-
-		// Ray Bounces
-		if(depth > 0) {
-
-			// If the Object Hit is reflective
-			if(specularConstant > 0.0f) {
-
-				// Calculate the Reflected Rays Direction
-				float3 reflectedDirection = reflect(ray.direction, hitRecord.normal);
-
-				// Cast the Reflected Ray
-				hitRecord.color = 
-					SecondaryRayCast(
-						Ray(hitRecord.point + reflectedDirection * epsilon, reflectedDirection), 
-						trianglePositionsArray,
-						triangleNormalsArray, 
-						triangleTotal, lightTotal, depth-1, refractionIndex) * 0.50f;
-			}
-
-			// If the Object Hit is translucid
-			/*if(refractionConstant > 0.0f) {
-
-				float newRefractionIndex;
-
-				if(refractionIndex == 1.0f)
-					newRefractionIndex = 1.50f;
-				else
-					newRefractionIndex = 1.0f;
-
-				// Calculate the Refracted Rays Direction
-				float3 refractedDirection = refract(ray.direction, hitRecord.normal, refractionIndex / newRefractionIndex);
-
-				// Cast the Refracted Ray
-				if(length(refractedDirection) > 0.0f && hitRecord.sphereIndex > 0)
-					hitRecord.color += SecondaryRayCast(Ray(hitRecord.point + refractedDirection * epsilon, refractedDirection), triangleTotal, lightTotal, depth-1, newRefractionIndex) * 0.50f;
-			}*/
-		}
-	}
-
-	return hitRecord.color;
-}
-
-// Implementation of Matrix Multiplication
+// Implementation of the Matrix Multiplication
 __global__ void MultiplyVertex(
 							// Updated Normal Matrices Array
 							float* modelMatricesArray,
@@ -515,6 +290,177 @@ __global__ void MultiplyVertex(
 	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
 }
 
+// Implementation of the Ray Creation and Indexing
+__global__ void RayCreation(// Input Array containing the unsorted Rays
+							float3* rayArray,
+							// Screen Dimensions
+							int windowWidth, int windowHeight,
+							// Total number of Light Sources in the Scene
+							int lightTotal,
+							// Cameras Position in the Scene
+							float3 cameraPosition,
+							// Output Array containing the unsorted Ray Indices
+							int2* rayIndicesArray) {
+
+	// Ray Indexing		
+	//
+	// Use Directional Indexing first (24 bits)
+	// Use Positional Indexing second (8 bits)
+	//
+	// Output
+	//		Ray index Array	
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	int rayArrayBase = x * raysPerPixel + y * windowWidth * raysPerPixel;
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	// Ray Origin Creation
+	float3 rayOrigin = fragmentPosition;
+
+	if(length(rayOrigin) != 0.0f) {
+		
+		// Ray Direction Creation
+		float3 rayReflectionDirection = reflect(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal));
+		float3 rayRefractionDirection = refract(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal), 1.0f / 1.52f);
+
+		// Create the Reflection Ray and store its direction
+		rayArray[rayArrayBase] = rayReflectionDirection;
+		rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(rayOrigin, rayReflectionDirection), rayArrayBase);
+		rayArrayBase++;
+
+		// Create the Refraction Ray and store its direction
+		rayArray[rayArrayBase] = rayRefractionDirection;
+		rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(rayOrigin, rayRefractionDirection), rayArrayBase);
+		rayArrayBase++;
+
+		for(int l = 0; l < lightSourceMaximum; l++) {
+
+			if(l < lightTotal) {
+
+				// Fetch the Light Position
+				float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
+				// Calculate the Light Direction
+				float3 lightDirection = normalize(lightPosition - fragmentPosition);
+
+				// Diffuse Factor
+				float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
+				clamp(diffuseFactor, 0.0f, 1.0f);
+				
+				if(diffuseFactor >
+					0.0f) {
+					
+					// Create the Shadow Ray and store its direction
+					rayArray[rayArrayBase] = lightDirection;
+					rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(lightPosition, lightDirection), rayArrayBase);
+					rayArrayBase++;
+				}
+			}
+			else {
+				
+				// Clean the Shadow Ray storage
+				rayArray[rayArrayBase] = make_float3(0.0f);
+				rayIndicesArray[rayArrayBase] = make_int2(0);
+				rayArrayBase++;
+			}
+		}
+	}
+	else {
+	
+		// Clean the Reflection Ray storage
+		rayArray[rayArrayBase] = make_float3(0.0f);
+		rayIndicesArray[rayArrayBase] = make_int2(0);
+		rayArrayBase++;
+
+		// Clean the Refraction Ray storage
+		rayArray[rayArrayBase] = make_float3(0.0f);
+		rayIndicesArray[rayArrayBase] = make_int2(0);
+		rayArrayBase++;
+
+		// Clean the Shadow Ray storage
+		rayArray[rayArrayBase] = make_float3(0.0f);
+		rayIndicesArray[rayArrayBase] = make_int2(0);
+		rayArrayBase++;
+	}
+}
+
+// Implementation of the Ray Compression
+__global__ void RayCompression(	
+							// Input Array containing the unsorted Ray Indices
+							int2* rayIndicesArray,
+							// Auxiliary Array containing the head flags result
+							int* headFlagsArray, 
+							// Auxiliary Array containing the exclusing scan result
+							int* scanArray, 
+							// Output Array containing the unsorted Ray Chunks
+							int2* chunkArray) {
+
+	// Ray Compression - Compress Rays with the same index into chunks 
+	//
+	// Create the Head Flags Array (Initialized with 0)
+	//		Head: (ray[i] != ray[i-1] => head[i] = 1 : head[i] = 0)
+	//
+	// Exclusive Scan on the Head Array (Initialized with 0)
+	//		Scan: Sum of the Head Array
+	//
+	// Create the Chucks and Size Array (Initialized with 0 and 0)
+	//		Base: (head[i] != head[i+1] => base[i] = i) 
+	//		Size: (size[i] = base[i+1] - base[i])
+	// 
+	// Output 
+	//		Base Array with the starting index of the chunk 
+	//		Size Array with the size of the chunk
+}
+
+// Implementation of the Ray Sorting
+__global__ void RaySorting(	
+							// Input Array containing the unsorted Ray Chunks
+							int2* chunkArray, 
+							// Output Array containing the sorted Ray Chunks
+							int2* sortedChunkArray) {
+
+	// Ray Sorting - Radix Sort the Base Array and the Size Array
+	//
+	// Radix Sort on the Base Array
+	//
+	// Size Array doesn't have to be sorted, just needs to follow the sorting of the Base Array
+}
+
+// Implementation of the Ray Decompression
+__global__ void RayDecompression(
+							// Input Array containing the sorted Ray Chunks
+							int2* sortedChunkArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays head flags 
+							int* headFlagsArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							int* skeletonArray,
+							// Auxiliary Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Output Array containing the sorted Ray Indices
+							int2* sortedRayIndicesArray) {
+
+	// Ray Decompression - Decompress Rays from the sorted chunks
+	//
+	// Exclusive Scan on the sorted Size Array
+	//		Scan: Sum of the sorted Size Array
+	//
+	// Create the Skeleton and Head Flags Array (Initialized with 1 and 0)
+	//		Skeleton: skeleton[i] = base[scan[i]]
+	//		Head: head[i] = (skeleton[i] != 0)
+	//
+	// Inclusive Segmented Scan on the Skeleton and Head Arrays
+	//
+	// Output 
+	//		Sorted ray index Array	
+}
+
 // Implementation of Whitteds Ray-Tracing Algorithm
 __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 								// Screen Dimensions
@@ -524,6 +470,8 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 								float4* trianglePositionsArray,
 								// Updated Triangle Position Array
 								float4* triangleNormalsArray,
+								// Input Array containing the unsorted Rays
+								float3* rayArray,
 								// Total Number of Triangles in the Scene
 								const int triangleTotal,
 								// Total Number of Lights in the Scene
@@ -538,8 +486,6 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;		
 
-	// add aliasing increasing the kernel width and height only no need to alter textures
-
 	if(x >= width || y >= height)
 		return;
 
@@ -548,17 +494,11 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), normalize(make_float3(tex2D(fragmentNormalTexture, x,y))));
 
 	if(length(rayOrigin) != 0.0f) {
-
-		Ray ray(rayOrigin + rayDirection * epsilon, rayDirection);
-
-		// Calculate the +Primary Ray Shadows
-		float3 primaryColor = PrimaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal);
-		// Calculate the Primary Ray Bounces
-		//float3 secondaryColor = SecondaryRayCast(ray, trianglePositionsArray, triangleNormalsArray,  triangleTotal, lightTotal, depth, refractionIndex);
 			
 		// Calculate the Final Color
-		float3 finalColor = primaryColor;// + secondaryColor;
-		
+		float3 finalColor = normalize(rayOrigin);
+		//float3 finalColor = rayArray[x * raysPerPixel + y * width * raysPerPixel + 2];
+
 		// Update the Pixel Buffer
 		pixelBufferObject[y * width + x] = rgbToInt(finalColor.x * 255, finalColor.y * 255, finalColor.z * 255);
 	}
@@ -571,7 +511,92 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 
 extern "C" {
 
-void RayTraceWrapper(	unsigned int *pixelBufferObject,
+	void TriangleUpdateWrapper(	// Array containing the updated Model Matrices
+								float* modelMatricesArray,
+								// Array containing the updated Normal Matrices
+								float* normalMatricesArray,
+								// Array containing the updated Triangle Positions
+								float4* trianglePositionsArray,
+								// Array containing the updated Triangle Normals
+								float4* triangleNormalsArray,
+								// Total Number of Triangles in the Scene
+								int triangleTotal) {
+		
+		// Grid based on the Triangle Count
+		dim3 multiplicationBlock(1024);
+		dim3 multiplicationGrid(triangleTotal*3/1024 + 1);
+		
+		// Model and Normal Matrix Multiplication
+		MultiplyVertex<<<multiplicationBlock, multiplicationGrid>>>(modelMatricesArray, normalMatricesArray, trianglePositionsArray, triangleNormalsArray, triangleTotal * 3);
+	}
+
+	void RayCreationWrapper(// Input Array containing the unsorted Rays
+							float3* rayArray,
+							// Screen Dimensions
+							int windowWidth, int windowHeight,
+							// Total number of Light Sources in the Scene
+							int lightTotal,
+							// Cameras Position in the Scene
+							float3 cameraPosition,
+							// Output Array containing the unsorted Ray Indices
+							int2* rayIndicesArray) {
+
+		// Grid based on the Pixel Count
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block.x + 1,windowHeight/block.y + 1);
+
+		RayCreation<<<block, grid>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, rayIndicesArray);
+	}
+
+	void RayCompressionWrapper(	// Input Array containing the unsorted Ray Indices
+								int2* rayIndicesArray,
+								// Auxiliary Array containing the head flags result
+								int* headFlagsArray, 
+								// Auxiliary Array containing the exclusing scan result
+								int* scanArray, 
+								// Output Array containing the unsorted Ray Chunks
+								int2* chunkArray) {
+
+		int rayTotal = 768*768*7;
+		// Use Exclusing and Inclusive Sums to calculate Array Size and also to Truncate the Arrays
+
+		// Grid based on the Ray Count
+		dim3 block(1024);
+		dim3 grid(rayTotal/1024 + 1);
+		
+		// Ray Compression
+		RayCompression<<<block, grid>>>(rayIndicesArray, headFlagsArray, scanArray, chunkArray);
+	}
+
+	void RaySortingWrapper(	// Input Array containing the unsorted Ray Chunks
+							int2* chunkArray, 
+							// Output Array containing the sorted Ray Chunks
+							int2* sortedChunkArray) {
+
+	}
+
+	void RayDecompressionWrapper(	// Input Array containing the sorted Ray Chunks
+									int2* sortedChunkArray, 
+									// Auxiliary Array containing the Ray Chunk Arrays head flags 
+									int* headFlagsArray, 
+									// Auxiliary Array containing the Ray Chunk Arrays skeleton
+									int* skeletonArray,
+									// Auxiliary Array containing the inclusive segmented scan result
+									int* scanArray, 
+									// Output Array containing the sorted Ray Indices
+									int2* sortedRayIndicesArray) {
+
+		int chunkTotal = 768*768*7;
+
+		// Grid based on the Chunk Count
+		dim3 block(1024);
+		dim3 grid(chunkTotal/1024 + 1);
+		
+		// Ray Decompression
+		RayDecompression<<<block, grid>>>(sortedChunkArray, headFlagsArray, skeletonArray, scanArray, sortedRayIndicesArray);
+	}
+
+	void RayTraceWrapper(	unsigned int *pixelBufferObject,
 							// Screen Dimensions
 							int width, int height, 			
 							// Updated Normal Matrices Array
@@ -582,66 +607,14 @@ void RayTraceWrapper(	unsigned int *pixelBufferObject,
 							float4* trianglePositionsArray,
 							// Updated Triangle Position Array
 							float4* triangleNormalsArray,
+							// Input Array containing the unsorted Rays
+							float3* rayArray,
 							// Total Number of Triangles in the Scene
 							int triangleTotal,
 							// Total Number of Lights in the Scene
 							int lightTotal,
 							// Camera Definitions
 							float3 cameraPosition) {
-
-		// Model-Matrix Multiplication
-		dim3 multiplicationBlock(1024);
-		dim3 multiplicationGrid(triangleTotal*3/1024 + 1);
-
-		MultiplyVertex<<<multiplicationBlock, multiplicationGrid>>>(modelMatricesArray, normalMatricesArray, trianglePositionsArray, triangleNormalsArray, triangleTotal * 3);
-
-		// Ray Indexing		
-			//
-			// Use Directional Indexing first (24 bits)
-			// Use Positional Indexing second (8 bits)
-			//
-			// Output
-			//		Ray index Array
-
-		// Ray Compression - Compress Rays with the same index into chunks 
-			//
-			// Create the Head Flags Array (Initialized with 0)
-			//		Head: (ray[i] != ray[i-1] => head[i] = 1 : head[i] = 0)
-			//
-			// Exclusive Scan on the Head Array (Initialized with 0)
-			//		Scan: Sum of the Head Array
-			//
-			// Create the Chucks and Size Array (Initialized with 0 and 0)
-			//		Base: (head[i] != head[i+1] => base[i] = i) 
-			//		Size: (size[i] = base[i+1] - base[i])
-			// 
-			// Output 
-			//		Base Array with the starting index of the chunk 
-			//		Size Array with the size of the chunk
-
-		// Ray Sorting - Radix Sort the Base Array and the Size Array
-			//
-			// Radix Sort on the Base Array
-			//
-			// Size Array doesn't have to be sorted, just needs to follow the sorting of the Base Array
-
-		// Ray Decompression - Decompress Rays from the sorted chunks
-			//
-			// Exclusive Scan on the sorted Size Array
-			//		Scan: Sum of the sorted Size Array
-			//
-			// Create the Skeleton and Head Flags Array (Initialized with 1 and 0)
-			//		Skeleton: skeleton[i] = base[scan[i]]
-			//		Head: head[i] = (skeleton[i] != 0)
-			//
-			// Inclusive Segmented Scan on the Skeleton and Head Arrays
-			//
-			// Output 
-			//		Sorted ray index Array
-
-		// Structure Creation (bottom and then N-level)
-
-		// Structure Traversal
 
 		// Ray-Casting
 		dim3 rayCastingBlock(32,32);
@@ -651,11 +624,75 @@ void RayTraceWrapper(	unsigned int *pixelBufferObject,
 															width, height,
 															trianglePositionsArray, 
 															triangleNormalsArray,
+															rayArray,
 															triangleTotal,
 															lightTotal,
-															depth, 
-															refractionIndex,
+															depth, refractionIndex,
 															cameraPosition);
+
+		/*unsigned int bit_mask_1_4 = 15;
+		unsigned int bit_mask_1_5 = 31;
+		unsigned int bit_mask_1_9 = 511;
+
+		unsigned int half_bit_mask_1_4 = 7;
+		unsigned int half_bit_mask_1_5 = 15;
+		unsigned int half_bit_mask_1_9 = 255;
+
+		float bit_mask_1_4_f = 15.0f;
+		float bit_mask_1_5_f = 31.0f;
+		float bit_mask_1_9_f = 511.0f;
+
+		float half_bit_mask_1_4_f = 7.0f;
+		float half_bit_mask_1_5_f = 15.0f;
+		float half_bit_mask_1_9_f = 255.0f;
+
+		float3 origin = make_float3(5.0f, 5.0f, 5.0f);
+		float3 direction = make_float3(0.333f, 0.333f, 0.333f);
+
+		unsigned int index = 0;
+			
+		int azimuth = (int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
+		index = azimuth; 
+		printf("Azimuth = %u (%u)\n", azimuth, index);
+
+		int polar = (int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
+		index = (index << 9) | polar;
+		printf("Polar = %u (%u)\n", polar, index);
+
+		// Clamp the Origin to the 0-15 range
+		int x = (int)clamp(origin.x + bit_mask_1_4 / 2, 0.0f, (float)bit_mask_1_4);
+		index = (index << 4) | x;
+		printf("Coordinate 1 = %u (%u)\n", x, index);
+		int y = (int)clamp(origin.y + bit_mask_1_5 / 2, 0.0f, (float)bit_mask_1_5);
+		index = (index << 5) | y;
+		printf("Coordinate 2 = %u (%u)\n", y, index);
+		int z = (int)clamp(origin.z + bit_mask_1_5 / 2, 0.0f, (float)bit_mask_1_5);
+		index = (index << 5) | z;
+		printf("Coordinate 3 = %u (%u)\n", z, index);
+		
+		printf("[R] Index = %u\n", index);
+		printf("[R] Azimuth = %u (at %u)\n", (index & (bit_mask_1_9 << 23)) >> 23, bit_mask_1_9 << 23);		
+		printf("[R] Polar = %u (at %u)\n", (index & (bit_mask_1_9 << 14)) >> 14, bit_mask_1_9 << 14);
+		printf("[R] Coordinate 1 = %u (at %u)\n", (index & (bit_mask_1_4 << 10)) >> 10, bit_mask_1_4 << 10);
+		printf("[R] Coordinate 2 = %u (at %u)\n", (index & (bit_mask_1_5 << 5)) >> 5, bit_mask_1_5 << 5);
+		printf("[R] Coordinate 3 = %u (at %u)\n", (index & bit_mask_1_5), bit_mask_1_5);
+
+		// Convert the Direction to Spherical Coordinates
+		index = (int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
+
+		index = (index << 9) | (int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
+
+		// Clamp the Origin to the 0-15 range
+		index = (index << 4) | (int)clamp(origin.x + half_bit_mask_1_4_f , 0.0f, bit_mask_1_4_f);
+		index = (index << 5) | (int)clamp(origin.y + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+		index = (index << 5) | (int)clamp(origin.z + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+		
+		printf("[R] Index = %u\n", index);
+		printf("[R] Azimuth = %u (at %u)\n", (index & (bit_mask_1_9 << 23)) >> 23, bit_mask_1_9 << 23);		
+		printf("[R] Polar = %u (at %u)\n", (index & (bit_mask_1_9 << 14)) >> 14, bit_mask_1_9 << 14);
+		printf("[R] Coordinate 1 = %u (at %u)\n", (index & (bit_mask_1_4 << 10)) >> 10, bit_mask_1_4 << 10);
+		printf("[R] Coordinate 2 = %u (at %u)\n", (index & (bit_mask_1_5 << 5)) >> 5, bit_mask_1_5 << 5);
+		printf("[R] Coordinate 3 = %u (at %u)\n", (index & bit_mask_1_5), bit_mask_1_5);*/
 	}
 
 	// OpenGL Texture Binding Functions
