@@ -91,8 +91,6 @@ PixelBuffer *pixelBuffer;
 ScreenTexture *screenTexture;
 
 // Secondary Rays per Pixel (9 Shadow Rays per Light Source, 1 Reflection Ray, 1 Refraction Ray)
-int lightSourceMaximum = 10;
-int raysPerPixel = lightSourceMaximum + 2;
 
 // Total number of Triangles - Used for the memory necessary to allocate
 int triangleTotal = 0;
@@ -131,6 +129,7 @@ float* cudaUpdatedNormalMatricesDP = NULL;
 float3* cudaRayArrayDP = NULL;
 
 int2* cudaRayIndexArrayDP = NULL;
+int2* cudaTrimmedRayIndexArrayDP = NULL;
 int2* cudaSortedRayIndexArrayDP = NULL;
 
 int* cudaHeadFlagsArrayDP = NULL;
@@ -153,8 +152,23 @@ extern "C" {
 							int lightTotal,
 							// Cameras Position in the Scene
 							float3 cameraPosition,
+							// Output Array containing the exclusing scan result
+							int* rayFlagsArray, 
 							// Output Array containing the unsorted Ray Indices
 							int2* rayIndicesArray);
+
+	// Implementation of RayTrimmingWrapper is in the "RayTracer.cu" file
+	void RayTrimmingWrapper(	
+							// Input Array containing the untrimmed Ray Indices
+							int2* rayIndicesArray,
+							// Screen Dimensions
+							int windowWidth, int windowHeight,
+							// Auxiliary Array containing the head flags
+							int* headFlagsArray, 
+							// Auxiliary Array containing the exclusing scan result
+							int* scanArray, 
+							// Output Array containing the trimmed Ray Indices
+							int2* trimmmedRayIndicesArray);
 	
 	// Implementation of RayCompressionWrapper is in the "RayTracer.cu" file
 	void RayCompressionWrapper(	
@@ -202,15 +216,13 @@ extern "C" {
 	// Implementation of RayTraceWrapper is in the "RayTracer.cu" file
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
 							// Screen Dimensions
-							int width, int height, 			
-							// Updated Normal Matrices Array
-							float* modelMatricesArray,
-							// Updated Normal Matrices Array
-							float* normalMatricesArray,
+							int width, int height, 
 							// Updated Triangle Position Array
 							float4* trianglePositionsArray,
 							// Updated Triangle Position Array
 							float4* triangleNormalsArray,
+							// Input Array containing the unsorted Ray Indices
+							int2* rayIndicesArray,
 							// Input Array containing the unsorted Rays
 							float3* rayArray,
 							// Total Number of Triangles in the Scene
@@ -311,7 +323,7 @@ void update(int value) {
 
 	glutPostRedisplay();
 
-	cout << "[Callback] Update Successfull" << endl;
+	//cout << "[Callback] Update Successfull" << endl;
 }
 
 // [Scene] Displays the Scene
@@ -382,10 +394,12 @@ void display() {
 	// Kernel Launches
 
 		// Create the Rays and Index them
-		RayCreationWrapper(cudaRayArrayDP, windowWidth, windowHeight, lightTotal, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]), cudaRayIndexArrayDP);
-
+		RayCreationWrapper(cudaRayArrayDP, windowWidth, windowHeight, lightTotal, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]), cudaHeadFlagsArrayDP, cudaRayIndexArrayDP);
+		
+		// Trim the Ray Indices
+		RayTrimmingWrapper(cudaRayIndexArrayDP, windowWidth, windowHeight, cudaHeadFlagsArrayDP, cudaScanArrayDP, cudaTrimmedRayIndexArrayDP);
 		// Compress the Ray Indices into Chunks
-		RayCompressionWrapper(cudaRayIndexArrayDP, cudaHeadFlagsArrayDP, cudaScanArrayDP, cudaChunkArrayDP);
+		RayCompressionWrapper(cudaTrimmedRayIndexArrayDP, cudaHeadFlagsArrayDP, cudaScanArrayDP, cudaChunkArrayDP);
 		// Sort the Chunks
 		RaySortingWrapper(cudaChunkArrayDP, cudaSortedChunkArrayDP);
 		// Decompress the Chunks into the Ray Indices
@@ -398,31 +412,60 @@ void display() {
 		RayTraceWrapper(
 			pixelBufferDevicePointer,
 			windowWidth, windowHeight,
-			cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP,
 			cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP,
+			cudaRayIndexArrayDP,
 			cudaRayArrayDP,
 			triangleTotal,
 			lightTotal,
 			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));
 
 	// Kernel Launches
+	/*int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 
-	exit(0);
+	int2* rayIndexArray = new int2[arraySize];
+	int2* trimmedRayIndexArray = new int2[arraySize];
 
-	/*float3* rayDirections = new float3[windowWidth * windowHeight * raysPerPixel];
+	int* headFlagsArray = new int[arraySize];
+	int* scanArray = new int[arraySize];
 	
-	// Copy the Matrices to CUDA	
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayDirections[0], cudaRayArrayDP, windowWidth * windowHeight * raysPerPixel * sizeof(float3), cudaMemcpyDeviceToHost));
+	// Copy the Arrays from CUDA	
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexArray[0], cudaRayIndexArrayDP, arraySize * sizeof(int2), cudaMemcpyDeviceToHost));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trimmedRayIndexArray[0], cudaTrimmedRayIndexArrayDP, arraySize * sizeof(int2), cudaMemcpyDeviceToHost));
 
-	printf("\nRay List (%d)\n\n", windowWidth * windowHeight * raysPerPixel);
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&headFlagsArray[0], cudaHeadFlagsArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&scanArray[0], cudaScanArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	for(int i=0; i<windowWidth * windowHeight * raysPerPixel; i++) {
+	printf("\nArray Dump (%d)\n\n", arraySize);
 
-		float3 direction = rayDirections[i];
-	
-		printf("Direction[%d] = [%.2f] [%.2f] [%.2f] [%.2f]\n", i, direction.x, direction.y, direction.z);
-	}*/
-		
+	arraySize = 256;
+
+	printf("Ray Indices\n");
+	for(int i=0; i<arraySize; i++)
+		printf("%u\t", rayIndexArray[i].x);
+	printf("\n");
+
+	printf("Head Flags Array\n");
+	for(int i=0; i<arraySize; i++)
+		printf("%u\t", headFlagsArray[i], i);
+	printf("\n");
+
+	printf("Scan Array\n");
+	for(int i=0; i<arraySize; i++)
+		printf("%u\t", scanArray[i], i);
+	printf("\n");
+
+	printf("Trimmed Ray Indices\n");
+	for(int i=0; i<arraySize; i++)
+		printf("%u\t", trimmedRayIndexArray[i].x);
+	printf("\n");
+
+	printf("Trimmed Ray Indices\n");
+	for(int i=0; i<arraySize; i++)
+		printf("%u#%d\t", trimmedRayIndexArray[i].x, trimmedRayIndexArray[i].y);
+	printf("\n");
+
+	exit(0);*/
+
 	// Unmap the used CUDA Resources
 	frameBuffer->unmapCudaResource();
 	pixelBuffer->unmapCudaResource();
@@ -474,7 +517,7 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 	
-	cout << "[Callback] Display Successfull" << endl;
+	//cout << "[Callback] Display Successfull" << endl;
 }
 
 // [Scene] Reshapes up the Scene
@@ -507,13 +550,14 @@ void reshape(int weight, int height) {
 	screenTexture->createTexture();
 
 	// Update the Array Size 
-	int arraySize = windowWidth * windowHeight * raysPerPixel;
+	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 	
 	// Update the CUDA Ray Array
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3)));
 
 	// Update the CUDA Ray and Sorted Ray Index Arrays
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTrimmedRayIndexArrayDP, arraySize * sizeof(int2)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize * sizeof(int2)));
 
 	// Update the CUDA Head Flags, Skeleton and Scan Arrays
@@ -722,6 +766,12 @@ void initializeCUDA() {
 	Utility::checkCUDAError("cudaSetDevice()",		cudaSetDevice(device));
 	Utility::checkCUDAError("cudaGLSetGLDevice()",	cudaGLSetGLDevice(device));
 
+	/*cudaDeviceProp properties;
+	cudaGetDeviceProperties(&properties, device);
+
+	cout << "Maximum Grid Size = " << properties.maxGridSize << endl;
+	cout << "Maximum Threads per Block = " << properties.maxThreadsPerBlock << endl;*/
+
 	cout << "[Initialization] CUDA Initialization Successfull" << endl << endl;
 }
 
@@ -741,13 +791,14 @@ void initializeCUDAmemory() {
 	screenTexture->createTexture();
 
 	// Calculate the Array Size 
-	int arraySize = windowWidth * windowHeight * raysPerPixel;
+	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 	
 	// Create the CUDA Ray Array
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3)));
 	
 	// Create the CUDA Ray and Sorted Ray Index Arrays
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayIndexArrayDP, arraySize * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaTrimmedRayIndexArrayDP, arraySize * sizeof(int2)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSortedRayIndexArrayDP, arraySize * sizeof(int2)));
 	
 	// Create the CUDA Head Flags, Skeleton and Scan Arrays
@@ -938,9 +989,6 @@ void initializeCameras() {
 }
 
 void init(int argc, char* argv[]) {
-
-	//freopen("output.txt","w",stderr);
-	//freopen("output.txt","w",stdout);
 
 	// Initialize OpenGL
 	initializeGLUT(argc, argv);
@@ -1258,6 +1306,9 @@ void init(int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
+
+	//freopen("output.txt","w",stderr);
+	//freopen("output.txt","w",stdout);
 
 	/* Init the Animation */
 	init(argc, argv);

@@ -24,26 +24,16 @@ static const float refractionIndex = 1.0f;
 // Ray testing Constant
 static const float epsilon = 0.01f;
 
-// Light Maximum Amount
-static const int lightSourceMaximum = 10;
-static const int raysPerPixel = 12;
+// Temporary Storage
+static void *temporaryStorage = NULL;
+static size_t temporaryStoreBytes = 0;
 
 // Ray indexing Constants
-__constant__ __device__ static const unsigned int bit_mask_1_4 = 15;
-__constant__ __device__ static const unsigned int bit_mask_1_5 = 31;
-__constant__ __device__ static const unsigned int bit_mask_1_9 = 511;
-
-__constant__ __device__ static const unsigned int half_bit_mask_1_4 = 7;
-__constant__ __device__ static const unsigned int half_bit_mask_1_5 = 15;
-__constant__ __device__ static const unsigned int half_bit_mask_1_9 = 255;
-
 __constant__ __device__ static const float bit_mask_1_4_f = 15.0f;
 __constant__ __device__ static const float bit_mask_1_5_f = 31.0f;
-__constant__ __device__ static const float bit_mask_1_9_f = 511.0f;
 
 __constant__ __device__ static const float half_bit_mask_1_4_f = 7.0f;
 __constant__ __device__ static const float half_bit_mask_1_5_f = 15.0f;
-__constant__ __device__ static const float half_bit_mask_1_9_f = 255.0f;
 
 // OpenGL Diffuse and Specular Textures
 texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
@@ -163,9 +153,6 @@ __device__ float3 sphericalToVector(float2 spherical) {
 // Converts a ray to an integer hash value
 __device__ int rayToIndex(float3 origin, float3 direction) {
 
-	// 32 bits
-	//	- 14 bits for the origin (4 for x, 5 for y and 5 for z)
-	//  - 18 bits for the direction (10 for longitude, 10 for latitude)
 	int index = 0;
 
 	// Convert the Direction to Spherical Coordinates
@@ -173,9 +160,13 @@ __device__ int rayToIndex(float3 origin, float3 direction) {
 	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
 
 	// Clamp the Origin to the 0-15 range
-	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f , 0.0f, bit_mask_1_4_f);
-	index = (index << 5) | (unsigned int)clamp(origin.y + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
-	index = (index << 5) | (unsigned int)clamp(origin.z + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.y + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	//index = (index << 5) | (unsigned int)clamp(origin.y + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+	//index = (index << 5) | (unsigned int)clamp(origin.z + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+
+	index++;
 
 	return index;
 }
@@ -247,7 +238,7 @@ __global__ void MultiplyVertex(
 	// Matrices ID
 	int matrixID = tex1Dfetch(triangleObjectIDsTexture, x).x;
 
-	// Vertices
+	// Model Matrix - Multiply each Vertex Position by it.
 	float modelMatrix[16];
 
 	for(int i=0; i<16; i++)
@@ -266,9 +257,10 @@ __global__ void MultiplyVertex(
 		updatedVertex[i] += modelMatrix[i * 4 + 3] * vertex.w;
 	}
 	
+	// Store the updated Vertex Position.
 	trianglePositionsArray[x] = make_float4(updatedVertex[0], updatedVertex[1], updatedVertex[2], matrixID);
 
-	// Normals
+	// Normal Matrix - Multiply each Vertex Normal by it.
 	float normalMatrix[16];
 
 	for(int i=0; i<16; i++)
@@ -287,10 +279,11 @@ __global__ void MultiplyVertex(
 		updatedNormal[i] += normalMatrix[i * 4 + 3] * normal.w;
 	}
 
+	// Store the updated Vertex Normal.
 	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
 }
 
-// Implementation of the Ray Creation and Indexing
+//		Ray index Array	
 __global__ void RayCreation(// Input Array containing the unsorted Rays
 							float3* rayArray,
 							// Screen Dimensions
@@ -299,16 +292,10 @@ __global__ void RayCreation(// Input Array containing the unsorted Rays
 							int lightTotal,
 							// Cameras Position in the Scene
 							float3 cameraPosition,
+							// Output Array containing the flagged Ray Indices
+							int* rayFlagsArray,
 							// Output Array containing the unsorted Ray Indices
 							int2* rayIndicesArray) {
-
-	// Ray Indexing		
-	//
-	// Use Directional Indexing first (24 bits)
-	// Use Positional Indexing second (8 bits)
-	//
-	// Output
-	//		Ray index Array	
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -316,80 +303,140 @@ __global__ void RayCreation(// Input Array containing the unsorted Rays
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	int rayArrayBase = x * raysPerPixel + y * windowWidth * raysPerPixel;
+	int rayArrayBase = x * RAYS_PER_PIXEL_MAXIMUM + y * windowWidth * RAYS_PER_PIXEL_MAXIMUM;
 
 	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
 	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
-	// Ray Origin Creation
-	float3 rayOrigin = fragmentPosition;
-
-	if(length(rayOrigin) != 0.0f) {
+	if(length(fragmentPosition) != 0.0f) {
 		
 		// Ray Direction Creation
 		float3 rayReflectionDirection = reflect(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal));
 		float3 rayRefractionDirection = refract(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal), 1.0f / 1.52f);
+		
+		// Light Positions - Sent from the CPU
+		float3 shadowRayPositions[10];
+		float3 shadowRayDirections[10];
 
-		// Create the Reflection Ray and store its direction
+		// Create the Reflection and Refraction Rays and store their directions
 		rayArray[rayArrayBase] = rayReflectionDirection;
-		rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(rayOrigin, rayReflectionDirection), rayArrayBase);
-		rayArrayBase++;
+		rayArray[rayArrayBase + 1] = rayRefractionDirection;
+		
+		// Create the Shadow Rays
+		for(int l = 0; l < lightTotal; l++) {
 
-		// Create the Refraction Ray and store its direction
-		rayArray[rayArrayBase] = rayRefractionDirection;
-		rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(rayOrigin, rayRefractionDirection), rayArrayBase);
-		rayArrayBase++;
+			// Calculate the Shadow Rays Position and Direction
+			shadowRayPositions[l] = make_float3(tex1Dfetch(lightPositionsTexture, l));
+			shadowRayDirections[l] = normalize(shadowRayPositions[l] - fragmentPosition);
 
-		for(int l = 0; l < lightSourceMaximum; l++) {
-
-			if(l < lightTotal) {
-
-				// Fetch the Light Position
-				float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
-				// Calculate the Light Direction
-				float3 lightDirection = normalize(lightPosition - fragmentPosition);
-
-				// Diffuse Factor
-				float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
-				clamp(diffuseFactor, 0.0f, 1.0f);
+			// Diffuse Factor
+			float diffuseFactor = max(dot(shadowRayDirections[l], fragmentNormal), 0.0f);
+			clamp(diffuseFactor, 0.0f, 1.0f);
 				
-				if(diffuseFactor >
-					0.0f) {
-					
-					// Create the Shadow Ray and store its direction
-					rayArray[rayArrayBase] = lightDirection;
-					rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(lightPosition, lightDirection), rayArrayBase);
-					rayArrayBase++;
-				}
-			}
-			else {
-				
-				// Clean the Shadow Ray storage
-				rayArray[rayArrayBase] = make_float3(0.0f);
-				rayIndicesArray[rayArrayBase] = make_int2(0);
-				rayArrayBase++;
-			}
+			// Store the Shadow Rays its direction
+			if(diffuseFactor > 0.0f)
+				rayArray[rayArrayBase + 2 + l] = shadowRayDirections[l];
+			else
+				rayArray[rayArrayBase + 2 + l] = make_float3(0.0f);
 		}
+		
+		// Clean the Shadow Ray storage
+		for(int l = lightTotal; l < LIGHT_SOURCE_MAXIMUM; l++) 	
+			rayArray[rayArrayBase + 2 + l] = make_float3(0.0f);
+
+		// Store the Reflection and Refraction Ray indices
+		rayIndicesArray[rayArrayBase] = make_int2(rayToIndex(fragmentPosition, rayReflectionDirection), rayArrayBase);
+		rayIndicesArray[rayArrayBase + 1] = make_int2(rayToIndex(fragmentPosition, rayRefractionDirection), rayArrayBase + 1);
+
+		// Store the Shadow Ray Indices
+		for(int l = 0; l < lightTotal; l++) {
+				
+			// Create the Shadow Ray and store its direction
+			if(length(shadowRayDirections[l]) > 0.0f)
+				rayIndicesArray[rayArrayBase + 2 + l] = make_int2(rayToIndex(shadowRayPositions[l], shadowRayDirections[l]), rayArrayBase + 2 + l);
+			else
+				rayIndicesArray[rayArrayBase + 2 + l] = make_int2(0);
+		}
+		
+		// Clean the Shadow Ray Index storage
+		for(int l = lightTotal; l < LIGHT_SOURCE_MAXIMUM; l++) 	
+			rayIndicesArray[rayArrayBase + 2 + l] = make_int2(0);
+
+		// Store the Reflection and Refraction Ray flags
+		rayFlagsArray[rayArrayBase] = 0;
+		rayFlagsArray[rayArrayBase + 1] = 0;
+
+		// Store the Shadow Ray Indices
+		for(int l = 0; l < lightTotal; l++) {
+			
+			// Create the Shadow Ray and store its direction
+			if(length(shadowRayDirections[l]) > 0.0f)
+				rayFlagsArray[rayArrayBase + 2 + l] = 0;
+			else
+				rayFlagsArray[rayArrayBase + 2 + l] = 1;
+		}
+		
+		// Clean the Shadow Ray Index storage
+		for(int l = lightTotal; l < LIGHT_SOURCE_MAXIMUM; l++) 	
+			rayFlagsArray[rayArrayBase + 2 + l] = 1;
 	}
 	else {
 	
-		// Clean the Reflection Ray storage
-		rayArray[rayArrayBase] = make_float3(0.0f);
-		rayIndicesArray[rayArrayBase] = make_int2(0);
-		rayArrayBase++;
+		// Clean the Ray storage		
+		for(int l = 0; l < LIGHT_SOURCE_MAXIMUM + 2; l++) 
+			rayArray[rayArrayBase + l] = make_float3(-1.0f);
 
-		// Clean the Refraction Ray storage
-		rayArray[rayArrayBase] = make_float3(0.0f);
-		rayIndicesArray[rayArrayBase] = make_int2(0);
-		rayArrayBase++;
+		// Clean the Ray Index storage		
+		for(int l = 0; l < LIGHT_SOURCE_MAXIMUM + 2; l++) 
+			rayIndicesArray[rayArrayBase + l] = make_int2(0);
 
-		// Clean the Shadow Ray storage
-		rayArray[rayArrayBase] = make_float3(0.0f);
-		rayIndicesArray[rayArrayBase] = make_int2(0);
-		rayArrayBase++;
+		// Clean the Ray Flags storage		
+		for(int l = 0; l < LIGHT_SOURCE_MAXIMUM + 2; l++) 
+			rayFlagsArray[rayArrayBase + l] = 1;
 	}
 }
+
+// Implementation of the Ray Trimming
+__global__ void RayTrimming(	
+							// Input Array containing the untrimmed Ray Indices
+							int2* rayIndicesArray,
+							// Screen Dimensions
+							int windowWidth, int windowHeight,
+							// Auxiliary Array containing the exclusing scan result
+							int* exclusiveScanArray, 
+							// Output Array containing the trimmed Ray Indices
+							int2* trimmmedRayIndicesArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	int rayArrayBase = x * RAYS_PER_PIXEL_MAXIMUM + y * windowWidth * RAYS_PER_PIXEL_MAXIMUM;
+
+	// Initial Position
+	if(rayArrayBase == 0 && exclusiveScanArray[0] == 0) {
+
+		trimmmedRayIndicesArray[0] = rayIndicesArray[0];
+
+		rayArrayBase++;
+	}
+
+	// Remaining Positions
+	for(int i=rayArrayBase; i< (rayArrayBase + RAYS_PER_PIXEL_MAXIMUM); i++) {
+
+		// Sum Array Offsets
+		int currentOffset = exclusiveScanArray[i];
+		int previousOffset = exclusiveScanArray[i - 1];
+
+		// If the Current and the Next Scan value are the same then shift the Ray
+		if(currentOffset == previousOffset)
+			trimmmedRayIndicesArray[i - currentOffset] = make_int2(rayIndicesArray[i].x, i);
+	}
+}
+	
 
 // Implementation of the Ray Compression
 __global__ void RayCompression(	
@@ -470,6 +517,8 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 								float4* trianglePositionsArray,
 								// Updated Triangle Position Array
 								float4* triangleNormalsArray,
+								// Input Array containing the unsorted Ray Indices
+								int2* rayIndicesArray,
 								// Input Array containing the unsorted Rays
 								float3* rayArray,
 								// Total Number of Triangles in the Scene
@@ -497,13 +546,13 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 			
 		// Calculate the Final Color
 		float3 finalColor = normalize(rayOrigin);
-		//float3 finalColor = rayArray[x * raysPerPixel + y * width * raysPerPixel + 2];
+		//float3 finalColor = rayArray[x * RAYS_PER_PIXEL_MAXIMUM + y * width * RAYS_PER_PIXEL_MAXIMUM + 2];
 
 		// Update the Pixel Buffer
 		pixelBufferObject[y * width + x] = rgbToInt(finalColor.x * 255, finalColor.y * 255, finalColor.z * 255);
 	}
 	else {
-	
+
 		// Update the Pixel Buffer
 		pixelBufferObject[y * width + x] = rgbToInt(0.0f, 0.0f, 0.0f);
 	}
@@ -538,6 +587,8 @@ extern "C" {
 							int lightTotal,
 							// Cameras Position in the Scene
 							float3 cameraPosition,
+							// Output Array containing the exclusing scan result
+							int* rayFlagsArray, 
 							// Output Array containing the unsorted Ray Indices
 							int2* rayIndicesArray) {
 
@@ -545,7 +596,41 @@ extern "C" {
 		dim3 block(32,32);
 		dim3 grid(windowWidth/block.x + 1,windowHeight/block.y + 1);
 
-		RayCreation<<<block, grid>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, rayIndicesArray);
+		// Create the Rays
+		RayCreation<<<block, grid>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, rayFlagsArray, rayIndicesArray);
+	}
+
+	void RayTrimmingWrapper(	// Input Array containing the untrimmed Ray Indices
+								int2* rayIndicesArray,
+								// Screen Dimensions
+								int windowWidth, int windowHeight,
+								// Auxiliary Array containing the head flags
+								int* headFlagsArray, 
+								// Auxiliary Array containing the exclusing scan result
+								int* scanArray, 
+								// Output Array containing the trimmed Ray Indices
+								int2* trimmmedRayIndicesArray) {
+	
+		// Number of Rays being cast per Frame							
+		int rayTotal = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+
+		if(temporaryStorage == NULL) {
+
+			// Check how much memory is necessary
+			cub::DeviceScan::InclusiveSum(temporaryStorage, temporaryStoreBytes, headFlagsArray, scanArray, rayTotal);
+			// Allocate temporary storage for exclusive prefix scan
+			cudaMalloc(&temporaryStorage, temporaryStoreBytes);
+		}
+
+		// Create the Trim Scan Array
+		cub::DeviceScan::InclusiveSum(temporaryStorage, temporaryStoreBytes, headFlagsArray, scanArray, rayTotal);
+
+		// Grid based on the Pixel Count
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block.x + 1,windowHeight/block.y + 1);
+
+		// Trim the Ray Indices Array
+		RayTrimming<<<block, grid>>>(rayIndicesArray, windowWidth, windowHeight, scanArray, trimmmedRayIndicesArray);
 	}
 
 	void RayCompressionWrapper(	// Input Array containing the unsorted Ray Indices
@@ -598,15 +683,13 @@ extern "C" {
 
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
 							// Screen Dimensions
-							int width, int height, 			
-							// Updated Normal Matrices Array
-							float* modelMatricesArray,
-							// Updated Normal Matrices Array
-							float* normalMatricesArray,
+							int width, int height, 
 							// Updated Triangle Position Array
 							float4* trianglePositionsArray,
 							// Updated Triangle Position Array
 							float4* triangleNormalsArray,
+							// Input Array containing the unsorted Ray Indices
+							int2* rayIndicesArray,
 							// Input Array containing the unsorted Rays
 							float3* rayArray,
 							// Total Number of Triangles in the Scene
@@ -624,6 +707,7 @@ extern "C" {
 															width, height,
 															trianglePositionsArray, 
 															triangleNormalsArray,
+															rayIndicesArray,
 															rayArray,
 															triangleTotal,
 															lightTotal,
