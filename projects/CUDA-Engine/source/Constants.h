@@ -7,10 +7,10 @@
 #define RADIANS_TO_DEGREES 180.0f/PI
 
 /* Viewport Size Constants */
-//#define WIDTH 768
-//#define HEIGHT 768
-#define WIDTH 256
-#define HEIGHT 256
+//#define WIDTH 256
+//#define HEIGHT 256
+#define WIDTH 768
+#define HEIGHT 768
 
 #define LIGHT_SOURCE_MAXIMUM 10
 #define RAYS_PER_PIXEL_MAXIMUM 12
