@@ -190,6 +190,12 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>cuda.lib;cudart.lib;glew32.lib;freeglut.lib;soil.lib;fmodex.lib;tinyxml2.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <CudaCompile>
+      <GPUDebugInfo>true</GPUDebugInfo>
+      <GenerateLineInfo>true</GenerateLineInfo>
+      <MaxRegCount>63</MaxRegCount>
+      <CodeGeneration>compute_30,sm_30</CodeGeneration>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

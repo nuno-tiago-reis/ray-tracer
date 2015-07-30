@@ -1,3 +1,5 @@
+#define CUB_STDERR
+
 // CUDA definitions
 #include <cuda_runtime.h>
 // CUB definitions
@@ -22,18 +24,21 @@ static const int depth = 0;
 static const float refractionIndex = 1.0f;
 
 // Ray testing Constant
-static const float epsilon = 0.01f;
+//static const float epsilon = 0.01f;
 
 // Temporary Storage
-static void *temporaryStorage = NULL;
-static size_t temporaryStoreBytes = 0;
+static void *scanTemporaryStorage = NULL;
+static size_t scanTemporaryStoreBytes = 0;
+
+static void *radixSortTemporaryStorage = NULL;
+static size_t radixSortTemporaryStoreBytes = 0;
 
 // Ray indexing Constants
 __constant__ __device__ static const float bit_mask_1_4_f = 15.0f;
-__constant__ __device__ static const float bit_mask_1_5_f = 31.0f;
+//__constant__ __device__ static const float bit_mask_1_5_f = 31.0f;
 
 __constant__ __device__ static const float half_bit_mask_1_4_f = 7.0f;
-__constant__ __device__ static const float half_bit_mask_1_5_f = 15.0f;
+//__constant__ __device__ static const float half_bit_mask_1_5_f = 15.0f;
 
 // OpenGL Diffuse and Specular Textures
 texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
@@ -284,7 +289,7 @@ __global__ void UpdateVertex(
 }
 
 //		Ray index Array	
-__global__ void RayCreation(// Input Array containing the unsorted Rays
+__global__ void CreateRays(// Input Array containing the unsorted Rays
 							float3* rayArray,
 							// Screen Dimensions
 							int windowWidth, int windowHeight,
@@ -294,7 +299,7 @@ __global__ void RayCreation(// Input Array containing the unsorted Rays
 							float3 cameraPosition,
 							// Output Array containing the exclusing scan result
 							int* headFlagsArray, 
-							// Output Arrays containing the unsorted Ray Indices
+							// Output Arrays containing the Ray Indices [Keys = Hashes, Values = Indices]
 							int* rayIndexKeysArray, 
 							int* rayIndexValuesArray) {
 
@@ -418,15 +423,15 @@ __global__ void RayCreation(// Input Array containing the unsorted Rays
 }
 
 // Implementation of the Ray Trimming
-__global__ void RayTrimming(	
-							// Input Arrays containing the unsorted Ray Indices
+__global__ void TrimRays(	
+							// Input Arrays containing the untrimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* rayIndexKeysArray, 
 							int* rayIndexValuesArray,
 							// Total number of Rays
 							int screenDimensions,
 							// Auxiliary Array containing the exclusing scan result
 							int* inclusiveScanArray, 
-							// Output Arrays containing the sorted Ray Indices
+							// Output Arrays containing the trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray) {
 
@@ -446,90 +451,227 @@ __global__ void RayTrimming(
 		trimmedRayIndexValuesArray[0] = rayIndexValuesArray[0];
 	}
 
+	// Remaining Positions
 	for(int i=startingPosition; i<RAYS_PER_PIXEL_MAXIMUM; i++) {
 
+		int currentPosition = x * RAYS_PER_PIXEL_MAXIMUM + i;
+
 		// Sum Array Offsets
-		int currentOffset = inclusiveScanArray[x + i];
-		int previousOffset = inclusiveScanArray[x + i - 1];
+		int currentOffset = inclusiveScanArray[currentPosition];
+		int previousOffset = inclusiveScanArray[currentPosition - 1];
 
 		// If the Current and the Next Scan value are the same then shift the Ray
 		if(currentOffset == previousOffset) {
 		
-			trimmedRayIndexKeysArray[x + i - currentOffset] = rayIndexKeysArray[x + i];
-			trimmedRayIndexValuesArray[x + i - currentOffset] = rayIndexValuesArray[x + i];
+			trimmedRayIndexKeysArray[currentPosition - currentOffset] = rayIndexKeysArray[currentPosition];
+			trimmedRayIndexValuesArray[currentPosition - currentOffset] = rayIndexValuesArray[currentPosition];
 		}
 	}
 }
 	
 
 // Implementation of the Ray Compression
-__global__ void RayCompression(	
-							// Input Array containing the unsorted Ray Indices
-							int2* rayIndicesArray,
+__global__ void CreateChunkFlags(	
+							// Input Arrays containing the trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Total number of Rays
+							int rayTotal,
+							// Output Array containing the Chunk Head Flags
+							int* headFlagsArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= rayTotal)
+		return;
+
+	int startingPosition = 0;
+
+	// Initial Position
+	if(x == 0) {
+
+		startingPosition = 1;
+
+		headFlagsArray[x] = 1;
+	}
+
+	// Remaining Positions
+	for(int i=startingPosition; i<CHUNK_DIVISION; i++) {
+
+		int currentPosition = x * CHUNK_DIVISION + i;
+
+		if(currentPosition >= rayTotal)
+			return;
+	
+		// Ray Hashes
+		int currentHash = trimmedRayIndexKeysArray[currentPosition];
+		int previousHash = trimmedRayIndexKeysArray[currentPosition - 1];
+
+		// If the Current and Previous Ray Hashes are different, store the Head Flag
+		if(currentHash != previousHash)
+			headFlagsArray[currentPosition] = 1;
+		else
+			headFlagsArray[currentPosition] = 0;
+	}
+}
+
+__global__ void CreateChunkBases(	
+							// Input Arrays containing the trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Total number of Rays
+							int rayTotal,
 							// Auxiliary Array containing the head flags result
 							int* headFlagsArray, 
 							// Auxiliary Array containing the exclusing scan result
 							int* scanArray, 
-							// Output Array containing the unsorted Ray Chunks
-							int2* chunkArray) {
+							// Output Array containing the Ray Chunk Bases
+							int* chunkBasesArray,
+							// Output Arrays containing the Ray Chunks  [Keys = Hashes, Values = Indices]
+							int* chunkIndexKeysArray, 
+							int* chunkIndexValuesArray) {
 
-	// Ray Compression - Compress Rays with the same index into chunks 
-	//
-	// Create the Head Flags Array (Initialized with 0)
-	//		Head: (ray[i] != ray[i-1] => head[i] = 1 : head[i] = 0)
-	//
-	// Exclusive Scan on the Head Array (Initialized with 0)
-	//		Scan: Sum of the Head Array
-	//
-	// Create the Chucks and Size Array (Initialized with 0 and 0)
-	//		Base: (head[i] != head[i+1] => base[i] = i) 
-	//		Size: (size[i] = base[i+1] - base[i])
-	// 
-	// Output 
-	//		Base Array with the starting index of the chunk 
-	//		Size Array with the size of the chunk
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	
+	// Remaining Positions
+	for(int i=0; i<CHUNK_DIVISION; i++) {
+
+		int currentPosition = x * CHUNK_DIVISION + i;
+
+		if(currentPosition >= rayTotal)
+			return;
+		
+		// If the Head Flag isn't 1, continue;
+		if(headFlagsArray[currentPosition] == 0)
+			continue;
+
+		// Store the Position of the Chunk
+		int position = scanArray[currentPosition];
+
+		// Store the Ray Base for the Chunk
+		chunkBasesArray[position] = currentPosition; 
+	
+		// Store the Ray Hash and the Chunk Position for the Chunk
+		chunkIndexKeysArray[position] = trimmedRayIndexKeysArray[currentPosition];
+		chunkIndexValuesArray[position] = position;
+	}
 }
 
-// Implementation of the Ray Sorting
-__global__ void RaySorting(	
-							// Input Array containing the unsorted Ray Chunks
-							int2* chunkArray, 
-							// Output Array containing the sorted Ray Chunks
-							int2* sortedChunkArray) {
+__global__ void CreateChunkSizes(
+							// Input Array containing the Ray Chunk Bases
+							int* chunkBasesArray,
+							// Total number of Ray Chunks
+							int chunkTotal,
+							// Total number of Rays
+							int rayTotal,
+							// Output Array containing the Ray Chunks Sizes
+							int* chunkSizesArray) {
 
-	// Ray Sorting - Radix Sort the Base Array and the Size Array
-	//
-	// Radix Sort on the Base Array
-	//
-	// Size Array doesn't have to be sorted, just needs to follow the sorting of the Base Array
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= chunkTotal)
+		return;
+
+	// Final Position
+	if(x == chunkTotal - 1) {
+
+		// Chunk Bases
+		int currentBase = chunkBasesArray[x];
+	
+		chunkSizesArray[x] = rayTotal - currentBase;
+	}
+	else {
+		
+		// Chunk Bases
+		int currentBase = chunkBasesArray[x];
+		int nextBase = chunkBasesArray[x+1];
+
+		chunkSizesArray[x] = nextBase - currentBase;
+	}
 }
 
-// Implementation of the Ray Decompression
-__global__ void RayDecompression(
-							// Input Array containing the sorted Ray Chunks
-							int2* sortedChunkArray, 
+__global__ void CreateChunkSkeleton(
+							// Input Array containing the Ray Chunk Sizes
+							int* chunkSizesArray,
+							// Input Array containing the Ray Chunk Values
+							int* sortedChunkValuesArray,
+							// Total number of Ray Chunks
+							int chunkTotal,
+							// Output Array containing the Ray Chunk Arrays skeleton
+							int* skeletonArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= chunkTotal)
+		return;
+
+	skeletonArray[x] = chunkSizesArray[sortedChunkValuesArray[x]];
+}
+
+__global__ void ClearSortedRays(
+							// Total number of Rays
+							int rayTotal,
+							// Output Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= rayTotal)
+		return;
+
+	sortedRayIndexKeysArray[x] = 0;
+	sortedRayIndexValuesArray[x] = 0;
+}
+
+__global__ void CreateSortedRays(
+							// Input Arrays containing the Ray Chunk Bases and Sizes
+							int* chunkBasesArray,
+							int* chunkSizesArray,
+							// Input Array containing the chunk hashes and positions
+							int* sortedChunkKeysArray,
+							int* sortedChunkValuesArray,
+							// Input Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Total number of Ray Chunks
+							int chunkTotal,
 							// Auxiliary Array containing the Ray Chunk Arrays head flags 
 							int* headFlagsArray, 
 							// Auxiliary Array containing the Ray Chunk Arrays skeleton
 							int* skeletonArray,
-							// Auxiliary Array containing the inclusive segmented scan result
-							int* scanArray, 
-							// Output Array containing the sorted Ray Indices
-							int2* sortedRayIndicesArray) {
+							// Output Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray) {
 
-	// Ray Decompression - Decompress Rays from the sorted chunks
-	//
-	// Exclusive Scan on the sorted Size Array
-	//		Scan: Sum of the sorted Size Array
-	//
-	// Create the Skeleton and Head Flags Array (Initialized with 1 and 0)
-	//		Skeleton: skeleton[i] = base[scan[i]]
-	//		Head: head[i] = (skeleton[i] != 0)
-	//
-	// Inclusive Segmented Scan on the Skeleton and Head Arrays
-	//
-	// Output 
-	//		Sorted ray index Array	
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= chunkTotal)
+		return;
+
+	int chunkKey = sortedChunkKeysArray[x];
+	int chunkValue = sortedChunkValuesArray[x];
+
+	int chunkBase = chunkBasesArray[chunkValue];
+	int chunkSize = chunkSizesArray[chunkValue];
+
+	int startingPosition = scanArray[x];
+	int finalPosition = startingPosition + chunkSize;
+	
+	//skeletonArray[startingPosition] = chunkBase;
+	headFlagsArray[startingPosition] = 1;
+
+	sortedRayIndexKeysArray[startingPosition] = chunkKey;
+	sortedRayIndexValuesArray[startingPosition] = chunkBase;
+
+	// Remaining Positions
+	for(int i=startingPosition+1,j=0; i<finalPosition; i++,j++) {
+
+		//skeletonArray[i] = 1;
+		headFlagsArray[i] = 0;
+
+		sortedRayIndexKeysArray[i] = chunkKey;
+		sortedRayIndexValuesArray[i] = chunkBase + j;
+	}
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -624,7 +766,7 @@ extern "C" {
 		dim3 grid(windowWidth/block.x + 1,windowHeight/block.y + 1);
 
 		// Create the Rays
-		RayCreation<<<block, grid>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
+		CreateRays<<<block, grid>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
 	}
 
 	void RayTrimmingWrapper(	
@@ -641,75 +783,130 @@ extern "C" {
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray) {
 	
-		// Number of Rays being cast per Frame							
+		// Number of Rays potentialy being cast per Frame
 		int rayTotal = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 
-		if(temporaryStorage == NULL) {
-
+		// Prepare the Inclusive Scan
+		//if(scanTemporaryStorage == NULL) {
+			
+			// Free temporary storage for exclusive prefix scan
+			Utility::checkCUDAError("cudaFree()", cudaFree(scanTemporaryStorage));
 			// Check how much memory is necessary
-			cub::DeviceScan::InclusiveSum(temporaryStorage, temporaryStoreBytes, headFlagsArray, scanArray, rayTotal);
+			Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 			// Allocate temporary storage for exclusive prefix scan
-			cudaMalloc(&temporaryStorage, temporaryStoreBytes);
-		}
+			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&scanTemporaryStorage, scanTemporaryStoreBytes));
+		//}
 
 		// Create the Trim Scan Array
-		cub::DeviceScan::InclusiveSum(temporaryStorage, temporaryStoreBytes, headFlagsArray, scanArray, rayTotal);
+		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 
+		// Number of Pixels per Frame
 		int screenDimensions = windowWidth * windowHeight;
 
 		// Grid based on the Pixel Count
 		dim3 block(1024);
-		dim3 grid(screenDimensions/block.x + 1);
+		dim3 grid(screenDimensions/block.x + 1);	
 
 		// Trim the Ray Indices Array
-		RayTrimming<<<block, grid>>>(rayIndexKeysArray, rayIndexValuesArray, screenDimensions, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
+		TrimRays<<<block, grid>>>(rayIndexKeysArray, rayIndexValuesArray, screenDimensions, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
 	}
 
 	void RayCompressionWrapper(	
 							// Input Arrays containing the trimmed Ray Indices
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray,
-							// Screen Dimensions
-							int windowWidth, int windowHeight,
+							// Total number of Rays
+							int rayTotal,
 							// Auxiliary Array containing the head flags result
 							int* headFlagsArray, 
 							// Auxiliary Array containing the exclusing scan result
 							int* scanArray, 
-							// Output Array containing the Ray Chunks
-							int2* chunkArray,
+							// Output Arrays containing the Ray Chunk Bases and Sizes
+							int* chunkBasesArray,
+							int* chunkSizesArray,
 							// Output Arrays containing the Ray Chunks
 							int* chunkIndexKeysArray, 
 							int* chunkIndexValuesArray) {
 
-		/*int rayTotal = 768*768*7;
-		// Use Exclusing and Inclusive Sums to calculate Array Size and also to Truncate the Arrays
-
 		// Grid based on the Ray Count
-		dim3 block(1024);
-		dim3 grid(rayTotal/1024 + 1);
+		dim3 rayBlock(1024);
+		dim3 rayGrid(rayTotal/CHUNK_DIVISION/rayBlock.x + 1);
+
+		// Create the Chunk Flags
+		CreateChunkFlags<<<rayBlock, rayGrid>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
+
+		// Prepare the Exclusive Scan
+		//if(scanTemporaryStorage == NULL) {
 		
-		// Ray Compression
-		RayCompression<<<block, grid>>>(rayIndicesArray, headFlagsArray, scanArray, chunkArray);*/
+			// Free temporary storage for exclusive prefix scan
+			Utility::checkCUDAError("cudaFree()", cudaFree(scanTemporaryStorage));
+			// Check how much memory is necessary
+			Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+			// Allocate temporary storage for exclusive prefix scan
+			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&scanTemporaryStorage, scanTemporaryStoreBytes));
+		//}
+
+		// Update the Scan Array with each Chunks 
+		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+
+		int chunkTotal;
+		// Check the Ray Total (last position of the scan array)
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
+		chunkTotal++;
+
+		// Create the Chunk Bases
+		CreateChunkBases<<<rayBlock, rayGrid>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray, scanArray, chunkBasesArray, chunkIndexKeysArray, chunkIndexValuesArray);
+
+		// Grid based on the Ray Chunk Count
+		dim3 chunkBlock(1024);
+		dim3 chunkGrid(chunkTotal/chunkBlock.x + 1);
+		
+		// Create the Chunk Sizes
+		CreateChunkSizes<<<chunkBlock, chunkGrid>>>(chunkBasesArray, chunkTotal, rayTotal, chunkSizesArray);
 	}
 
 	void RaySortingWrapper(	
 							// Input Arrays containing the Ray Chunks
 							int* chunkIndexKeysArray, 
 							int* chunkIndexValuesArray,
-							// Screen Dimensions
-							int windowWidth, int windowHeight,
+							// Total number of Ray Chunks
+							int chunkTotal,
 							// Output Arrays containing the Ray Chunks
 							int* sortedChunkIndexKeysArray, 
 							int* sortedChunkIndexValuesArray) {
 
+		// Prepare the Radix Sort by allocating temporary storage
+		//if(radixSortTemporaryStorage == NULL) {
+								
+			// Free temporary storage for exclusive prefix scan
+			Utility::checkCUDAError("cudaFree()", cudaFree(radixSortTemporaryStorage));
+			// Check how much memory is necessary
+			Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs1()", 
+				cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
+				chunkIndexKeysArray, sortedChunkIndexKeysArray,
+				chunkIndexValuesArray, sortedChunkIndexValuesArray, 
+				chunkTotal));
+			// Allocate the temporary storage
+			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&radixSortTemporaryStorage, radixSortTemporaryStoreBytes));
+		//}
+					
+		// Run sorting operation
+		Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs2()", 
+			cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
+			chunkIndexKeysArray, sortedChunkIndexKeysArray,
+			chunkIndexValuesArray, sortedChunkIndexValuesArray, 
+			chunkTotal));
 	}
 
 	void RayDecompressionWrapper(	
+							// Input Arrays containing the Ray Chunk Bases and Sizes
+							int* chunkBasesArray,
+							int* chunkSizesArray,
 							// Input Arrays containing the Ray Chunks
 							int* sortedChunkIndexKeysArray, 
 							int* sortedChunkIndexValuesArray,
-							// Screen Dimensions
-							int windowWidth, int windowHeight,
+							// Total number of Ray Chunks
+							int chunkTotal,
 							// Auxiliary Array containing the Ray Chunk Arrays head flags 
 							int* headFlagsArray, 
 							// Auxiliary Array containing the Ray Chunk Arrays skeleton
@@ -720,14 +917,39 @@ extern "C" {
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray) {
 
-		/*int chunkTotal = 768*768*7;
+		// Grid based on the Ray Chunk Count
+		dim3 chunkBlock(1024);
+		dim3 chunkGrid(chunkTotal/chunkBlock.x + 1);
 
-		// Grid based on the Chunk Count
-		dim3 block(1024);
-		dim3 grid(chunkTotal/1024 + 1);
-		
-		// Ray Decompression
-		RayDecompression<<<block, grid>>>(sortedChunkArray, headFlagsArray, skeletonArray, scanArray, sortedRayIndicesArray);*/
+		CreateChunkSkeleton<<<chunkBlock, chunkGrid>>>(
+			chunkSizesArray, 
+			sortedChunkIndexValuesArray,
+			chunkTotal, 
+			skeletonArray);
+
+		// Prepare the Exclusive Scan
+		//if(scanTemporaryStorage == NULL) {
+
+			// Free temporary storage for exclusive prefix scan
+			Utility::checkCUDAError("cudaFree()", cudaFree(scanTemporaryStorage));
+			// Check how much memory is necessary
+			Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
+			// Allocate temporary storage for exclusive prefix scan
+			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&scanTemporaryStorage, scanTemporaryStoreBytes));
+		//}
+
+		// Update the Scan Array with each Chunks 
+		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
+
+		// Create the Chunk Bases
+		CreateSortedRays<<<chunkBlock, chunkGrid>>>(
+			chunkBasesArray, chunkSizesArray, 
+			sortedChunkIndexKeysArray, sortedChunkIndexValuesArray,
+			scanArray, 
+			chunkTotal, 
+			headFlagsArray, 
+			skeletonArray, 
+			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
 	}
 
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
