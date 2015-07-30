@@ -94,6 +94,7 @@ cudaError_t AliasTemporaries(
     // Check if enough storage provided
     if (temp_storage_bytes < bytes_needed)
     {
+
         return CubDebug(cudaErrorInvalidValue);
     }
 
