@@ -714,7 +714,7 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 	
-	//cout << "[Callback] Display Successfull" << endl;
+	cout << "[Callback] Display Successfull" << endl;
 }
 
 // [Scene] Reshapes up the Scene
