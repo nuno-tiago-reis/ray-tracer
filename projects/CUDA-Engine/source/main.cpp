@@ -124,6 +124,9 @@ float* cudaUpdatedModelMatricesDP = NULL;
 float* cudaUpdatedNormalMatricesDP = NULL;
 
 // CUDA DevicePointers to the Sorting Auxiliary Arrays
+float4* cudaHierarchyArrayDP = NULL;
+float4* cudaHierarchyHitsArrayDP = NULL;
+
 float3* cudaRayArrayDP = NULL;
 
 int* cudaChunkBasesArrayDP = NULL;
@@ -131,20 +134,17 @@ int* cudaChunkSizesArrayDP = NULL;
 
 int* cudaPrimaryRayIndexValuesArrayDP = NULL;
 int* cudaPrimaryRayIndexKeysArrayDP = NULL;
-
 int* cudaSecondaryRayIndexValuesArrayDP = NULL;
 int* cudaSecondaryRayIndexKeysArrayDP = NULL;
 
 int* cudaPrimaryChunkKeysArrayDP = NULL;
 int* cudaPrimaryChunkValuesArrayDP = NULL;
-
 int* cudaSecondaryChunkKeysArrayDP = NULL;
 int* cudaSecondaryChunkValuesArrayDP = NULL;
 
 int* cudaHeadFlagsArrayDP = NULL;
 int* cudaSkeletonArrayDP = NULL;
 int* cudaScanArrayDP = NULL;
-
 
 // [CUDA-OpenGL Interop] 
 extern "C" {
@@ -230,20 +230,43 @@ extern "C" {
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray);
 	
+	// Implementation of HierarchyCreationWrapper is in the "RayTracer.cu" file
+	void HierarchyCreationWrapper(	
+							// Input Arrays containing the Rays
+							float3* rayArray, 
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Total number of Rays
+							int rayTotal,
+							// Auxiliary Array containing the Ray Chunk Arrays head flags 
+							int* headFlagsArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							int* skeletonArray,
+							// Auxiliary Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Output Array containing the Ray Hierarchy
+							float4* hierarchyArray);
+	
 	// Implementation of TriangleUpdateWrapper is in the "RayTracer.cu" file
-	void TriangleUpdateWrapper(	// Array containing the updated Model Matrices
-								float* modelMatricesArray,
-								// Array containing the updated Normal Matrices
-								float* normalMatricesArray,
-								// Array containing the updated Triangle Positions
-								float4* trianglePositionsArray,
-								// Array containing the updated Triangle Normals
-								float4* triangleNormalsArray,
-								// Total Number of Triangles in the Scene
-								int triangleTotal);
+	void TriangleUpdateWrapper(	
+							// Array containing the updated Model Matrices
+							float* modelMatricesArray,
+							// Array containing the updated Normal Matrices
+							float* normalMatricesArray,
+							// Array containing the updated Triangle Positions
+							float4* trianglePositionsArray,
+							// Array containing the updated Triangle Normals
+							float4* triangleNormalsArray,
+							// Total Number of Triangles in the Scene
+							int triangleTotal);
 	
 	// Implementation of RayTraceWrapper is in the "RayTracer.cu" file
-	void RayTraceWrapper(	unsigned int *pixelBufferObject,
+	void RayTraceWrapper(	
+							unsigned int *pixelBufferObject,
 							// Screen Dimensions
 							int width, int height, 
 							// Updated Triangle Position Array
@@ -426,9 +449,6 @@ void display() {
 		// Update the Triangle Positions and Normals
 		TriangleUpdateWrapper(cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP, cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP, triangleTotal);
 
-		Utility::checkCUDAError("[TriangleUpdateWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[TriangleUpdateWrapper] cudaGetLastError()", cudaGetLastError());
-
 		// Create the Rays and Index them [DONE]
 		RayCreationWrapper(
 			cudaRayArrayDP, 
@@ -437,9 +457,6 @@ void display() {
 			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]),
 			cudaHeadFlagsArrayDP, 
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-
-		Utility::checkCUDAError("[RayCreationWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[RayCreationWrapper] cudaGetLastError()", cudaGetLastError());
 	
 		// Trim the Ray Indices [DONE]
 		RayTrimmingWrapper(
@@ -448,17 +465,14 @@ void display() {
 			cudaHeadFlagsArrayDP, 
 			cudaScanArrayDP, 
 			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP);
-		
-		Utility::checkCUDAError("[RayTrimmingWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[RayTrimmingWrapper] cudaGetLastError()", cudaGetLastError());
 
 		int rayTotal;
 		// Check the Ray Total (last position of the scan array minus the maximum number of rays)
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayTotal, &cudaScanArrayDP[windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM - 1], sizeof(int), cudaMemcpyDeviceToHost));
-		// Update the Ray Total
+		// Account for the fact that the Scan Array was calculated using an exclusive scan on the missing rays
 		rayTotal = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM - rayTotal;
 
-		// Compress the Ray Indices into Chunks
+		// Compress the Unsorted Ray Indices into Chunks
 		RayCompressionWrapper(
 			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP, 
 			rayTotal,
@@ -466,25 +480,18 @@ void display() {
 			cudaScanArrayDP, 
 			cudaChunkBasesArrayDP, cudaChunkSizesArrayDP, 
 			cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP);
-		
-		Utility::checkCUDAError("[RayCompressionWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[RayCompressionWrapper] cudaGetLastError()", cudaGetLastError());
 
 		int chunkTotal;
 		// Check the Ray Total (last position of the scan array)
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkTotal, &cudaScanArrayDP[rayTotal - 1], sizeof(int), cudaMemcpyDeviceToHost));
-		chunkTotal++;
 
 		// Sort the Chunks
 		RaySortingWrapper(
 			cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP, 
 			chunkTotal,
 			cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
-		
-		Utility::checkCUDAError("[RaySortingWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[RaySortingWrapper] cudaGetLastError()", cudaGetLastError());
 
-		// Decompress the Chunks into the Ray Indices
+		// Decompress the Sorted Chunks into the Sorted Ray Indices
 		RayDecompressionWrapper(
 			cudaChunkBasesArrayDP, cudaChunkSizesArrayDP,
 			cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP, 
@@ -494,8 +501,16 @@ void display() {
 			cudaScanArrayDP, 
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 		
-		Utility::checkCUDAError("[RayDecompressionWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[RayDecompressionWrapper] cudaGetLastError()", cudaGetLastError());
+		// Create the Hierarchy from the Sorted Ray Indices
+		HierarchyCreationWrapper(
+			cudaRayArrayDP,
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			rayTotal,
+			cudaHeadFlagsArrayDP, 
+			cudaSkeletonArrayDP, 
+			cudaScanArrayDP, 
+			cudaHierarchyArrayDP);
 
 		// Draw
 		RayTraceWrapper(
@@ -508,13 +523,17 @@ void display() {
 			triangleTotal,
 			lightTotal,
 			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));
-		
-		Utility::checkCUDAError("[RayTraceWrapper] cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("[RayTraceWrapper] cudaGetLastError()", cudaGetLastError());
 
 	// Kernel Launches
-	/*int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
-	int arrayBase = 0;
+	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+
+	int rayArraySize = arraySize * 2;
+
+	int hierarchyArraySize = 0;
+	for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++)
+		hierarchyArraySize += (arraySize / (int)pow((float)HIERARCHY_SUBDIVISION, (float)i)); 
+
+	float3* rayArray = new float3[arraySize*2];
 
 	int* rayIndexKeysArray = new int[arraySize];
 	int* rayIndexValuesArray = new int[arraySize];
@@ -534,8 +553,12 @@ void display() {
 	int* headFlagsArray = new int[arraySize];
 	int* skeletonArray = new int[arraySize];
 	int* scanArray = new int[arraySize];
+
+	float4* hierarchyArray = new float4[hierarchyArraySize * 2];
 	
 	// Copy the Arrays from CUDA	
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayArray[0], cudaRayArrayDP, rayArraySize * sizeof(float3), cudaMemcpyDeviceToHost));
+
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexKeysArray[0], cudaPrimaryRayIndexKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexValuesArray[0], cudaPrimaryRayIndexValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
@@ -555,9 +578,9 @@ void display() {
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&skeletonArray[0], cudaSkeletonArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&scanArray[0], cudaScanArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	printf("\n");
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&hierarchyArray[0], cudaHierarchyArrayDP, hierarchyArraySize * sizeof(float4) * 2, cudaMemcpyDeviceToHost));
 
-	printf("Array Dump (%d)\n\n", arraySize);
+	printf("\nArray Dump (%d)\n\n", arraySize);
 
 	//arrayBase = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM - 512;
 	//arrayBase = 0;
@@ -566,7 +589,7 @@ void display() {
 
 	int rayCounter = 0;
 
-	printf("Ray Indices\n");
+	/*printf("Ray Indices\n");
 	for(int i=arrayBase; i<arrayBase+arraySize; i++) {
 
 		printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
@@ -582,12 +605,19 @@ void display() {
 			printf("\nbreaking\t%d", i);
 		else if(i > 0 && rayIndexKeysArray[i] != 0 && rayIndexKeysArray[i-1] == 0)
 			printf("\nrestarting\t%d", i);
-	printf("\n");
+	printf("\n");*/
 	
 	int trimmedRayCounter = 0;
 
-	printf("Trimmed Ray Indices\n");
+	/*printf("Base Ray Hashes and Positions\n");
 	for(int i=arrayBase; i<arrayBase+arraySize; i++) {
+		
+		printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
+	}
+	printf("\n");
+
+	printf("Trimmed Ray Hashes and Positions\n");
+	for(int i=arrayBase; i<rayTotal; i++) {
 		
 		printf("%u#%d\t", trimmedRayIndexKeysArray[i], trimmedRayIndexValuesArray[i]);
 		
@@ -596,53 +626,58 @@ void display() {
 	}
 	printf("\n");
 
-	printf("Trimmed Ray Indices Breaks\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
+	printf("Real Trimmed Ray Hashes and Positions\n");
+	for(int i=arrayBase; i<arrayBase+arraySize; i++) {
+		
+		if(rayIndexKeysArray[i] != 0)
+			printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
+	}
+	printf("\n");*/
+
+	/*printf("Trimmed Ray Values\n");
+	for(int i=arrayBase; i<rayTotal; i++) {
+		
+		float3 ray = rayArray[trimmedRayIndexValuesArray[i]];
+
+		printf("(%.2f,%.2f,%.2f)\t", ray.x, ray.y, ray.z);
+	}
+	printf("\n");*/
+
+	/*printf("Trimmed Ray Indices Breaks\n");
+	for(int i=arrayBase; i<rayTotal; i++)
 		if(i > 0 && trimmedRayIndexKeysArray[i] == 0 && trimmedRayIndexKeysArray[i-1] != 0)
 			printf("\n[starting empty streak at %d]", i);
-	printf("\n");
-
-	printf("Head Flags Array\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
-		printf("%u\t", headFlagsArray[i]);
-	printf("\n");
-
-	printf("Skeleton Array\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
-		printf("%u\t", skeletonArray[i]);
-	printf("\n");
-
-	printf("Scan Array\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
-		printf("%u\t", scanArray[i]);
-	printf("\n");
+	printf("\n");*/
 	
 	int chunkCounter = 0;
 
-	printf("Chunk Base & Size Arrays\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++) {
+	/*printf("Chunk Base & Size Arrays\n");
+	for(int i=arrayBase; i<chunkTotal; i++) {
 
 		printf("%u#%u\t", chunkBasesArray[i], chunkSizesArray[i]);
 		
 		if(chunkBasesArray[i] != 0 || i == 0)
 			chunkCounter++;
+
+		if(chunkSizesArray[i] == 0)
+			printf("\n\nFuck at %d\n\n",i);
 	}	
 	printf("\n");
 
-	/printf("Chunk Hash & Position Arrays\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
+	printf("Chunk Hash & Position Arrays\n");
+	for(int i=arrayBase; i<chunkTotal; i++)
 		printf("%u#%u\t", chunkHashArray[i], chunkValuesArray[i]);
 	printf("\n");
 
 	printf("Sorted Chunk Hash & Position Arrays\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
+	for(int i=arrayBase; i<chunkTotal; i++)
 		printf("%u#%u\t", sortedChunkHashArray[i], sortedChunkValuesArray[i]);
-	printf("\n");
+	printf("\n");*/
 
 	int sortedRayCounter = 0;
 
 	printf("Sorted Ray Indices\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++) {
+	for(int i=0; i<rayTotal; i++) {
 		
 		printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
 		
@@ -651,17 +686,74 @@ void display() {
 	}
 	printf("\n");
 
-	printf("Sorted Ray Indices Breaks\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
+	/*printf("Sorted Ray Indices Breaks\n");
+	for(int i=arrayBase; i<rayTotal; i++)
 		if(i > 0 && rayIndexKeysArray[i] == 0 && rayIndexKeysArray[i-1] != 0)
 			printf("\n[starting empty streak at %d]", i);
 	printf("\n");
 
+	printf("Sorted Ray Hashes and Positions\n");
+	for(int i=arrayBase; i<rayTotal; i++)
+		printf("%u#%d\t", rayIndexKeysArray[i],  rayIndexValuesArray[i]);
+	printf("\n");*/
+	
+	printf("Sorted Ray Values\n");
+	for(int i=0; i<rayTotal; i++) {
+		
+		float3 ray = rayArray[trimmedRayIndexValuesArray[rayIndexValuesArray[i]] + 1];
+		
+		printf("(%.2f,%.2f,%.2f)\t", ray.x, ray.y, ray.z);
+
+		if(length(ray) == 0.0f)
+			printf(" fuck at %d/%d/%d", trimmedRayIndexValuesArray[rayIndexValuesArray[i]], rayIndexValuesArray[i], i);
+	}
+	printf("\n");
+	
+	printf("Ray Total %d\n", rayTotal);
+	printf("Chunk Total %d\n", chunkTotal);
 	printf("Chunk Counter %d\n", chunkCounter);
 	printf("Sorted Ray Counter \t%d\n", sortedRayCounter);
 	printf("Trimmed Ray Counter %d\n", trimmedRayCounter);
 
-	exit(0);*/
+	printf("Base Ray Values\n");
+	for(int i=0; i<arraySize; i++) {
+
+		float3 ray = rayArray[i];
+		
+		printf("(%.2f,%.2f,%.2f)\t", ray.x, ray.y, ray.z);
+	}
+	printf("\n");
+
+	printf("Sorted Ray Values\n");
+	for(int i=0; i<rayTotal; i++) {
+		
+		float3 ray = rayArray[trimmedRayIndexValuesArray[i] * 2 + 1];
+		
+		printf("(%.2f,%.2f,%.2f)\t", ray.x, ray.y, ray.z);
+	}
+	printf("\n");	
+
+	printf("Real Sorted Ray Values\n");
+	for(int i=0; i<arraySize; i++) {
+		
+		float3 ray = rayArray[i * 2 + 1];
+		
+		if(length(ray) != 0.0f)
+			printf("(%.2f,%.2f,%.2f)\t", ray.x, ray.y, ray.z);
+	}
+	printf("\n");
+
+	int nodeCounter = 0;
+
+	printf("Hierarchy Nodes\n");
+	for(int i=0; i<hierarchyArraySize; i++) {
+		
+		printf("Cone: (%f,%f, %f)#%f\t", hierarchyArray[i].x, hierarchyArray[i].y, hierarchyArray[i].z, hierarchyArray[i].w);
+		printf("Sphere: (%f,%f, %f)#%f\n", hierarchyArray[i+1].x, hierarchyArray[i+1].y, hierarchyArray[i+1].z, hierarchyArray[i+1].w);
+	}
+	printf("\n");
+
+	exit(0);
 
 	// Unmap the used CUDA Resources
 	frameBuffer->unmapCudaResource();
@@ -714,7 +806,7 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 	
-	cout << "[Callback] Display Successfull" << endl;
+	//cout << "[Callback] Display Successfull" << endl;
 }
 
 // [Scene] Reshapes up the Scene
@@ -748,9 +840,18 @@ void reshape(int weight, int height) {
 
 	// Update the Array Size 
 	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+
+	// Update the CUDA Hierarchy Array Size
+	int hierarchyArraySize = 0;
+	for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++)
+		hierarchyArraySize += (arraySize / (int)pow((float)HIERARCHY_SUBDIVISION, (float)i)); 
+	
+	// Update the CUDA Hierarchy Array
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHierarchyArrayDP, hierarchyArraySize * sizeof(float4) * 2));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHierarchyHitsArrayDP, hierarchyArraySize * sizeof(int2)));
 	
 	// Update the CUDA Ray Array
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3) * 2));
 
 	// Update the CUDA Chunks Base and Size Arrays
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBasesArrayDP, arraySize * sizeof(int)));
@@ -772,6 +873,11 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, arraySize * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSkeletonArrayDP, arraySize * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, arraySize * sizeof(int)));
+
+	size_t free;
+	size_t total;
+	Utility::checkCUDAError("cudaGetMemInfo()", cudaMemGetInfo(&free, &total));
+	cout << "Free Memory: " << free << " Total Memory: " << total << endl << endl;
 
 	cout << "[Callback] Reshape Successfull" << endl;
 }
@@ -995,9 +1101,18 @@ void initializeCUDAmemory() {
 
 	// Calculate the Array Size 
 	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+
+	// Calculate the CUDA Hierarchy Array Size
+	int hierarchyArraySize = 0;
+	for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++)
+		hierarchyArraySize += arraySize / (int)pow((float)HIERARCHY_SUBDIVISION, (float)i); 
+	
+	// Create the CUDA Hierarchy Array
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHierarchyArrayDP, hierarchyArraySize * sizeof(float4) * 2));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHierarchyHitsArrayDP, hierarchyArraySize * sizeof(int2)));
 	
 	// Create the CUDA Ray Array
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, arraySize * sizeof(float3) * 2));
 
 	// Create the CUDA Chunks Base and Size Arrays
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBasesArrayDP, arraySize * sizeof(int)));
@@ -1517,8 +1632,8 @@ void init(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 
-	//freopen("output.txt","w",stderr);
-	//freopen("output.txt","w",stdout);
+	freopen("output.txt","w",stderr);
+	freopen("output.txt","w",stdout);
 
 	/* Init the Animation */
 	init(argc, argv);

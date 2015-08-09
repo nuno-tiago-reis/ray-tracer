@@ -1,20 +1,21 @@
-/* Degree & Radian Conversion Constants */
-
+// Degree & Radian Conversion Constants
 #define PI 3.1415927f
 #define HALF_PI PI/2.0f
 
 #define DEGREES_TO_RADIANS PI/180.0f
 #define RADIANS_TO_DEGREES 180.0f/PI
 
-/* Viewport Size Constants */
-#define WIDTH 768
-#define HEIGHT 768
+// Viewport Size Constants
+#define WIDTH 125
+#define HEIGHT 25
 
-#define LIGHT_SOURCE_MAXIMUM 10
-#define RAYS_PER_PIXEL_MAXIMUM 12
+// Ray Casting Constants
+#define LIGHT_SOURCE_MAXIMUM 1
+#define RAYS_PER_PIXEL_MAXIMUM 3
 
+// Chunk Division Constants
 #define CHUNK_DIVISION 10
 
-// PUT RAYS IN PSOTIONS THAT MAKE THEM SIMILAR
-
-// FOR INSTANCE ALL REFLECTIONS ADJANCENT TO EACH OTHER, ALL REFRACTIONS ADJACENT TO EACH OTHER, ALL LIGHTS AJDACENT
+// Hierarchy Depth Constants
+#define HIERARCHY_MAXIMUM_DEPTH 4
+#define HIERARCHY_SUBDIVISION 4

@@ -176,7 +176,6 @@ __device__ int rayToIndex(float3 origin, float3 direction) {
 	return index;
 }
 
-
 // Ray - BoundingBox Intersection Code
 __device__ int RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, const float3 &RayOrigin, const float3 &RayDirectionInverse, float &tmin, float &tmax) {
 
@@ -288,7 +287,7 @@ __global__ void UpdateVertex(
 	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
 }
 
-//		Ray index Array	
+//	Ray index Array	
 __global__ void CreateRays(// Input Array containing the unsorted Rays
 							float3* rayArray,
 							// Screen Dimensions
@@ -323,13 +322,16 @@ __global__ void CreateRays(// Input Array containing the unsorted Rays
 		float3 rayRefractionDirection = refract(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal), 1.0f / 1.52f);
 		
 		// Light Positions - Sent from the CPU
-		float3 shadowRayPositions[10];
-		float3 shadowRayDirections[10];
+		float3 shadowRayPositions[LIGHT_SOURCE_MAXIMUM];
+		float3 shadowRayDirections[LIGHT_SOURCE_MAXIMUM];
 
 		// Create the Reflection and Refraction Rays and store their directions
-		rayArray[rayOffset] = rayReflectionDirection;
-		rayArray[rayBase + rayOffset] = rayRefractionDirection;
-		
+		rayArray[(rayOffset * 2)] = fragmentPosition;
+		rayArray[(rayOffset * 2) + 1] = rayReflectionDirection;
+
+		rayArray[(rayBase + rayOffset) * 2] = fragmentPosition;
+		rayArray[(rayBase + rayOffset) * 2 + 1] = rayRefractionDirection;
+
 		// Create the Shadow Rays
 		for(int l = 0; l < lightTotal; l++) {
 
@@ -342,10 +344,11 @@ __global__ void CreateRays(// Input Array containing the unsorted Rays
 			clamp(diffuseFactor, 0.0f, 1.0f);
 				
 			// Store the Shadow Rays its direction
-			if(diffuseFactor > 0.0f)
-				rayArray[rayBase * (2 + l) + rayOffset] = shadowRayDirections[l];
-			else
-				rayArray[rayBase * (2 + l) + rayOffset] = make_float3(0.0f);
+			if(diffuseFactor <= 0.0f)
+				shadowRayDirections[l] = make_float3(0.0f);
+			
+			rayArray[(rayBase * (2 + l) + rayOffset) * 2] = fragmentPosition;
+			rayArray[(rayBase * (2 + l) + rayOffset) * 2 + 1] = shadowRayDirections[l];
 		}
 
 		// Store the Reflection and Refraction Ray indices
@@ -536,7 +539,7 @@ __global__ void CreateChunkBases(
 	// Remaining Positions
 	for(int i=0; i<CHUNK_DIVISION; i++) {
 
-		int currentPosition = x * CHUNK_DIVISION + i;
+		int currentPosition = x * CHUNK_DIVISION + i ;
 
 		if(currentPosition >= rayTotal)
 			return;
@@ -546,7 +549,7 @@ __global__ void CreateChunkBases(
 			continue;
 
 		// Store the Position of the Chunk
-		int position = scanArray[currentPosition];
+		int position = scanArray[currentPosition] - 1;
 
 		// Store the Ray Base for the Chunk
 		chunkBasesArray[position] = currentPosition; 
@@ -656,22 +659,73 @@ __global__ void CreateSortedRays(
 
 	int startingPosition = scanArray[x];
 	int finalPosition = startingPosition + chunkSize;
-	
-	//skeletonArray[startingPosition] = chunkBase;
-	headFlagsArray[startingPosition] = 1;
 
 	sortedRayIndexKeysArray[startingPosition] = chunkKey;
 	sortedRayIndexValuesArray[startingPosition] = chunkBase;
 
 	// Remaining Positions
-	for(int i=startingPosition+1,j=0; i<finalPosition; i++,j++) {
-
-		//skeletonArray[i] = 1;
-		headFlagsArray[i] = 0;
+	for(int i=startingPosition+1, j=1; i<finalPosition; i++) {
 
 		sortedRayIndexKeysArray[i] = chunkKey;
 		sortedRayIndexValuesArray[i] = chunkBase + j;
 	}
+}
+
+__global__ void CreateHierarchyLevel1(	
+							// Input Array containing the Rays
+							float3* rayArray,
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Total number of Nodes
+							int nodeTotal,
+							// Output Array containing the Ray Hierarchy
+							float4* hierarchyArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= nodeTotal)
+		return;
+
+	float3 coneDirection = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]] * 2 + 1];
+	float coneSpread = 0.0f;
+
+	float3 sphereCenter = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]] * 2];
+	float sphereRadius = 0.0f;
+	
+	for(int i=1; i<3; i++) {
+
+		float3 currentConeDirection = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x + i]] * 2 + 1];
+		float currentConeSpread = acos(dot(coneDirection, currentConeDirection));
+	
+		coneDirection = normalize(coneDirection + currentConeDirection);
+		coneSpread = currentConeSpread + max(coneSpread, currentConeSpread);
+		
+		float3 currentSphereCenter = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x + i]] * 2];
+		float currentSphereRadius = 0.0f;
+
+		sphereCenter = sphereCenter + normalize(sphereCenter - currentSphereCenter) * length(sphereCenter - currentSphereCenter);
+		sphereRadius = length(sphereCenter - currentSphereCenter) * 0.5f + max(sphereRadius, currentSphereRadius);
+	}
+
+	hierarchyArray[x] = make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread);
+}
+
+__global__ void CreateHierarchyLevelN(	
+							// Input and Output Array containing the Ray Hierarchy
+							float4* hierarchyArray,
+							// Hierarchy current Level
+							int hierarchyLevel,
+							// Total number of Nodes
+							int nodeTotal) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= nodeTotal)
+		return;
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -712,8 +766,8 @@ __global__ void RayTracePixel(	unsigned int* pixelBufferObject,
 	if(length(rayOrigin) != 0.0f) {
 			
 		// Calculate the Final Color
-		//float3 finalColor = normalize(rayOrigin);
-		float3 finalColor = rayArray[x + y * windowWidth];
+		float3 finalColor = normalize(rayOrigin);
+		//float3 finalColor = rayArray[x + y * windowWidth];
 
 		// Update the Pixel Buffer
 		pixelBufferObject[y * windowWidth + x] = rgbToInt(finalColor.x * 255, finalColor.y * 255, finalColor.z * 255);
@@ -787,18 +841,13 @@ extern "C" {
 		int rayTotal = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 
 		// Prepare the Inclusive Scan
-		//if(scanTemporaryStorage == NULL) {
-			
-			// Free temporary storage for exclusive prefix scan
-			Utility::checkCUDAError("cudaFree()", cudaFree(scanTemporaryStorage));
-			scanTemporaryStorage = NULL;
-			scanTemporaryStoreBytes = 0;
+		if(scanTemporaryStorage == NULL) {
 
 			// Check how much memory is necessary
 			Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 			// Allocate temporary storage for exclusive prefix scan
 			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&scanTemporaryStorage, scanTemporaryStoreBytes));
-		//}
+		}
 
 		// Create the Trim Scan Array
 		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
@@ -839,26 +888,20 @@ extern "C" {
 		CreateChunkFlags<<<rayBlock, rayGrid>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
 
 		// Prepare the Exclusive Scan
-		//if(scanTemporaryStorage == NULL) {
-		
-			// Free temporary storage for exclusive prefix scan
-			Utility::checkCUDAError("cudaFree()", cudaFree(scanTemporaryStorage));
-			scanTemporaryStorage = NULL;
-			scanTemporaryStoreBytes = 0;
+		if(scanTemporaryStorage == NULL) {
 
 			// Check how much memory is necessary
-			Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+			Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 			// Allocate temporary storage for exclusive prefix scan
 			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&scanTemporaryStorage, scanTemporaryStoreBytes));
-		//}
+		}
 
 		// Update the Scan Array with each Chunks 
-		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 
 		int chunkTotal;
 		// Check the Ray Total (last position of the scan array)
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
-		chunkTotal++;
 
 		// Create the Chunk Bases
 		CreateChunkBases<<<rayBlock, rayGrid>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray, scanArray, chunkBasesArray, chunkIndexKeysArray, chunkIndexValuesArray);
@@ -882,22 +925,19 @@ extern "C" {
 							int* sortedChunkIndexValuesArray) {
 
 		// Prepare the Radix Sort by allocating temporary storage
-		//if(radixSortTemporaryStorage == NULL) {
-								
-			// Free temporary storage for exclusive prefix scan
-			Utility::checkCUDAError("cudaFree()", cudaFree(radixSortTemporaryStorage));
-			radixSortTemporaryStorage = NULL;
-			radixSortTemporaryStoreBytes = 0;
+		if(radixSortTemporaryStorage == NULL) {
+
+			int total = 768 * 768 * RAYS_PER_PIXEL_MAXIMUM;
 
 			// Check how much memory is necessary
 			Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs1()", 
 				cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
 				chunkIndexKeysArray, sortedChunkIndexKeysArray,
 				chunkIndexValuesArray, sortedChunkIndexValuesArray, 
-				chunkTotal));
+				total));
 			// Allocate the temporary storage
 			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&radixSortTemporaryStorage, radixSortTemporaryStoreBytes));
-		//}
+		}
 					
 		// Run sorting operation
 		Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs2()", 
@@ -937,18 +977,13 @@ extern "C" {
 			skeletonArray);
 
 		// Prepare the Exclusive Scan
-		//if(scanTemporaryStorage == NULL) {
-
-			// Free temporary storage for exclusive prefix scan
-			Utility::checkCUDAError("cudaFree()", cudaFree(scanTemporaryStorage));
-			scanTemporaryStorage = NULL;
-			scanTemporaryStoreBytes = 0;
+		if(scanTemporaryStorage == NULL) {
 
 			// Check how much memory is necessary
 			Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
 			// Allocate temporary storage for exclusive prefix scan
 			Utility::checkCUDAError("cudaMalloc()", cudaMalloc(&scanTemporaryStorage, scanTemporaryStoreBytes));
-		//}
+		}
 
 		// Update the Scan Array with each Chunks 
 		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
@@ -962,6 +997,77 @@ extern "C" {
 			headFlagsArray, 
 			skeletonArray, 
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
+	}
+
+	void HierarchyCreationWrapper(	
+							// Input Arrays containing the Rays
+							float3* rayArray, 
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Total number of Rays
+							int rayTotal,
+							// Auxiliary Array containing the Ray Chunk Arrays head flags 
+							int* headFlagsArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							int* skeletonArray,
+							// Auxiliary Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Output Array containing the Ray Hierarchy
+							float4* hierarchyArray) {
+
+		int hierarchyNodeTotal = rayTotal/4 + (rayTotal % 4 != 0 ? 1 : 0);
+								
+		// Grid based on the Hierarchy Node Count
+		dim3 baseLevelBlock(1024);
+		dim3 baseLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
+
+		CreateHierarchyLevel1<<<baseLevelBlock, baseLevelGrid>>>(
+			rayArray,
+			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
+			sortedRayIndexKeysArray, sortedRayIndexValuesArray, 
+			hierarchyNodeTotal, 
+			hierarchyArray);
+
+		cout << "Nodes : " << hierarchyNodeTotal << " Grid: " << baseLevelGrid.x << " Block: " << baseLevelBlock.x << endl;
+		
+		for(int hierarchyLevel=1; hierarchyLevel<HIERARCHY_MAXIMUM_DEPTH; hierarchyLevel++) {
+
+			hierarchyNodeTotal = hierarchyNodeTotal/4 + (hierarchyNodeTotal % 4 != 0 ? 1 : 0);
+			
+			// Grid based on the Hierarchy Node Count
+			dim3 nLevelBlock(1024);
+			dim3 nLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
+
+			CreateHierarchyLevelN<<<nLevelBlock, nLevelGrid>>>(hierarchyArray, hierarchyLevel, hierarchyNodeTotal);
+			
+			//cout << "Nodes : " << hierarchyNodeTotal << " Grid: " << nLevelBlock.x << " Block: " << nLevelGrid.x << endl;
+		}
+	}
+
+	void HierarchyTraversalWrapper(	
+							// Input Array containing the Ray Hierarchy
+							int* hierarchyArray,
+							// Total number of Rays
+							int rayTotal,
+							// Auxiliary Array containing the Ray Chunk Arrays head flags 
+							int* headFlagsArray, 
+							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							int* skeletonArray,
+							// Auxiliary Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Output Array containing the Triangle Hits
+							int* hierarchyHitsArray) {
+	}
+
+	void IntersectionWrapper(	
+							// Input Array containing the Triangle Hits
+							int* hierarchyHitsArray,
+							// Total number of Rays
+							int rayTotal) {
 	}
 
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
