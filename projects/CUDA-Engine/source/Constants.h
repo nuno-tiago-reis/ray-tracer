@@ -6,8 +6,8 @@
 #define RADIANS_TO_DEGREES 180.0f/PI
 
 // Viewport Size Constants
-#define WIDTH 125
-#define HEIGHT 25
+#define WIDTH 128
+#define HEIGHT 32
 
 // Ray Casting Constants
 #define LIGHT_SOURCE_MAXIMUM 1

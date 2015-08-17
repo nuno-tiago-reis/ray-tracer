@@ -160,16 +160,14 @@ __device__ int rayToIndex(float3 origin, float3 direction) {
 
 	int index = 0;
 
-	// Convert the Direction to Spherical Coordinates
-	index = (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
-	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
-
 	// Clamp the Origin to the 0-15 range
-	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
 	index = (index << 4) | (unsigned int)clamp(origin.y + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
 	index = (index << 4) | (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
-	//index = (index << 5) | (unsigned int)clamp(origin.y + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
-	//index = (index << 5) | (unsigned int)clamp(origin.z + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
+	
+	// Convert the Direction to Spherical Coordinates
+	index = (index << 4) | (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
+	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
 
 	index++;
 
@@ -220,6 +218,32 @@ __device__ float RayTriangleIntersection(const Ray &ray, const float3 &vertex0, 
 
 	return dot(edge2, qvec) * determinant;  
 }  
+
+// Hierarchy Creation Code
+__device__ float4 CreateHierarchyCone(const float4 &cone1, const float4 &cone2) {
+
+	float3 coneDirection1 = make_float3(cone1);
+	float3 coneDirection2 = make_float3(cone2);
+	
+	float3 coneDirection = normalize(coneDirection1 + coneDirection2);
+	float coneSpread = acos(dot(coneDirection1, coneDirection2)) + max(cone1.w, cone2.w);
+
+	return make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread); 
+}
+
+__device__ float4 CreateHierarchySphere(const float4 &sphere1, const float4 &sphere2) {
+
+	float3 sphereCenter1 = make_float3(sphere1);
+	float3 sphereCenter2 = make_float3(sphere2);
+
+	float3 sphereDirection = normalize(sphereCenter1 - sphereCenter2);
+	float sphereDistance = length(sphereCenter1 - sphereCenter2) * 0.5f;
+
+	float3 sphereCenter = sphereCenter1 - sphereDirection * sphereDistance;
+	float sphereRadius = sphereDistance + max(sphere1.w , sphere2.w);
+
+	return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
+}
 
 // Implementation of the Matrix Multiplication
 __global__ void UpdateVertex(
@@ -638,8 +662,6 @@ __global__ void CreateSortedRays(
 							int* scanArray, 
 							// Total number of Ray Chunks
 							int chunkTotal,
-							// Auxiliary Array containing the Ray Chunk Arrays head flags 
-							int* headFlagsArray, 
 							// Auxiliary Array containing the Ray Chunk Arrays skeleton
 							int* skeletonArray,
 							// Output Arrays containing the sorted Ray Indices
@@ -680,6 +702,8 @@ __global__ void CreateHierarchyLevel1(
 							// Input Arrays containing the sorted Ray Indices
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
+							// Total number of Rays
+							int rayTotal,
 							// Total number of Nodes
 							int nodeTotal,
 							// Output Array containing the Ray Hierarchy
@@ -690,35 +714,37 @@ __global__ void CreateHierarchyLevel1(
 	if(x >= nodeTotal)
 		return;
 
-	float3 coneDirection = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]] * 2 + 1];
-	float coneSpread = 0.0f;
-
-	float3 sphereCenter = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]] * 2];
-	float sphereRadius = 0.0f;
+	// Ray Origins are stored in the first offset
+	float4 sphere = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]] * 2], 0.0f);
+	// Ray Directions are stored in the second offset
+	float4 cone = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]] * 2 + 1], 0.0f);
 	
-	for(int i=1; i<3; i++) {
+	for(int i=1; i<HIERARCHY_SUBDIVISION; i++) {
 
-		float3 currentConeDirection = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x + i]] * 2 + 1];
-		float currentConeSpread = acos(dot(coneDirection, currentConeDirection));
-	
-		coneDirection = normalize(coneDirection + currentConeDirection);
-		coneSpread = currentConeSpread + max(coneSpread, currentConeSpread);
+		if(rayTotal * 2 < (x * HIERARCHY_SUBDIVISION + i) * 2)
+			break;
+
+		// Ray Origins are stored in the first offset
+		float4 currentSphere = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION + i]] * 2], 0.0f);
+		// Ray Directions are stored in the second offset
+		float4 currentCone = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION + i]] * 2 + 1], 0.0f);
 		
-		float3 currentSphereCenter = rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x + i]] * 2];
-		float currentSphereRadius = 0.0f;
+		sphere = CreateHierarchySphere(sphere, currentSphere);
+		cone = CreateHierarchyCone(cone, currentCone);
 
-		sphereCenter = sphereCenter + normalize(sphereCenter - currentSphereCenter) * length(sphereCenter - currentSphereCenter);
-		sphereRadius = length(sphereCenter - currentSphereCenter) * 0.5f + max(sphereRadius, currentSphereRadius);
+		//hierarchyArray[x * 2] = make_float4((x * HIERARCHY_SUBDIVISION) * 2);
+		//hierarchyArray[x * 2 + 1] = make_float4((x * HIERARCHY_SUBDIVISION + i) * 2);
 	}
 
-	hierarchyArray[x] = make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread);
+	hierarchyArray[x * 2] = sphere;
+	hierarchyArray[x * 2 + 1] = cone;
 }
 
 __global__ void CreateHierarchyLevelN(	
 							// Input and Output Array containing the Ray Hierarchy
 							float4* hierarchyArray,
-							// Hierarchy current Level
-							int hierarchyLevel,
+							// Starting Node Index
+							int nodeOffset,
 							// Total number of Nodes
 							int nodeTotal) {
 
@@ -726,6 +752,28 @@ __global__ void CreateHierarchyLevelN(
 
 	if(x >= nodeTotal)
 		return;
+
+	// Ray Origins are stored in the first offset
+	float4 sphere = hierarchyArray[x * HIERARCHY_SUBDIVISION * 2];
+	// Ray Directions are stored in the second offset
+	float4 cone = hierarchyArray[x * HIERARCHY_SUBDIVISION * 2 + 1];
+	
+	for(int i=1; i<HIERARCHY_SUBDIVISION; i++) {
+
+		if(nodeOffset * 2 < (x * HIERARCHY_SUBDIVISION + i) * 2)
+			break;
+		
+		// Ray Origins are stored in the first offset
+		float4 currentSphere = hierarchyArray[(x * HIERARCHY_SUBDIVISION + i) * 2];
+		// Ray Directions are stored in the second offset
+		float4 currentCone = hierarchyArray[(x * HIERARCHY_SUBDIVISION + i) * 2 + 1];
+		
+		sphere = CreateHierarchySphere(sphere, currentSphere);
+		cone = CreateHierarchyCone(cone, currentCone);
+	}
+
+	hierarchyArray[(nodeOffset + x) * 2] = sphere;
+	hierarchyArray[(nodeOffset + x) * 2 + 1] = cone;
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -955,9 +1003,7 @@ extern "C" {
 							int* sortedChunkIndexKeysArray, 
 							int* sortedChunkIndexValuesArray,
 							// Total number of Ray Chunks
-							int chunkTotal,
-							// Auxiliary Array containing the Ray Chunk Arrays head flags 
-							int* headFlagsArray, 
+							int chunkTotal, 
 							// Auxiliary Array containing the Ray Chunk Arrays skeleton
 							int* skeletonArray,
 							// Auxiliary Array containing the inclusive segmented scan result
@@ -994,7 +1040,6 @@ extern "C" {
 			sortedChunkIndexKeysArray, sortedChunkIndexValuesArray,
 			scanArray, 
 			chunkTotal, 
-			headFlagsArray, 
 			skeletonArray, 
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
 	}
@@ -1010,16 +1055,11 @@ extern "C" {
 							int* sortedRayIndexValuesArray,
 							// Total number of Rays
 							int rayTotal,
-							// Auxiliary Array containing the Ray Chunk Arrays head flags 
-							int* headFlagsArray, 
-							// Auxiliary Array containing the Ray Chunk Arrays skeleton
-							int* skeletonArray,
-							// Auxiliary Array containing the inclusive segmented scan result
-							int* scanArray, 
 							// Output Array containing the Ray Hierarchy
 							float4* hierarchyArray) {
-
-		int hierarchyNodeTotal = rayTotal/4 + (rayTotal % 4 != 0 ? 1 : 0);
+								
+		int hierarchyNodeOffset = 0;
+		int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 								
 		// Grid based on the Hierarchy Node Count
 		dim3 baseLevelBlock(1024);
@@ -1029,41 +1069,45 @@ extern "C" {
 			rayArray,
 			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray, 
+			rayTotal,
 			hierarchyNodeTotal, 
 			hierarchyArray);
 
-		cout << "Nodes : " << hierarchyNodeTotal << " Grid: " << baseLevelGrid.x << " Block: " << baseLevelBlock.x << endl;
+		//cout << "Nodes : " << hierarchyNodeTotal << "(Offset: " << hierarchyNodeOffset << ")" << " Grid: " << baseLevelGrid.x << " Block: " << baseLevelBlock.x << endl;
 		
 		for(int hierarchyLevel=1; hierarchyLevel<HIERARCHY_MAXIMUM_DEPTH; hierarchyLevel++) {
-
-			hierarchyNodeTotal = hierarchyNodeTotal/4 + (hierarchyNodeTotal % 4 != 0 ? 1 : 0);
 			
+			hierarchyNodeOffset += hierarchyNodeTotal;
+			hierarchyNodeTotal = hierarchyNodeTotal / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+
 			// Grid based on the Hierarchy Node Count
 			dim3 nLevelBlock(1024);
-			dim3 nLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
+			dim3 nLevelGrid(hierarchyNodeTotal/nLevelBlock.x + 1);
 
-			CreateHierarchyLevelN<<<nLevelBlock, nLevelGrid>>>(hierarchyArray, hierarchyLevel, hierarchyNodeTotal);
-			
-			//cout << "Nodes : " << hierarchyNodeTotal << " Grid: " << nLevelBlock.x << " Block: " << nLevelGrid.x << endl;
+			CreateHierarchyLevelN<<<nLevelBlock, nLevelGrid>>>(hierarchyArray, hierarchyNodeOffset, hierarchyNodeTotal);
+	
+			//cout << "Nodes : " << hierarchyNodeTotal << "(Offset: " << hierarchyNodeOffset << ")" << " Grid: " << nLevelGrid.x << " Block: " << nLevelBlock.x << endl;
 		}
 	}
 
 	void HierarchyTraversalWrapper(	
 							// Input Array containing the Ray Hierarchy
-							int* hierarchyArray,
+							float4* hierarchyArray,
 							// Total number of Rays
 							int rayTotal,
-							// Auxiliary Array containing the Ray Chunk Arrays head flags 
-							int* headFlagsArray, 
-							// Auxiliary Array containing the Ray Chunk Arrays skeleton
-							int* skeletonArray,
-							// Auxiliary Array containing the inclusive segmented scan result
-							int* scanArray, 
-							// Output Array containing the Triangle Hits
-							int* hierarchyHitsArray) {
+							// Output Array containing the Ray Hierarchy
+							int2* hierarchyHitsArray) {
 	}
 
-	void IntersectionWrapper(	
+	void LocalIntersectionWrapper(	
+							// Input Arrays containing the Rays
+							float3* rayArray, 
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
 							// Input Array containing the Triangle Hits
 							int* hierarchyHitsArray,
 							// Total number of Rays

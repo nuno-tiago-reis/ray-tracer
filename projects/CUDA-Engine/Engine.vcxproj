@@ -146,8 +146,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\fmodex\lib;$(SolutionDir)\dependencies\bulletphysics\lib;$(LibraryPath)</LibraryPath>
-    <IncludePath>$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\tinyxml\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\fmodex\include;$(SolutionDir)\dependencies\bulletphysics\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)\dependencies\cuda\lib\Win32;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\fmodex\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)\dependencies\cub\include;$(SolutionDir)\dependencies\cuda\include;$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\fmodex\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\tinyxml\include;$(IncludePath)</IncludePath>
     <OutDir>$(SolutionDir)output\</OutDir>
     <SourcePath>$(ProjectDir)\source</SourcePath>
   </PropertyGroup>
@@ -155,7 +155,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)output\</OutDir>
     <IncludePath>$(SolutionDir)\dependencies\cub\include;$(SolutionDir)\dependencies\cuda\include;$(SolutionDir)\dependencies\glew\include;$(SolutionDir)\dependencies\fmodex\include;$(SolutionDir)\dependencies\freeglut\include;$(SolutionDir)\dependencies\soil\include;$(SolutionDir)\dependencies\tinyxml\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\dependencies\cuda\lib\Win32;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(SolutionDir)\dependencies\fmodex\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)\dependencies\cuda\lib\Win32;$(SolutionDir)\dependencies\glew\lib;$(SolutionDir)\dependencies\freeglut\lib;$(SolutionDir)\dependencies\fmodex\lib;$(SolutionDir)\dependencies\soil\lib;$(SolutionDir)\dependencies\tinyxml\lib;$(LibraryPath)</LibraryPath>
     <SourcePath>$(ProjectDir)\source</SourcePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -170,7 +170,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glew32.lib;freeglut.lib;tinyxml2.lib;soil.lib;fmodex.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cuda.lib;cudart.lib;glew32.lib;freeglut.lib;soil.lib;tinyxml2.lib;fmodex.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
