@@ -19,3 +19,5 @@
 // Hierarchy Depth Constants
 #define HIERARCHY_MAXIMUM_DEPTH 4
 #define HIERARCHY_SUBDIVISION 4
+
+#define HIERARCHY_HIT_SUBDIVISION 10
