@@ -189,9 +189,9 @@ void ShaderProgram::destroyShaderProgram() {
 	Utility::checkOpenGLError("ERROR: Shader Program \"" + this->name + "\" destruction error 11.");
 	glUseProgram(0);
 
-	cout << "[" << this->name << "]" << " ProgramID = " << _programID << endl;
-	cout << "[" << this->name << "]" << " VertexProgramID = " << this->vertexShaderID << endl;
-	cout << "[" << this->name << "]" << " FragmentProgramID = " << this->fragmentShaderID << endl;
+	//cout << "[" << this->name << "]" << " ProgramID = " << _programID << endl;
+	//cout << "[" << this->name << "]" << " VertexProgramID = " << this->vertexShaderID << endl;
+	//cout << "[" << this->name << "]" << " FragmentProgramID = " << this->fragmentShaderID << endl;
 
 	glDetachShader(_programID, this->vertexShaderID);
 	glDetachShader(_programID, this->fragmentShaderID);

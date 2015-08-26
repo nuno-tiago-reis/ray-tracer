@@ -559,14 +559,16 @@ __global__ void TrimRays(
 	int startingPosition = 0;
 
 	// Initial Position
-	if(x == 0 && inclusiveScanArray[0] == 0) {
+	if(x == 0) {
 
-		trimmedRayIndexKeysArray[0] = rayIndexKeysArray[0];
-		trimmedRayIndexValuesArray[0] = rayIndexValuesArray[0];
-	}
-
-	if(x == 0)
 		startingPosition = 1;
+		
+		if(inclusiveScanArray[0] == 0) {
+
+			trimmedRayIndexKeysArray[0] = rayIndexKeysArray[0];
+			trimmedRayIndexValuesArray[0] = rayIndexValuesArray[0];
+		}
+	}
 
 	// Remaining Positions
 	for(int i=startingPosition; i<RAYS_PER_PIXEL_MAXIMUM; i++) {
@@ -865,7 +867,7 @@ __global__ void CreateHierarchyLevelN(
 	hierarchyArray[(nodeWriteOffset + x) * 2 + 1] = cone;
 }
 
-__global__ void CreateHierarchyLevel1Hits(	
+__global__ void CreateHierarchyLevel0Hits(	
 							// Input Array containing the Ray Hierarchy
 							float4* hierarchyArray,
 							// Input Array contraining the Updated Triangle Positions
@@ -887,28 +889,28 @@ __global__ void CreateHierarchyLevel1Hits(
 	if(x >= nodeTotal)
 		return;
 
+	float4 triangle;
+
 	float4 sphere = hierarchyArray[(nodeOffset + x) * 2];
 	float4 cone = hierarchyArray[(nodeOffset + x) * 2 + 1];
 
 	for(int i=0; i<triangleTotal; i++) {
 
-		float4 triangle = CreateTriangleBoundingSphere(
+		triangle = CreateTriangleBoundingSphere(
 			make_float3(trianglePositionsArray[i*3]), 
 			make_float3(trianglePositionsArray[i*3 + 1]), 
 			make_float3(trianglePositionsArray[i*3 + 2]));
 	
-		// Calculate Intersection
-		bool intersection = SphereNodeIntersection(sphere, cone, triangle);
-		
-		if(intersection == true) {
+		// Calculate Intersection		
+		if(SphereNodeIntersection(sphere, cone, triangle) == true) {
 		
 			headFlagsArray[x * triangleTotal + i] = 0;
-			hierarchyHitsArray[x* triangleTotal + i] = make_int2(x,i);
+			hierarchyHitsArray[x * triangleTotal + i] = make_int2(x,i);
 		}
 		else {
 
 			headFlagsArray[x * triangleTotal + i] = 1;
-			hierarchyHitsArray[x* triangleTotal + i] = make_int2(0,0);
+			hierarchyHitsArray[x * triangleTotal + i] = make_int2(0,0);
 		}
 	}
 }
@@ -916,20 +918,55 @@ __global__ void CreateHierarchyLevel1Hits(
 __global__ void CreateHierarchyLevelNHits(	
 							// Input Array containing the Ray Hierarchy
 							float4* hierarchyArray,
+							// Input Array contraining the Updated Triangle Positions
+							float4* trianglePositionsArray,
 							// Total number of Triangles
 							int triangleTotal,
 							// Starting Node Index
 							int nodeOffset,
-							// Total number of Nodes
-							int nodeTotal,
+							// Total number of Hits
+							int hitTotal,
 							// Output Array containing the inclusive segmented scan result
 							int* headFlagsArray, 
 							// Output Arrays containing the Ray Hierarchy Hits
 							int2* hierarchyHitsArray,
 							int2* trimmedHierarchyHitsArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= hitTotal)
+		return;
+
+	int2 hit = trimmedHierarchyHitsArray[x];
+
+	float4 triangle = CreateTriangleBoundingSphere(
+		make_float3(trianglePositionsArray[hit.y * 3]), 
+		make_float3(trianglePositionsArray[hit.y * 3 + 1]), 
+		make_float3(trianglePositionsArray[hit.y * 3 + 2]));
+
+	float4 sphere;
+	float4 cone;
+
+	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
+
+		sphere = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2];
+		cone = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2 + 1];
+	
+		// Calculate Intersection		
+		if(SphereNodeIntersection(sphere, cone, triangle) == true) {
+		
+			headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 0;
+			hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_int2(hit.x * HIERARCHY_SUBDIVISION + i, hit.y);
+		}
+		else {
+
+			headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 1;
+			hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_int2(0,0);
+		}
+	}
 }
 
-__global__ void TrimHierarchyHits(	
+__global__ void TrimHierarchyLevel0Hits(	
 							// Input Array containing the Ray Hierarchy Hits
 							int2* hierarchyHitsArray,
 							// Input Array containing the inclusive segmented scan result
@@ -939,22 +976,16 @@ __global__ void TrimHierarchyHits(
 							// Output Array containing the Trimmed Ray Hierarchy Hits
 							int2* trimmedHierarchyHitsArray) {
 
-
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	if(x >= hitTotal)
-		return;
-
-	int startingPosition = 0;
 
 	// Initial Position
 	if(x == 0) {
 
-		 if(scanArray[0] == 0)
+		if(scanArray[0] == 0)
 			trimmedHierarchyHitsArray[0] = hierarchyHitsArray[0];
 	}
 	else {
-
+	
 		int currentOffset = scanArray[x];
 		int previousOffset = scanArray[x - 1];
 
@@ -962,9 +993,36 @@ __global__ void TrimHierarchyHits(
 		if(currentOffset == previousOffset)
 			trimmedHierarchyHitsArray[x- currentOffset] = hierarchyHitsArray[x];
 	}
-	/*
+}
+
+__global__ void TrimHierarchyLevelNHits(	
+							// Input Array containing the Ray Hierarchy Hits
+							int2* hierarchyHitsArray,
+							// Input Array containing the inclusive segmented scan result
+							int* scanArray, 
+							// Total number of Hits
+							int hitTotal,
+							// Output Array containing the Trimmed Ray Hierarchy Hits
+							int2* trimmedHierarchyHitsArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	int startingPosition = 0;
+
+	// Initial Position
+	if(x == 0) {
+
+		startingPosition = 1;
+
+		if(scanArray[0] == 0)
+			trimmedHierarchyHitsArray[0] = hierarchyHitsArray[0];
+	}
+
 	// Remaining Positions
 	for(int i=startingPosition; i<HIERARCHY_HIT_SUBDIVISION; i++) {
+		
+		if(x * HIERARCHY_HIT_SUBDIVISION + i >= hitTotal)
+			return;
 
 		// Sum Array Offsets
 		int currentOffset = scanArray[x * HIERARCHY_HIT_SUBDIVISION + i];
@@ -973,11 +1031,86 @@ __global__ void TrimHierarchyHits(
 		// If the Current and the Next Scan value are the same then shift the Ray
 		if(currentOffset == previousOffset)
 			trimmedHierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION - currentOffset + i] = hierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION + i];
+	}
+}
 
-		//trimmedHierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION] = hierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION];
+__global__ void LocalIntersection(	
+							// Input Arrays containing the Rays
+							float3* rayArray, 
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Input Array containing the Hierarchy Node Hits
+							int2* hierarchyHitsArray,
+							// Input Array contraining the Updated Triangle Positions
+							float4* trianglePositionsArray,
+							// Total number of Hierarchy Hits
+							int hitTotal,
+							// Screen Dimensions
+							int windowWidth, 
+							int windowHeight,
+							// Device Pointer to the Screen Buffer
+							unsigned int *pixelBufferObject) {
 
-		trimmedHierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION + i] = make_int2(x * HIERARCHY_HIT_SUBDIVISION + i,i);
-	}*/
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= hitTotal)
+		return;
+
+	int2 hit = hierarchyHitsArray[x];
+
+	float3 vertex0 = make_float3(trianglePositionsArray[hit.y * 3]);
+	float3 edge1 = make_float3(trianglePositionsArray[hit.y * 3 + 1]) - vertex0;
+	float3 edge2 = make_float3(trianglePositionsArray[hit.y * 3 + 2]) - vertex0;
+
+	// Ray Index Base
+	int rayBase = windowWidth * windowHeight;
+
+	//  Ray Index
+	int rayIndex;
+
+	// Ray Origin and Direction
+	float3 origin;
+	float3 direction;
+
+	// Triangle Material
+	float4 fragmentDiffuseColor;
+	float4 fragmentSpecularColor;
+
+	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
+
+		// Fetch the Ray Index
+		rayIndex = trimmedRayIndexKeysArray[sortedRayIndexKeysArray[hit.x * HIERARCHY_SUBDIVISION + i]];
+
+		// Fetch the Ray
+		origin = rayArray[rayIndex * 2];
+		direction = rayArray[rayIndex * 2 + 1];
+
+		// Calculate the Interesection Time
+		if(RayTriangleIntersection(Ray(origin, direction), vertex0, edge1, edge2) > 0.0f) {
+
+			// Triangle Material Properties
+			float4 fragmentDiffuseColor = tex2D(diffuseTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+			float4 fragmentSpecularColor = tex2D(specularTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+
+			// Reflection Ray
+			if(rayIndex < rayBase) {
+				
+			}
+			// Refraction Ray
+			else if(rayIndex < rayBase * 2) {
+				 
+			}
+			// Shadow Ray
+			else if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
+			
+				pixelBufferObject[rayIndex % rayBase] = rgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
+			}
+		}
+	}
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
@@ -1132,13 +1265,15 @@ extern "C" {
 							int* scanArray, 
 							// Output Arrays containing the sorted Ray Indices
 							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray) {
+							int* trimmedRayIndexValuesArray,
+							// Output int containing the number of Rays
+							int* rayTotal) {
 	
 		// Number of Rays potentialy being cast per Frame
-		int rayTotal = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+		int rayMaximum = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 
 		// Create the Trim Scan Array
-		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayMaximum));
 
 		// Number of Pixels per Frame
 		int screenDimensions = windowWidth * windowHeight;
@@ -1147,8 +1282,15 @@ extern "C" {
 		dim3 block(1024);
 		dim3 grid(screenDimensions/block.x + 1);	
 
+		cout << "[TrimRays] Block = " << block.x << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
+
 		// Trim the Ray Indices Array
 		TrimRays<<<block, grid>>>(rayIndexKeysArray, rayIndexValuesArray, screenDimensions, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
+
+		// Check the Ray Total (last position of the scan array minus the maximum number of rays)
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(rayTotal, &scanArray[rayMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+		// Account for the fact that the Scan Array was calculated using an exclusive scan on the missing rays
+		*rayTotal = rayMaximum - *rayTotal;
 	}
 
 	void RayCompressionWrapper(	
@@ -1166,11 +1308,15 @@ extern "C" {
 							int* chunkSizesArray,
 							// Output Arrays containing the Ray Chunks
 							int* chunkIndexKeysArray, 
-							int* chunkIndexValuesArray) {
+							int* chunkIndexValuesArray,
+							// Output int containing the number of Chunks
+							int* chunkTotal) {
 
 		// Grid based on the Ray Count
 		dim3 rayBlock(1024);
 		dim3 rayGrid(rayTotal/CHUNK_DIVISION/rayBlock.x + 1);
+		
+		cout << "[CreateChunkFlags] Block = " << rayBlock.x << " Threads " << "Grid = " << rayGrid.x << " Blocks" << endl;
 
 		// Create the Chunk Flags
 		CreateChunkFlags<<<rayBlock, rayGrid>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
@@ -1178,19 +1324,20 @@ extern "C" {
 		// Update the Scan Array with each Chunks 
 		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 
-		int chunkTotal;
 		// Check the Ray Total (last position of the scan array)
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
 
 		// Create the Chunk Bases
 		CreateChunkBases<<<rayBlock, rayGrid>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray, scanArray, chunkBasesArray, chunkIndexKeysArray, chunkIndexValuesArray);
 
 		// Grid based on the Ray Chunk Count
 		dim3 chunkBlock(1024);
-		dim3 chunkGrid(chunkTotal/chunkBlock.x + 1);
+		dim3 chunkGrid(*chunkTotal/chunkBlock.x + 1);
 		
+		cout << "[CreateChunkSizes] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
+
 		// Create the Chunk Sizes
-		CreateChunkSizes<<<chunkBlock, chunkGrid>>>(chunkBasesArray, chunkTotal, rayTotal, chunkSizesArray);
+		CreateChunkSizes<<<chunkBlock, chunkGrid>>>(chunkBasesArray, *chunkTotal, rayTotal, chunkSizesArray);
 	}
 
 	void RaySortingWrapper(	
@@ -1231,6 +1378,8 @@ extern "C" {
 		// Grid based on the Ray Chunk Count
 		dim3 chunkBlock(1024);
 		dim3 chunkGrid(chunkTotal/chunkBlock.x + 1);
+		
+		cout << "[CreateChunkSkeleton] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
 
 		CreateChunkSkeleton<<<chunkBlock, chunkGrid>>>(
 			chunkSizesArray, 
@@ -1273,6 +1422,8 @@ extern "C" {
 		dim3 baseLevelBlock(1024);
 		dim3 baseLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
 
+		cout << "[CreateHierarchyLevel1] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
+
 		CreateHierarchyLevel1<<<baseLevelBlock, baseLevelGrid>>>(
 			rayArray,
 			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
@@ -1281,7 +1432,7 @@ extern "C" {
 			hierarchyNodeTotal, 
 			hierarchyArray);
 
-		cout << "\nNodes : " << hierarchyNodeTotal << "(Write Offset: " << hierarchyNodeWriteOffset << ")" << " Grid: " << baseLevelGrid.x << " Block: " << baseLevelBlock.x << endl;
+		//cout << "\nNodes : " << hierarchyNodeTotal << "(Write Offset: " << hierarchyNodeWriteOffset << ")" << " Grid: " << baseLevelGrid.x << " Block: " << baseLevelBlock.x << endl;
 		
 		for(int hierarchyLevel=1; hierarchyLevel<HIERARCHY_MAXIMUM_DEPTH; hierarchyLevel++) {
 			
@@ -1293,9 +1444,11 @@ extern "C" {
 			dim3 nLevelBlock(1024);
 			dim3 nLevelGrid(hierarchyNodeTotal/nLevelBlock.x + 1);
 
+			cout << "[CreateHierarchyLevelN] Block = " << nLevelBlock.x << " Threads " << "Grid = " << nLevelGrid.x << " Blocks" << endl;
+
 			CreateHierarchyLevelN<<<nLevelBlock, nLevelGrid>>>(hierarchyArray, hierarchyNodeWriteOffset, hierarchyNodeReadOffset, hierarchyNodeTotal);
 	
-			cout << "Nodes : " << hierarchyNodeTotal << "(Write Offset: " << hierarchyNodeWriteOffset << " Read Offset: " << hierarchyNodeReadOffset << ")" << " Grid: " << nLevelGrid.x << " Block: " << nLevelBlock.x << endl;
+			//cout << "Nodes : " << hierarchyNodeTotal << "(Write Offset: " << hierarchyNodeWriteOffset << " Read Offset: " << hierarchyNodeReadOffset << ")" << " Grid: " << nLevelGrid.x << " Block: " << nLevelBlock.x << endl;
 		}
 	}
 
@@ -1315,76 +1468,128 @@ extern "C" {
 							int* scanArray, 
 							// Output Arrays containing the Ray Hierarchy Hits
 							int2* hierarchyHitsArray,
-							int2* trimmedHierarchyHitsArray) {
+							int2* trimmedHierarchyHitsArray,
+							// Output int containing the number of hits
+							int* hierarchyHitTotal) {
 
 		// Calculate the Nodes Offset and Total
 		int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
 		int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
+
+		int hitTotal = 0;
+		int hitMaximum = 0;
 		
 		hierarchyNodeOffset[0] = 0;
 		hierarchyNodeTotal[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+		
+		//printf("Level %d :: Offset = %d Total = %d\n", 0, hierarchyNodeOffset[0], hierarchyNodeTotal[0]);
 
 		for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
 
 			hierarchyNodeOffset[i] = hierarchyNodeTotal[i-1] + hierarchyNodeOffset[i-1];
 			hierarchyNodeTotal[i] = hierarchyNodeTotal[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+
+			//printf("Level %d :: Offset = %d Total = %d\n", i, hierarchyNodeOffset[i], hierarchyNodeTotal[i]);
 		}
 
-		// Grid based on the Hierarchy Node Count
-		dim3 baseLevelBlock(1024);
-		dim3 baseLevelGrid(hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH-1]/baseLevelBlock.x + 1);
-
-		CreateHierarchyLevel1Hits<<<baseLevelBlock, baseLevelGrid>>>(
-			hierarchyArray, 
-			trianglePositionsArray,
-			triangleTotal, 
-			hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH-1], 
-			hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH-1], 
-			headFlagsArray, 
-			hierarchyHitsArray, trimmedHierarchyHitsArray);
-
-		cout << "\nNodes : " << hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH-1] << " (Offset: " << hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH-1] << ")" << endl;
-
-		int hitTotal = hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH-1] * triangleTotal;
-
-		// Create the Trim Scan Array
-		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitTotal));
-
-		// Grid based on the Hierarchy Hit Count
-		dim3 baseHitBlock(1024);
-		dim3 baseHitGrid(hitTotal/baseHitBlock.x + 1);
-
-		TrimHierarchyHits<<<baseHitBlock, baseHitGrid>>>(
-			hierarchyHitsArray,
-			scanArray,
-			hitTotal,
-			trimmedHierarchyHitsArray);
-
-		Utility::checkCUDAError("cudaGetLastError()", cudaGetLastError());
-		Utility::checkCUDAError("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-
-		cout << baseHitBlock.x << "-" << baseHitGrid.x << endl;
-		cout << "Hit Total = " << hitTotal << endl;
-
-		/*for(int hierarchyLevel=HIERARCHY_MAXIMUM_DEPTH-1; hierarchyLevel>=0; hierarchyLevel--) {
-
-			hitTotal = hierarchyNodeTotal[hierarchyLevel] * triangleTotal;
-			hitOffset = 0;
-
-			// Grid based on the Hierarchy Node Count
-			dim3 nLevelBlock(1024);
-			dim3 nLevelGrid(hierarchyNodeTotal/nLevelBlock.x + 1);
-
-			CreateHierarchyLevelNHits<<<nLevelBlock, nLevelGrid>>>(
-				hierarchyArray, 
-				triangleTotal, 
-				hierarchyNodeOffset[hierarchyLevel], 
-				hierarchyNodeTotal[hierarchyLevel], 
-				headFlagsArray, 
-				hierarchyHitsArray, trimmedHierarchyHitsArray);
+		// Create the Hierarchy Hit Arrays
+		for(int hierarchyLevel=HIERARCHY_MAXIMUM_DEPTH-1; hierarchyLevel>=0; hierarchyLevel--) {
 			
-			cout << "Nodes : " << hierarchyNodeTotal[hierarchyLevel] << " (Offset: " << hierarchyNodeOffset[hierarchyLevel] << ")" << endl;
-		}*/
+			// Calculate the Hierarchy Hits
+			if(hierarchyLevel == HIERARCHY_MAXIMUM_DEPTH-1) {
+
+				// Grid based on the Hierarchy Node Count
+				dim3 baseLevelBlock(1024);
+				dim3 baseLevelGrid(hierarchyNodeTotal[hierarchyLevel]/baseLevelBlock.x + 1);
+				
+				cout << "[CreateHierarchyLevel0Hits] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
+
+				CreateHierarchyLevel0Hits<<<baseLevelBlock, baseLevelGrid>>>(
+					hierarchyArray, 
+					trianglePositionsArray,
+					triangleTotal, 
+					hierarchyNodeOffset[hierarchyLevel], 
+					hierarchyNodeTotal[hierarchyLevel], 
+					headFlagsArray, 
+					hierarchyHitsArray, trimmedHierarchyHitsArray);
+			
+				// Calculate the Hit Maximum for this Level
+				hitMaximum = hierarchyNodeTotal[hierarchyLevel] * triangleTotal;
+			}
+			else {
+
+				// Grid based on the Hierarchy Node Count
+				dim3 baseLevelBlock(1024);
+				dim3 baseLevelGrid(hitTotal/baseLevelBlock.x + 1);
+				
+				cout << "[CreateHierarchyLevelNHits] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
+
+				CreateHierarchyLevelNHits<<<baseLevelBlock, baseLevelGrid>>>(
+					hierarchyArray, 
+					trianglePositionsArray,
+					triangleTotal, 
+					hierarchyNodeOffset[hierarchyLevel], 
+					hitTotal, 
+					headFlagsArray, 
+					hierarchyHitsArray, trimmedHierarchyHitsArray);
+
+				// Calculate the Hit Maximum for this Level
+				hitMaximum = hitTotal * HIERARCHY_SUBDIVISION;
+			}
+
+			//cout << "\nNodes : " << hierarchyNodeTotal[hierarchyLevel] << " (Offset: " << hierarchyNodeOffset[hierarchyLevel] * 2 << ")" << endl;
+			//cout << "\nHit Maximum = " << hitMaximum << endl;
+
+			// Create the Trim Scan Array
+			Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+			
+			// Trim the Hierarchy Hits
+			if(hierarchyLevel == HIERARCHY_MAXIMUM_DEPTH-1) {
+
+				// Grid based on the Hierarchy Hit Count
+				dim3 baseHitBlock(1024);
+				dim3 baseHitGrid(hitMaximum / baseHitBlock.x + 1);
+				
+				cout << "[TrimHierarchyLevel0Hits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
+
+				//cout << "Thread Division = " << hitMaximum << " - " << hitMaximum / baseHitBlock.x + 1 << endl;
+
+				TrimHierarchyLevel0Hits<<<baseHitBlock, baseHitGrid>>>(
+					hierarchyHitsArray,
+					scanArray,
+					hitMaximum,
+					trimmedHierarchyHitsArray);
+			}
+			else {
+			
+				// Grid based on the Hierarchy Hit Count
+				dim3 baseHitBlock(1024);
+				dim3 baseHitGrid((hitMaximum / HIERARCHY_HIT_SUBDIVISION + 1) / baseHitBlock.x + 1);
+				
+				cout << "[TrimHierarchyLevelNHits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
+
+				//cout << "Thread Division = " << (hitMaximum / HIERARCHY_HIT_SUBDIVISION + 1) << " - " << (hitMaximum / HIERARCHY_HIT_SUBDIVISION + 1) / baseHitBlock.x + 1 << endl;
+
+				TrimHierarchyLevelNHits<<<baseHitBlock, baseHitGrid>>>(
+					hierarchyHitsArray,
+					scanArray,
+					hitMaximum,
+					trimmedHierarchyHitsArray);
+			}
+			
+			// Calculate the Hits Missed for this Level
+			int missedHitTotal;
+			// Check the Hit Total (last position of the scan array) 
+			Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+			
+			// Calculate the Hit Total for this Level
+			hitTotal = hitMaximum - missedHitTotal;
+
+			//cout << "Hit Total = " << hitTotal << endl;
+			//cout << "Missed Hit Total = " << missedHitTotal << endl;
+
+			*hierarchyHitTotal = hitTotal;
+		}
 	}
 
 	void LocalIntersectionWrapper(	
@@ -1396,10 +1601,34 @@ extern "C" {
 							// Input Arrays containing the sorted Ray Indices
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
-							// Input Array containing the Triangle Hits
-							int* hierarchyHitsArray,
-							// Total number of Rays
-							int rayTotal) {
+							// Input Array containing the Hierarchy Node Hits
+							int2* hierarchyHitsArray,
+							// Input Array contraining the Updated Triangle Positions
+							float4* trianglePositionsArray,
+							// Total number of Hierarchy Hits
+							int hitTotal,
+							// Screen Dimensions
+							int windowWidth, 
+							int windowHeight,
+							// Device Pointer to the Screen Buffer
+							unsigned int *pixelBufferObject) {
+								
+		// Grid based on the Hierarchy Hit Count
+		dim3 intersectionBlock(1024);
+		dim3 intersectionGrid(5000 / intersectionBlock.x + 1);
+		
+		cout << "[LocalIntersection] Grid = " << intersectionGrid.x << endl;
+
+		// Local Intersection
+		LocalIntersection<<<intersectionBlock, intersectionGrid>>>(
+			rayArray, 
+			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
+			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
+			hierarchyHitsArray,
+			trianglePositionsArray,
+			hitTotal,
+			windowWidth, windowHeight,
+			pixelBufferObject);
 	}
 
 	void RayTraceWrapper(	unsigned int *pixelBufferObject,
