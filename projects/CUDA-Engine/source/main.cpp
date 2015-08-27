@@ -627,7 +627,7 @@ void display() {
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
 
 		// Draw
-		RayTraceWrapper(
+		/*RayTraceWrapper(
 			pixelBufferDevicePointer,
 			windowWidth, windowHeight,
 			cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP,
@@ -636,9 +636,7 @@ void display() {
 			cudaRayArrayDP,
 			triangleTotal,
 			lightTotal,
-			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));
-
-		exit(0);
+			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));*/
 	;
 
 	// Kernel Launches
