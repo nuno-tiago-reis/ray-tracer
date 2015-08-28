@@ -318,6 +318,8 @@ extern "C" {
 							float4* trianglePositionsArray,
 							// Total number of Hierarchy Hits
 							int hitTotal,
+							// Total number of Rays
+							int rayTotal,
 							// Screen Dimensions
 							int windowWidth, 
 							int windowHeight,
@@ -325,25 +327,18 @@ extern "C" {
 							unsigned int *pixelBufferObject);
 	
 	// Implementation of RayTraceWrapper is in the "RayTracer.cu" file
-	void RayTraceWrapper(	
-							unsigned int *pixelBufferObject,
-							// Screen Dimensions
-							int width, int height, 
-							// Updated Triangle Position Array
-							float4* trianglePositionsArray,
-							// Updated Triangle Position Array
-							float4* triangleNormalsArray,
-							// Input Arrays containing the unsorted Ray Indices
-							int* rayIndexKeysArray, 
-							int* rayIndexValuesArray,
-							// Input Array containing the unsorted Rays
+	void RayTraceWrapper(	// Input Array containing the unsorted Rays
 							float3* rayArray,
-							// Total Number of Triangles in the Scene
-							int triangleTotal,
-							// Total Number of Lights in the Scene
-							int lightTotal,
-							// Camera Definitions
-							float3 cameraPosition);
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Total Number of Rays
+							int rayTotal,
+							// Device Pointer to the Screen Buffer
+							unsigned int *pixelBufferObject);
 
 	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
 	void bindDiffuseTextureArray(cudaArray *diffuseTextureArray);
@@ -611,6 +606,14 @@ void display() {
 		Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
 
+		// Draw
+		RayTraceWrapper(
+			cudaRayArrayDP,
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			rayTotal,
+			pixelBufferDevicePointer);
+
 		// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
 		LocalIntersectionWrapper(
 			cudaRayArrayDP,
@@ -619,28 +622,17 @@ void display() {
 			cudaSecondaryHierarchyHitsArrayDP,
 			cudaUpdatedTrianglePositionsDP,
 			hierarchyHitTotal,
+			rayTotal,
 			windowWidth,
 			windowHeight,
 			pixelBufferDevicePointer);
 		
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
-
-		// Draw
-		/*RayTraceWrapper(
-			pixelBufferDevicePointer,
-			windowWidth, windowHeight,
-			cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP,
-			cudaSecondaryRayIndexKeysArrayDP,
-			cudaSecondaryRayIndexValuesArrayDP,
-			cudaRayArrayDP,
-			triangleTotal,
-			lightTotal,
-			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));*/
 	;
 
-	// Kernel Launches
-	/*int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+	/*// Kernel Launches
+	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 
 	int rayArraySize = arraySize * 2;
 
@@ -727,17 +719,17 @@ void display() {
 	
 	int trimmedRayCounter = 0;
 
-	/*//printf("Trimmed Ray Hashes and Positions\n");
+	/*printf("Trimmed Ray Hashes and Positions\n");
 	for(int i=0; i<rayTotal; i++) {
 		
-		//printf("%u#%d\t", trimmedRayIndexKeysArray[i], trimmedRayIndexValuesArray[i]);
+		printf("%u#%d\t", trimmedRayIndexKeysArray[i], trimmedRayIndexValuesArray[i]);
 		
 		if(trimmedRayIndexKeysArray[i] != 0)
 			trimmedRayCounter++;
-	}*/
-	//printf("\n");
+	}
+	printf("\n");
 
-	/*printf("Real Trimmed Ray Hashes and Positions\n");
+	printf("Real Trimmed Ray Hashes and Positions\n");
 	for(int i=0; i<arraySize; i++) {
 		
 		if(rayIndexKeysArray[i] != 0)
@@ -754,49 +746,45 @@ void display() {
 	int chunkCounter = 0;
 
 	/*printf("Chunk Base & Size Arrays\n");
-	for(int i=arrayBase; i<chunkTotal; i++) {
+	for(int i=0; i<chunkTotal; i++) {
 
 		printf("%u#%u\t", chunkBasesArray[i], chunkSizesArray[i]);
 		
 		if(chunkBasesArray[i] != 0 || i == 0)
 			chunkCounter++;
-
-		if(chunkSizesArray[i] == 0)
-			printf("\n\nFuck at %d\n\n",i);
 	}	
 	printf("\n");
 
 	printf("Chunk Hash & Position Arrays\n");
-	for(int i=arrayBase; i<chunkTotal; i++)
+	for(int i=0; i<chunkTotal; i++)
 		printf("%u#%u\t", chunkHashArray[i], chunkValuesArray[i]);
 	printf("\n");
 
+	printf("Sorted Chunk Base & Size Arrays\n");
+	for(int i=0; i<chunkTotal; i++) {
+
+		printf("%u#%u\t", chunkBasesArray[sortedChunkValuesArray[i]], chunkSizesArray[sortedChunkValuesArray[i]]);
+		
+		if(chunkBasesArray[i] != 0 || i == 0)
+			chunkCounter++;
+	}	
+	printf("\n");
+
 	printf("Sorted Chunk Hash & Position Arrays\n");
-	for(int i=arrayBase; i<chunkTotal; i++)
+	for(int i=0; i<chunkTotal; i++)
 		printf("%u#%u\t", sortedChunkHashArray[i], sortedChunkValuesArray[i]);
-	printf("\n");*/
+	printf("\n");
 
 	int sortedRayCounter = 0;
 
-	/*//printf("Sorted Ray Indices\n");
+	printf("Sorted Ray Indices\n");
 	for(int i=0; i<rayTotal; i++) {
 		
-		//printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
+		printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
 		
 		if(rayIndexKeysArray[i] != 0)
 			sortedRayCounter++;
-	}*/
-	//printf("\n");
-
-	/*printf("Sorted Ray Hashes and Positions\n");
-	for(int i=arrayBase; i<rayTotal; i++)
-		printf("%u#%d\t", rayIndexKeysArray[i],  rayIndexValuesArray[i]);
-	printf("\n");
-
-	printf("Sorted Ray Indices Breaks\n");
-	for(int i=arrayBase; i<rayTotal; i++)
-		if(i > 0 && rayIndexKeysArray[i] == 0 && rayIndexKeysArray[i-1] != 0)
-			printf("\n[starting empty streak at %d]", i);
+	}
 	printf("\n");*/
 
 	int nodeCounter = 0;
@@ -918,9 +906,37 @@ void display() {
 	frameBuffer->unmapCudaResource();
 	pixelBuffer->unmapCudaResource();
 
-	//exit(0);
+	/*map<int,int> rayMap;
+
+	int rayMisses = 0;
+
+	printf("Checking Existing Rays 1\n");
+	for(int i=0; i<rayTotal; i++) {
+
+		int index = trimmedRayIndexValuesArray[rayIndexValuesArray[i]];
+
+		if(rayMap.find(index) != rayMap.end())
+			rayMisses++;
+
+		if(rayMap.find(index) == rayMap.end())
+			rayMap[index] = i;
+		else
+			printf("Duplicate: (%d/%d) Original: (%d/%d)\n", i, index, rayMap[index], index);
+	}
+	printf("\n");
+
+	printf("Ray Total: %d\n", rayTotal);
+	printf("Ray Counter: %d\n\n", rayCounter);
 	
-	//printf("Ray Total: %d\nChunk Total: %d\nHierarchy Nodes: %d\n", rayTotal, chunkTotal, hierarchyArraySize);
+	printf("Chunk Total: %d\n", chunkTotal);
+	printf("Chunk Counter: %d\n\n", chunkCounter);
+
+	printf("Trimmed Ray Counter: %d\n", trimmedRayCounter);
+	printf("Sorted Ray Counter: %d\n\n", sortedRayCounter);
+
+	printf("Hits: %d Misses: %d\n", rayTotal - rayMisses, rayMisses);
+
+	exit(0);*/
 
 	// Copy the Output to the Texture
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pixelBuffer->getHandler());
@@ -968,7 +984,18 @@ void display() {
 
 	// Swap the Buffers
 	glutSwapBuffers();
-	
+
+	/*if(frameCount == 2) {
+		// save a screenshot of your awesome OpenGL game engine, running at 1024x768
+		GLuint screenshotResult = SOIL_save_screenshot("textures/screenshot.bmp", SOIL_SAVE_TYPE_BMP, 0, 0, windowWidth, windowHeight);
+
+		// check for an error during the load process
+		if(screenshotResult == 0)
+			cout << "SOIL saving error: " << SOIL_last_result() << endl;
+
+		exit(0);
+	}*/
+
 	//cout << "[Callback] Display Successfull" << endl;
 }
 
@@ -1672,9 +1699,7 @@ void init(int argc, char* argv[]) {
 
 			// Material ID
 			int1 materialID = { materialTotal };
-			triangleMaterialIDList.push_back(materialID);
-
-			triangleTotal++;
+			triangleMaterialIDList.push_back(materialID);			
 		}
 
 		// Get the Material from the mesh 
@@ -1693,6 +1718,7 @@ void init(int argc, char* argv[]) {
 
 		materialTotal++;
 	}
+
 
 	// Total number of Triangles should be the number of loaded vertices divided by 3
 	triangleTotal = trianglePositionList.size() / 3;
@@ -1779,8 +1805,6 @@ void init(int argc, char* argv[]) {
 
 		bindMaterialSpecularProperties(cudaMaterialSpecularPropertiesDP, materialTotal);
 	}
-
-	cout << endl;
 }
 
 int main(int argc, char* argv[]) {

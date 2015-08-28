@@ -33,12 +33,11 @@ static void *radixSortTemporaryStorage = NULL;
 static size_t radixSortTemporaryStoreBytes = 0;
 
 // Ray testing Constant
-__constant__ __device__ static const float epsilon = 0.01f;
+__constant__ __device__ static const float epsilon = 0.001f;
 
 // Ray indexing Constants
 __constant__ __device__ static const float bit_mask_1_4_f = 15.0f;
 //__constant__ __device__ static const float bit_mask_1_5_f = 31.0f;
-
 __constant__ __device__ static const float half_bit_mask_1_4_f = 7.0f;
 //__constant__ __device__ static const float half_bit_mask_1_5_f = 15.0f;
 
@@ -119,7 +118,7 @@ struct HitRecord {
 };
 
 // Converts 8-bit integer to floating point rgb color
-__device__ float3 intToRgb(int color) {
+__device__ float3 IntToRgb(int color) {
 
 	float red	= color & 255;
 	float green	= (color >> 8) & 255;
@@ -129,7 +128,7 @@ __device__ float3 intToRgb(int color) {
 }
 
 // Converts floating point rgb color to 8-bit integer
-__device__ int rgbToInt(float red, float green, float blue) {
+__device__ int RgbToInt(float red, float green, float blue) {
 
 	red		= clamp(red,	0.0f, 255.0f);
 	green	= clamp(green,	0.0f, 255.0f);
@@ -139,7 +138,7 @@ __device__ int rgbToInt(float red, float green, float blue) {
 }
 
 // Converts a Direction Vector to Spherical Coordinates
-__device__ float2 vectorToSpherical(float3 direction) {
+__device__ float2 CartesianToSpherical(float3 direction) {
 
 	float azimuth = atan(direction.y / direction.x) * 2.0f;
 	float polar = acos(direction.z);
@@ -148,7 +147,7 @@ __device__ float2 vectorToSpherical(float3 direction) {
 }
 
 // Converts Spherical Coordinates to a Direction Vector
-__device__ float3 sphericalToVector(float2 spherical) {
+__device__ float3 SphericalToCartesian(float2 spherical) {
 
 	float x = cos(spherical.x) * sin(spherical.y);
 	float y = sin(spherical.x) * sin(spherical.y);
@@ -158,7 +157,7 @@ __device__ float3 sphericalToVector(float2 spherical) {
 }
 
 // Converts a ray to an integer hash value
-__device__ int rayToIndex(float3 origin, float3 direction) {
+__device__ int CreateRayIndex(float3 origin, float3 direction) {
 
 	int index = 0;
 
@@ -176,27 +175,6 @@ __device__ int rayToIndex(float3 origin, float3 direction) {
 	return index;
 }
 
-// Ray - BoundingBox Intersection Code
-__device__ bool RayBoxIntersection(const float3 &BBMin, const float3 &BBMax, const float3 &RayOrigin, const float3 &RayDirectionInverse, float &tmin, float &tmax) {
-
-	float l1   = (BBMin.x - RayOrigin.x) * RayDirectionInverse.x;
-	float l2   = (BBMax.x - RayOrigin.x) * RayDirectionInverse.x;
-	tmin = fminf(l1,l2);
-	tmax = fmaxf(l1,l2);
-
-	l1   = (BBMin.y - RayOrigin.y) * RayDirectionInverse.y;
-	l2   = (BBMax.y - RayOrigin.y) * RayDirectionInverse.y;
-	tmin = fmaxf(fminf(l1,l2), tmin);
-	tmax = fminf(fmaxf(l1,l2), tmax);
-
-	l1   = (BBMin.z - RayOrigin.z) * RayDirectionInverse.z;
-	l2   = (BBMax.z - RayOrigin.z) * RayDirectionInverse.z;
-	tmin = fmaxf(fminf(l1,l2), tmin);
-	tmax = fminf(fmaxf(l1,l2), tmax);
-
-	return ((tmax >= tmin) && (tmax >= 0.0f));
-}
-
 // Ray - Node Intersection Code
 __device__ bool SphereNodeIntersection(const float4 &sphere, const float4 &cone, const float4 &triangle) {
 	
@@ -207,6 +185,7 @@ __device__ bool SphereNodeIntersection(const float4 &sphere, const float4 &cone,
 	float3 sphereToTriangle = triangleCenter - sphereCenter;
 	float3 sphereToTriangleProjection = make_float3(sphereToTriangle.x * coneDirection.x, sphereToTriangle.y * coneDirection.y, sphereToTriangle.z * coneDirection.z);
 
+	return true;
 	return (length(sphereCenter - sphereToTriangleProjection) * tan(cone.w) + (sphere.w + triangle.w) / cos(cone.w)) >= length(triangleCenter - sphereToTriangleProjection);
 }
 
@@ -317,7 +296,8 @@ __device__ float4 CreateHierarchyCone(const float4 &cone1, const float4 &cone2) 
 	float3 coneDirection2 = make_float3(cone2);
 	
 	float3 coneDirection = normalize(coneDirection1 + coneDirection2);
-	float coneSpread = abs(acos(dot(coneDirection1, coneDirection2))) + max(cone1.w, cone2.w);
+	//float coneSpread = abs(acos(dot(coneDirection1, coneDirection2))) + max(cone1.w, cone2.w);
+	float coneSpread = abs(acos(dot(coneDirection1, coneDirection2))) * 0.5f + max(cone1.w, cone2.w);
 
 	return make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread); 
 }
@@ -330,10 +310,15 @@ __device__ float4 CreateHierarchySphere(const float4 &sphere1, const float4 &sph
 	float3 sphereDirection = normalize(sphereCenter1 - sphereCenter2);
 	float sphereDistance = length(sphereCenter1 - sphereCenter2) * 0.5f;
 
-	float3 sphereCenter = sphereCenter1 - sphereDirection * sphereDistance;
-	float sphereRadius = sphereDistance + max(sphere1.w , sphere2.w);
+	if(sphereDistance + sphere2.w > sphere1.w) {
 
-	return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
+		float3 sphereCenter = sphereCenter1 - sphereDirection * sphereDistance;
+		float sphereRadius = sphereDistance + max(sphere1.w , sphere2.w);
+
+		return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
+	}
+	
+	return sphere1;
 }
 
 // Implementation of the Matrix Multiplication
@@ -467,10 +452,10 @@ __global__ void CreateRays(// Input Array containing the unsorted Rays
 		}
 
 		// Store the Reflection and Refraction Ray indices
-		rayIndexKeysArray[rayOffset] = rayToIndex(fragmentPosition, rayReflectionDirection);
+		rayIndexKeysArray[rayOffset] = CreateRayIndex(fragmentPosition, rayReflectionDirection);
 		rayIndexValuesArray[rayOffset] = rayOffset;
 
-		rayIndexKeysArray[rayBase + rayOffset] = rayToIndex(fragmentPosition, rayRefractionDirection);
+		rayIndexKeysArray[rayBase + rayOffset] = CreateRayIndex(fragmentPosition, rayRefractionDirection);
 		rayIndexValuesArray[rayBase + rayOffset] = rayBase + rayOffset;
 
 		// Store the Shadow Ray Indices
@@ -479,7 +464,7 @@ __global__ void CreateRays(// Input Array containing the unsorted Rays
 			// Create the Shadow Ray and store its direction
 			if(length(shadowRayDirections[l]) > 0.0f) {
 
-				rayIndexKeysArray[rayBase * (2 + l) + rayOffset] = rayToIndex(shadowRayPositions[l], shadowRayDirections[l]);
+				rayIndexKeysArray[rayBase * (2 + l) + rayOffset] = CreateRayIndex(shadowRayPositions[l], shadowRayDirections[l]);
 				rayIndexValuesArray[rayBase * (2 + l) + rayOffset] = rayBase * (2 + l) + rayOffset;
 			}
 			else {
@@ -780,7 +765,7 @@ __global__ void CreateSortedRays(
 	sortedRayIndexValuesArray[startingPosition] = chunkBase;
 
 	// Remaining Positions
-	for(int i=startingPosition+1, j=1; i<finalPosition; i++) {
+	for(int i=startingPosition+1, j=1; i<finalPosition; i++, j++) {
 
 		sortedRayIndexKeysArray[i] = chunkKey;
 		sortedRayIndexValuesArray[i] = chunkBase + j;
@@ -1056,6 +1041,8 @@ __global__ void LocalIntersection(
 							float4* trianglePositionsArray,
 							// Total number of Hierarchy Hits
 							int hitTotal,
+							// Total number of Rays
+							int rayTotal,
 							// Screen Dimensions
 							int windowWidth, 
 							int windowHeight,
@@ -1076,100 +1063,103 @@ __global__ void LocalIntersection(
 	// Ray Index Base
 	int rayBase = windowWidth * windowHeight;
 
-	//  Ray Index
-	int rayIndex;
-
-	// Ray Origin and Direction
-	float3 origin;
-	float3 direction;
-
-	// Triangle Material
-	float4 fragmentDiffuseColor;
-	float4 fragmentSpecularColor;
-
 	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
 
+		if(hit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
+			return;
+
 		// Fetch the Ray Index
-		rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[hit.x * HIERARCHY_SUBDIVISION + i]];
-		//rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[-1]];
+		int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[hit.x * HIERARCHY_SUBDIVISION + i]];
 
 		// Fetch the Ray
-		origin = rayArray[rayIndex * 2];
-		direction = rayArray[rayIndex * 2 + 1];
+		float3 origin = rayArray[rayIndex * 2];
+		float3 direction = rayArray[rayIndex * 2 + 1];
+
+		// Fragment Material Properties
+		float4 fragmentDiffuseColor = tex2D(diffuseTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+		float4 fragmentSpecularColor = tex2D(specularTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
 
 		// Calculate the Interesection Time
-		if(RayTriangleIntersection(Ray(origin, direction), vertex0, edge1, edge2) > 0.0f) {
+		if(RayTriangleIntersection(Ray(origin + direction * 0.1f, direction), vertex0, edge1, edge2) > epsilon) {	
+			
+			// Triangle Material Identifier
+			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hit.y * 3);
 
 			// Triangle Material Properties
-			float4 fragmentDiffuseColor = tex2D(diffuseTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
-			float4 fragmentSpecularColor = tex2D(specularTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+			float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+			float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+
+			float4 finalColor = fragmentDiffuseColor + diffuseColor;
 
 			// Reflection Ray
 			if(rayIndex < rayBase) {
-				
+
+				pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * finalColor.x, 255.0f * finalColor.y, 255.0f * finalColor.z);
 			}
 			// Refraction Ray
 			else if(rayIndex < rayBase * 2) {
 				 
+				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
 			}
 			// Shadow Ray
 			else if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
-				
-				//pixelBufferObject[0] = rgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
-				pixelBufferObject[rayIndex % rayBase] = rgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
+							
+				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentSpecularColor.x, 255.0f * fragmentSpecularColor.y, 255.0f * fragmentSpecularColor.z);
 			}
 		}
 	}
 }
 
 // Implementation of Whitteds Ray-Tracing Algorithm
-__global__ void RayTracePixel(	unsigned int* pixelBufferObject,
-								// Screen Dimensions
-								const int windowWidth, 
-								const int windowHeight,
-								// Updated Triangle Position Array
-								float4* trianglePositionsArray,
-								// Updated Triangle Position Array
-								float4* triangleNormalsArray,
-								// Input Arrays containing the unsorted Ray Indices
-								int* rayIndexKeysArray, 
-								int* rayIndexValuesArray,
-								// Input Array containing the unsorted Rays
-								float3* rayArray,
-								// Total Number of Triangles in the Scene
-								const int triangleTotal,
-								// Total Number of Lights in the Scene
-								const int lightTotal,
-								// Ray Bounce Depth
-								const int depth,
-								// Medium Refraction Index
-								const float refractionIndex,
-								// Camera Definitions
-								const float3 cameraPosition) {
+__global__ void ClearPixels(	// Screen Dimensions
+								int windowWidth, int windowHeight,
+								// Device Pointer to the Screen Buffer
+								unsigned int *pixelBufferObject) {
 
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;		
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
 
-	if(x >= windowWidth || y >= windowHeight)
+	if(x >= windowWidth * windowHeight)
 		return;
 
-	// Ray Creation
-	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
-	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), normalize(make_float3(tex2D(fragmentNormalTexture, x,y))));
+	pixelBufferObject[x] = RgbToInt(255.0f * 0.0f, 255.0f * 0.0f, 255.0f * 0.0f);
+}
 
-	if(length(rayOrigin) != 0.0f) {
+// Implementation of Whitteds Ray-Tracing Algorithm
+__global__ void FillPixels(		// Input Array containing the unsorted Rays
+								float3* rayArray,
+								// Input Arrays containing the trimmed Ray Indices
+								int* trimmedRayIndexKeysArray, 
+								int* trimmedRayIndexValuesArray,
+								// Input Arrays containing the sorted Ray Indices
+								int* sortedRayIndexKeysArray, 
+								int* sortedRayIndexValuesArray,
+								// Total Number of Rays
+								int rayTotal,
+								// Screen Dimensions
+								int windowWidth, int windowHeight,
+								// Device Pointer to the Screen Buffer
+								unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+
+	if(x >= rayTotal)
+		return;
+
+	// Ray Index Base
+	int rayBase = windowWidth*windowHeight;
+	// Fetch the Ray Index
+	int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]];
+	
+	if(rayIndex >= rayBase && rayIndex < rayBase * 2) {
 			
-		// Calculate the Final Color
-		float3 finalColor = normalize(rayOrigin);
-		//float3 finalColor = rayArray[x + y * windowWidth];
+		// Fetch the Ray
+		float3 origin = rayArray[rayIndex * 2];
+		float3 direction = rayArray[rayIndex * 2 + 1];
 
-		// Update the Pixel Buffer
-		pixelBufferObject[y * windowWidth + x] = rgbToInt(finalColor.x * 255, finalColor.y * 255, finalColor.z * 255);
-	}
-	else {
+		float size = length(origin);
 
-		// Update the Pixel Buffer
-		pixelBufferObject[y * windowWidth + x] = rgbToInt(0.0f, 0.0f, 0.0f);
+		if(size != 0.0f)
+			pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * origin.x / size, 255.0f * origin.y / size, 255.0f * origin.z / size);
 	}
 }
 
@@ -1615,8 +1605,9 @@ extern "C" {
 			// Calculate the Hit Total for this Level
 			hitTotal = hitMaximum - missedHitTotal;
 
-			//cout << "Hit Total = " << hitTotal << endl;
-			//cout << "Missed Hit Total = " << missedHitTotal << endl;
+			/*cout << "Hit Maximum = " << hitMaximum << "/" << triangleTotal << "/" << rayTotal << "/" << hierarchyNodeTotal[0] << endl;
+			cout << "Hit Total = " << hitTotal << endl;
+			cout << "Missed Hit Total = " << missedHitTotal << endl;*/
 
 			*hierarchyHitTotal = hitTotal;
 		}
@@ -1637,6 +1628,8 @@ extern "C" {
 							float4* trianglePositionsArray,
 							// Total number of Hierarchy Hits
 							int hitTotal,
+							// Total number of Rays
+							int rayTotal,
 							// Screen Dimensions
 							int windowWidth, 
 							int windowHeight,
@@ -1659,108 +1652,40 @@ extern "C" {
 			hierarchyHitsArray,
 			trianglePositionsArray,
 			hitTotal,
+			rayTotal,
 			windowWidth, windowHeight,
 			pixelBufferObject);
 	}
 
-	void RayTraceWrapper(	unsigned int *pixelBufferObject,
-							// Screen Dimensions
-							int width, int height, 
-							// Updated Triangle Position Array
-							float4* trianglePositionsArray,
-							// Updated Triangle Position Array
-							float4* triangleNormalsArray,
-							// Input Arrays containing the unsorted Ray Indices
-							int* rayIndexKeysArray, 
-							int* rayIndexValuesArray,
-							// Input Array containing the unsorted Rays
+	void RayTraceWrapper(	// Input Array containing the unsorted Rays
 							float3* rayArray,
-							// Total Number of Triangles in the Scene
-							int triangleTotal,
-							// Total Number of Lights in the Scene
-							int lightTotal,
-							// Camera Definitions
-							float3 cameraPosition) {
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Total number of Rays
+							int rayTotal,
+							// Device Pointer to the Screen Buffer
+							unsigned int *pixelBufferObject) {
 
-		// Ray-Casting
-		dim3 rayCastingBlock(32,32);
-		dim3 rayCastingGrid(width/rayCastingBlock.x + 1,height/rayCastingBlock.y + 1);
+		// Pixel Clearing
+		dim3 clearBlock(1024);
+		dim3 clearGrid(WIDTH*HEIGHT/clearBlock.x + 1);								
 
-		RayTracePixel<<<rayCastingGrid, rayCastingBlock>>>(	pixelBufferObject,
-															width, height,
-															trianglePositionsArray, 
-															triangleNormalsArray,
-															rayIndexKeysArray,
-															rayIndexValuesArray,
-															rayArray,
-															triangleTotal,
-															lightTotal,
-															depth, refractionIndex,
-															cameraPosition);
+		ClearPixels<<<clearGrid, clearBlock>>>(	WIDTH, HEIGHT, 
+												pixelBufferObject);
+		// Pixel Filling
+		dim3 fillBlock(1024);
+		dim3 fillGrid(rayTotal/fillBlock.x + 1);
 
-		/*unsigned int bit_mask_1_4 = 15;
-		unsigned int bit_mask_1_5 = 31;
-		unsigned int bit_mask_1_9 = 511;
-
-		unsigned int half_bit_mask_1_4 = 7;
-		unsigned int half_bit_mask_1_5 = 15;
-		unsigned int half_bit_mask_1_9 = 255;
-
-		float bit_mask_1_4_f = 15.0f;
-		float bit_mask_1_5_f = 31.0f;
-		float bit_mask_1_9_f = 511.0f;
-
-		float half_bit_mask_1_4_f = 7.0f;
-		float half_bit_mask_1_5_f = 15.0f;
-		float half_bit_mask_1_9_f = 255.0f;
-
-		float3 origin = make_float3(5.0f, 5.0f, 5.0f);
-		float3 direction = make_float3(0.333f, 0.333f, 0.333f);
-
-		unsigned int index = 0;
-			
-		int azimuth = (int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
-		index = azimuth; 
-		printf("Azimuth = %u (%u)\n", azimuth, index);
-
-		int polar = (int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
-		index = (index << 9) | polar;
-		printf("Polar = %u (%u)\n", polar, index);
-
-		// Clamp the Origin to the 0-15 range
-		int x = (int)clamp(origin.x + bit_mask_1_4 / 2, 0.0f, (float)bit_mask_1_4);
-		index = (index << 4) | x;
-		printf("Coordinate 1 = %u (%u)\n", x, index);
-		int y = (int)clamp(origin.y + bit_mask_1_5 / 2, 0.0f, (float)bit_mask_1_5);
-		index = (index << 5) | y;
-		printf("Coordinate 2 = %u (%u)\n", y, index);
-		int z = (int)clamp(origin.z + bit_mask_1_5 / 2, 0.0f, (float)bit_mask_1_5);
-		index = (index << 5) | z;
-		printf("Coordinate 3 = %u (%u)\n", z, index);
-		
-		printf("[R] Index = %u\n", index);
-		printf("[R] Azimuth = %u (at %u)\n", (index & (bit_mask_1_9 << 23)) >> 23, bit_mask_1_9 << 23);		
-		printf("[R] Polar = %u (at %u)\n", (index & (bit_mask_1_9 << 14)) >> 14, bit_mask_1_9 << 14);
-		printf("[R] Coordinate 1 = %u (at %u)\n", (index & (bit_mask_1_4 << 10)) >> 10, bit_mask_1_4 << 10);
-		printf("[R] Coordinate 2 = %u (at %u)\n", (index & (bit_mask_1_5 << 5)) >> 5, bit_mask_1_5 << 5);
-		printf("[R] Coordinate 3 = %u (at %u)\n", (index & bit_mask_1_5), bit_mask_1_5);
-
-		// Convert the Direction to Spherical Coordinates
-		index = (int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
-
-		index = (index << 9) | (int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
-
-		// Clamp the Origin to the 0-15 range
-		index = (index << 4) | (int)clamp(origin.x + half_bit_mask_1_4_f , 0.0f, bit_mask_1_4_f);
-		index = (index << 5) | (int)clamp(origin.y + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
-		index = (index << 5) | (int)clamp(origin.z + half_bit_mask_1_5_f, 0.0f, bit_mask_1_5_f);
-		
-		printf("[R] Index = %u\n", index);
-		printf("[R] Azimuth = %u (at %u)\n", (index & (bit_mask_1_9 << 23)) >> 23, bit_mask_1_9 << 23);		
-		printf("[R] Polar = %u (at %u)\n", (index & (bit_mask_1_9 << 14)) >> 14, bit_mask_1_9 << 14);
-		printf("[R] Coordinate 1 = %u (at %u)\n", (index & (bit_mask_1_4 << 10)) >> 10, bit_mask_1_4 << 10);
-		printf("[R] Coordinate 2 = %u (at %u)\n", (index & (bit_mask_1_5 << 5)) >> 5, bit_mask_1_5 << 5);
-		printf("[R] Coordinate 3 = %u (at %u)\n", (index & bit_mask_1_5), bit_mask_1_5);*/
+		/*FillPixels<<<fillGrid, fillBlock>>>(	rayArray,
+												trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
+												sortedRayIndexKeysArray, sortedRayIndexValuesArray,
+												rayTotal, 
+												WIDTH, HEIGHT,
+												pixelBufferObject);*/
 	}
 
 	// OpenGL Texture Binding Functions
