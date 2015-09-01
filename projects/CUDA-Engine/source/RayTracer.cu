@@ -162,9 +162,9 @@ __device__ int CreateRayIndex(float3 origin, float3 direction) {
 	int index = 0;
 
 	// Clamp the Origin to the 0-15 range
-	index = (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
 	index = (index << 4) | (unsigned int)clamp(origin.y + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
-	index = (index << 4) | (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
 	
 	// Convert the Direction to Spherical Coordinates
 	index = (index << 4) | (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
@@ -183,10 +183,20 @@ __device__ bool SphereNodeIntersection(const float4 &sphere, const float4 &cone,
 	float3 triangleCenter = make_float3(triangle);
 
 	float3 sphereToTriangle = triangleCenter - sphereCenter;
-	float3 sphereToTriangleProjection = make_float3(sphereToTriangle.x * coneDirection.x, sphereToTriangle.y * coneDirection.y, sphereToTriangle.z * coneDirection.z);
+	float3 sphereToTriangleProjection = dot(sphereToTriangle, coneDirection) * coneDirection;
 
-	return true;
-	return (length(sphereCenter - sphereToTriangleProjection) * tan(cone.w) + (sphere.w + triangle.w) / cos(cone.w)) >= length(triangleCenter - sphereToTriangleProjection);
+	if(cone.w == HALF_PI)
+		return true;
+
+	/*float product = 
+		(triangleCenter.x - sphereCenter.x) * coneDirection.x + 
+		(triangleCenter.y - sphereCenter.y) * coneDirection.y + 
+		(triangleCenter.z - sphereCenter.z) * coneDirection.z;
+
+	if(product < 0.0f)
+		return false;*/
+
+	return (length(sphereToTriangleProjection) * tan(cone.w) + (sphere.w + triangle.w) / cos(cone.w)) >= length((triangleCenter - sphereCenter) - sphereToTriangleProjection);
 }
 
 // Ray - Triangle Intersection Code
@@ -263,6 +273,8 @@ __device__ float4 CreateTriangleBoundingSphere(const float3 &vertex0, const floa
 				sphereRadius = distanceCA * 0.5f;
 			}
 		}
+		
+		return make_float4(sphereCenter, sphereRadius);
 	} 
 	else {
 
@@ -282,11 +294,11 @@ __device__ float4 CreateTriangleBoundingSphere(const float3 &vertex0, const floa
 		} 
 		else 
 			sphereCenter = vertex0 + s * (vertex1 - vertex0) + t * (vertex2 - vertex0);
+
+		sphereRadius = length(sphereCenter - referencePoint);
+
+		return make_float4(sphereCenter, sphereRadius);
 	}
-
-	sphereRadius = length(sphereCenter - referencePoint);
-
-	return make_float4(sphereCenter, sphereRadius);
 }
 
 // Hierarchy Creation Code
@@ -296,8 +308,7 @@ __device__ float4 CreateHierarchyCone(const float4 &cone1, const float4 &cone2) 
 	float3 coneDirection2 = make_float3(cone2);
 	
 	float3 coneDirection = normalize(coneDirection1 + coneDirection2);
-	//float coneSpread = abs(acos(dot(coneDirection1, coneDirection2))) + max(cone1.w, cone2.w);
-	float coneSpread = abs(acos(dot(coneDirection1, coneDirection2))) * 0.5f + max(cone1.w, cone2.w);
+	float coneSpread = clamp(acos(dot(coneDirection1, coneDirection2)) * 0.5f + max(cone1.w, cone2.w), 0.0f, HALF_PI);
 
 	return make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread); 
 }
@@ -307,18 +318,19 @@ __device__ float4 CreateHierarchySphere(const float4 &sphere1, const float4 &sph
 	float3 sphereCenter1 = make_float3(sphere1);
 	float3 sphereCenter2 = make_float3(sphere2);
 
-	float3 sphereDirection = normalize(sphereCenter1 - sphereCenter2);
-	float sphereDistance = length(sphereCenter1 - sphereCenter2) * 0.5f;
+	float3 sphereDirection = normalize(sphereCenter2 - sphereCenter1);
+	float sphereDistance = length(sphereCenter2 - sphereCenter1);
 
-	if(sphereDistance + sphere2.w > sphere1.w) {
+	if(sphereDistance + sphere2.w <= sphere1.w)
+		return sphere1;
 
-		float3 sphereCenter = sphereCenter1 - sphereDirection * sphereDistance;
-		float sphereRadius = sphereDistance + max(sphere1.w , sphere2.w);
+	if(sphereDistance + sphere1.w <= sphere2.w)
+		return sphere2;
 
-		return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
-	}
-	
-	return sphere1;
+	float3 sphereCenter = sphereCenter1 + sphereDirection * sphereDistance * 0.5f;
+	float sphereRadius = sphereDistance * 0.5f + max(sphere1.w , sphere2.w);
+
+	return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
 }
 
 // Implementation of the Matrix Multiplication
@@ -388,7 +400,8 @@ __global__ void UpdateVertex(
 }
 
 //	Ray index Array	
-__global__ void CreateRays(// Input Array containing the unsorted Rays
+__global__ void CreateRays(
+							// Input Array containing the unsorted Rays
 							float3* rayArray,
 							// Screen Dimensions
 							int windowWidth, int windowHeight,
@@ -714,22 +727,6 @@ __global__ void CreateChunkSkeleton(
 	skeletonArray[x] = chunkSizesArray[sortedChunkValuesArray[x]];
 }
 
-__global__ void ClearSortedRays(
-							// Total number of Rays
-							int rayTotal,
-							// Output Arrays containing the sorted Ray Indices
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	if(x >= rayTotal)
-		return;
-
-	sortedRayIndexKeysArray[x] = 0;
-	sortedRayIndexValuesArray[x] = 0;
-}
-
 __global__ void CreateSortedRays(
 							// Input Arrays containing the Ray Chunk Bases and Sizes
 							int* chunkBasesArray,
@@ -938,27 +935,27 @@ __global__ void CreateHierarchyLevelNHits(
 
 	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
 
-		if((hit.x * HIERARCHY_SUBDIVISION + i) >= nodeWriteTotal)
-			break;
+		if((hit.x * HIERARCHY_SUBDIVISION + i) < nodeWriteTotal) {
 
-		sphere = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2];
-		cone = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2 + 1];
+			sphere = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2];
+			cone = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2 + 1];
 	
-		// Calculate Intersection		
-		if(SphereNodeIntersection(sphere, cone, triangle) == true) {
+			// Calculate Intersection		
+			if(SphereNodeIntersection(sphere, cone, triangle) == true) {
 		
-			headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 0;
-			hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_int2(hit.x * HIERARCHY_SUBDIVISION + i, hit.y);
-		}
-		else {
+				headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 0;
+				hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_int2(hit.x * HIERARCHY_SUBDIVISION + i, hit.y);
 
-			headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 1;
-			hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_int2(0,0);
+				continue;
+			}
 		}
+
+		headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 1;
+		hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_int2(0, 0);
 	}
 }
 
-__global__ void TrimHierarchyLevel0Hits(	
+__global__ void TrimHierarchyHits(	
 							// Input Array containing the Ray Hierarchy Hits
 							int2* hierarchyHitsArray,
 							// Input Array containing the inclusive segmented scan result
@@ -968,36 +965,7 @@ __global__ void TrimHierarchyLevel0Hits(
 							// Output Array containing the Trimmed Ray Hierarchy Hits
 							int2* trimmedHierarchyHitsArray) {
 
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	// Initial Position
-	if(x == 0) {
-
-		if(scanArray[0] == 0)
-			trimmedHierarchyHitsArray[0] = hierarchyHitsArray[0];
-	}
-	else {
-	
-		int currentOffset = scanArray[x];
-		int previousOffset = scanArray[x - 1];
-
-		// If the Current and the Next Scan value are the same then shift the Ray
-		if(currentOffset == previousOffset)
-			trimmedHierarchyHitsArray[x- currentOffset] = hierarchyHitsArray[x];
-	}
-}
-
-__global__ void TrimHierarchyLevelNHits(	
-							// Input Array containing the Ray Hierarchy Hits
-							int2* hierarchyHitsArray,
-							// Input Array containing the inclusive segmented scan result
-							int* scanArray, 
-							// Total number of Hits
-							int hitTotal,
-							// Output Array containing the Trimmed Ray Hierarchy Hits
-							int2* trimmedHierarchyHitsArray) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	/*unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	int startingPosition = 0;
 
@@ -1011,18 +979,40 @@ __global__ void TrimHierarchyLevelNHits(
 	}
 
 	// Remaining Positions
-	for(int i=startingPosition; i<HIERARCHY_HIT_SUBDIVISION; i++) {
+	for(int i=startingPosition; i<HIERARCHY_SUBDIVISION; i++) {
 		
-		if(x * HIERARCHY_HIT_SUBDIVISION + i >= hitTotal)
+		if(x * HIERARCHY_SUBDIVISION + i >= hitTotal)
 			return;
 
 		// Sum Array Offsets
-		int currentOffset = scanArray[x * HIERARCHY_HIT_SUBDIVISION + i];
-		int previousOffset = scanArray[x * HIERARCHY_HIT_SUBDIVISION - 1 + i];
+		int currentOffset = scanArray[x * HIERARCHY_SUBDIVISION + i];
+		int previousOffset = scanArray[x * HIERARCHY_SUBDIVISION - 1 + i];
 
 		// If the Current and the Next Scan value are the same then shift the Ray
 		if(currentOffset == previousOffset)
-			trimmedHierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION - currentOffset + i] = hierarchyHitsArray[x * HIERARCHY_HIT_SUBDIVISION + i];
+			trimmedHierarchyHitsArray[x * HIERARCHY_SUBDIVISION - currentOffset + i] = hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i];
+	}*/
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x > hitTotal)
+		return;
+
+	// Initial Position
+	if(x == 0) {
+
+		if(scanArray[0] == 0)
+			trimmedHierarchyHitsArray[0] = hierarchyHitsArray[0];
+	}
+	else {
+
+		// Sum Array Offsets
+		int currentOffset = scanArray[x];
+		int previousOffset = scanArray[x - 1];
+
+		// If the Current and the Next Scan value are the same then shift the Ray
+		if(currentOffset == previousOffset)
+			trimmedHierarchyHitsArray[x- currentOffset] = hierarchyHitsArray[x];
 	}
 }
 
@@ -1049,7 +1039,7 @@ __global__ void LocalIntersection(
 							// Device Pointer to the Screen Buffer
 							unsigned int *pixelBufferObject) {
 
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	/*unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(x >= hitTotal)
 		return;
@@ -1106,6 +1096,124 @@ __global__ void LocalIntersection(
 							
 				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentSpecularColor.x, 255.0f * fragmentSpecularColor.y, 255.0f * fragmentSpecularColor.z);
 			}
+		}
+	}*/
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= hitTotal)
+		return;
+
+	int2 hit = hierarchyHitsArray[x];
+
+	float3 vertex0 = make_float3(trianglePositionsArray[hit.y * 3]);
+	float3 edge1 = make_float3(trianglePositionsArray[hit.y * 3 + 1]) - vertex0;
+	float3 edge2 = make_float3(trianglePositionsArray[hit.y * 3 + 2]) - vertex0;
+
+	// Ray Index Base
+	int rayBase = windowWidth * windowHeight;
+
+	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
+
+		if(hit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
+			return;
+
+		// Fetch the Ray Index
+		int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[hit.x * HIERARCHY_SUBDIVISION + i]];
+
+		// Fetch the Ray
+		float3 origin = rayArray[rayIndex * 2];
+		float3 direction = rayArray[rayIndex * 2 + 1];
+
+		// Fragment Material Properties
+		float4 fragmentDiffuseColor = tex2D(diffuseTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+		float4 fragmentSpecularColor = tex2D(specularTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+
+		// Calculate the Interesection Time
+		if(RayTriangleIntersection(Ray(origin + direction * epsilon, direction), vertex0, edge1, edge2) > epsilon) {
+			
+			// Triangle Material Identifier
+			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hit.y * 3);
+
+			// Triangle Material Properties
+			float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+			float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+
+			float4 finalColor = fragmentDiffuseColor + diffuseColor;
+
+			// Reflection Ray
+			if(rayIndex < rayBase) {
+
+				pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * finalColor.x, 255.0f * finalColor.y, 255.0f * finalColor.z);
+			}
+			// Refraction Ray
+			else if(rayIndex < rayBase * 2) {
+				 
+				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
+			}
+			// Shadow Ray
+			else if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
+							
+				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentSpecularColor.x, 255.0f * fragmentSpecularColor.y, 255.0f * fragmentSpecularColor.z);
+			}
+		}
+	}
+}
+
+__global__ void LocalIntersection2(
+							// Input Arrays containing the Rays
+							float3* rayArray, 
+							// Input Arrays containing the trimmed Ray Indices
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Arrays containing the sorted Ray Indices
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Input Array containing the Hierarchy Node Hits
+							float4* hierarchyArray,
+							// Total number of Hierarchy Hits
+							int hierarchyLevel,
+							// Total number of Hierarchy Hits
+							int nodeTotal,
+							// Total number of Rays
+							int nodeOffset,
+							// Screen Dimensions
+							int windowWidth, 
+							int windowHeight,
+							// Device Pointer to the Screen Buffer
+							unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= nodeTotal)
+		return;
+
+	// Ray Index Base
+	int rayBase = windowWidth * windowHeight;
+
+	// Node Hierarchy Index
+	int nodeLimit = HIERARCHY_SUBDIVISION;
+
+	for(int i=1; i<hierarchyLevel; i++)
+		nodeLimit *= HIERARCHY_SUBDIVISION;
+
+	int nodeIndex = x * nodeLimit;
+
+	for(int i=0; i<nodeLimit; i++) {
+
+		// Fetch the Ray Index
+		int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[nodeIndex + i]];
+			
+		if(rayIndex < rayBase) {
+		//if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
+
+			//float4 finalColor = make_float4((float)((nodeIndex & 0x0000003F) >> 0) / 64.0f, (float)((nodeIndex & 0x00000FC0) >> 6) / 64.0f, (float)((nodeIndex & 0x0003F000) >> 12) / 64.0f, 1.0f);
+			//float4 finalColor = make_float4((float)((nodeIndex & 0x0000007F) >> 0) / 128.0f, (float)((nodeIndex & 0x00003F80) >> 7) / 128.0f, (float)((nodeIndex & 0x001FC000) >> 14) / 128.0f, 1.0f);
+
+			if(nodeIndex == 0)
+				pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * 1.0f, 255.0f * 1.0f, 255.0f * 1.0f);
+
+			//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * finalColor.x, 255.0f * finalColor.y, 255.0f * finalColor.z);
 		}
 	}
 }
@@ -1218,7 +1326,7 @@ extern "C" {
 		if(radixSortTemporaryStorage == NULL) {
 
 			// Check how much memory is necessary
-			Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs1()", 
+			Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs()", 
 				cub::DeviceRadixSort::SortPairs(
 					radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
 					chunkIndexKeysArray, sortedChunkIndexKeysArray,
@@ -1488,8 +1596,8 @@ extern "C" {
 							int* hierarchyHitTotal) {
 
 		// Calculate the Nodes Offset and Total
-		int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
-		int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
+		int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH+1];
+		int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH+1];
 
 		int hitTotal = 0;
 		int hitMaximum = 0;
@@ -1542,7 +1650,7 @@ extern "C" {
 				#ifdef BLOCK_GRID_DEBUG
 					cout << "[CreateHierarchyLevelNHits] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
 				#endif
-
+				
 				CreateHierarchyLevelNHits<<<baseLevelGrid, baseLevelBlock>>>(
 					hierarchyArray, 
 					trianglePositionsArray,
@@ -1557,45 +1665,26 @@ extern "C" {
 				hitMaximum = hitTotal * HIERARCHY_SUBDIVISION;
 			}
 
-			//cout << "\nNodes : " << hierarchyNodeTotal[hierarchyLevel] << " (Offset: " << hierarchyNodeOffset[hierarchyLevel] * 2 << ")" << endl;
-			//cout << "\nHit Maximum = " << hitMaximum << endl;
+			/*cout << "Hit Total : " << hitTotal << endl;
+			cout << "Node Total : " << hierarchyNodeTotal[hierarchyLevel] << " (Offset: " << hierarchyNodeOffset[hierarchyLevel] * 2 << ")" << endl;
+			cout << "Hit Maximum = " << hitMaximum << endl;*/
 
 			// Create the Trim Scan Array
 			Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
 			
-			// Trim the Hierarchy Hits
-			if(hierarchyLevel == HIERARCHY_MAXIMUM_DEPTH-1) {
-
-				// Grid based on the Hierarchy Hit Count
-				dim3 baseHitBlock(1024);
-				dim3 baseHitGrid(hitMaximum / baseHitBlock.x + 1);
+			// Grid based on the Hierarchy Hit Count
+			dim3 baseHitBlock(1024);
+			dim3 baseHitGrid(hitMaximum / baseHitBlock.x + 1);
 				
-				#ifdef BLOCK_GRID_DEBUG
-					cout << "[TrimHierarchyLevel0Hits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
-				#endif
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[TrimHierarchyLevelNHits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
+			#endif
 
-				TrimHierarchyLevel0Hits<<<baseHitGrid, baseHitBlock>>>(
-					hierarchyHitsArray,
-					scanArray,
-					hitMaximum,
-					trimmedHierarchyHitsArray);
-			}
-			else {
-			
-				// Grid based on the Hierarchy Hit Count
-				dim3 baseHitBlock(1024);
-				dim3 baseHitGrid((hitMaximum / HIERARCHY_HIT_SUBDIVISION + 1) / baseHitBlock.x + 1);
-				
-				#ifdef BLOCK_GRID_DEBUG
-					cout << "[TrimHierarchyLevelNHits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
-				#endif
-
-				TrimHierarchyLevelNHits<<<baseHitGrid, baseHitBlock>>>(
-					hierarchyHitsArray,
-					scanArray,
-					hitMaximum,
-					trimmedHierarchyHitsArray);
-			}
+			TrimHierarchyHits<<<baseHitGrid, baseHitBlock>>>(
+				hierarchyHitsArray,
+				scanArray,
+				hitMaximum,
+				trimmedHierarchyHitsArray);
 			
 			// Calculate the Hits Missed for this Level
 			int missedHitTotal;
@@ -1605,11 +1694,14 @@ extern "C" {
 			// Calculate the Hit Total for this Level
 			hitTotal = hitMaximum - missedHitTotal;
 
-			/*cout << "Hit Maximum = " << hitMaximum << "/" << triangleTotal << "/" << rayTotal << "/" << hierarchyNodeTotal[0] << endl;
+			/*cout << "Hit Maximum = " << hitMaximum << endl;
 			cout << "Hit Total = " << hitTotal << endl;
 			cout << "Missed Hit Total = " << missedHitTotal << endl;*/
 
 			*hierarchyHitTotal = hitTotal;
+
+			if(hitTotal == 0)
+				return;
 		}
 	}
 
@@ -1622,6 +1714,8 @@ extern "C" {
 							// Input Arrays containing the sorted Ray Indices
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
+							// Input Array containing the Hierarchy Nodes
+							float4* hierarchyArray,
 							// Input Array containing the Hierarchy Node Hits
 							int2* hierarchyHitsArray,
 							// Input Array contraining the Updated Triangle Positions
@@ -1655,6 +1749,52 @@ extern "C" {
 			rayTotal,
 			windowWidth, windowHeight,
 			pixelBufferObject);
+
+		// Grid based on the Hierarchy Hit Count
+
+		// Calculate the Nodes Offset and Total
+		/*int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
+		int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
+		
+		hierarchyNodeOffset[0] = 0;
+		hierarchyNodeTotal[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+		
+		//printf("Level %d :: Offset = %d Total = %d\n", 0, hierarchyNodeOffset[0], hierarchyNodeTotal[0]);
+
+		for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
+
+			hierarchyNodeOffset[i] = hierarchyNodeTotal[i-1] + hierarchyNodeOffset[i-1];
+			hierarchyNodeTotal[i] = hierarchyNodeTotal[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+
+			//printf("Level %d :: Offset = %d Total = %d\n", i, hierarchyNodeOffset[i], hierarchyNodeTotal[i]);
+		}
+
+		int i=HIERARCHY_MAXIMUM_DEPTH-4;
+
+		dim3 intersectionBlock(1024);
+		dim3 intersectionGrid(hierarchyNodeTotal[i] / intersectionBlock.x + 1);
+
+		// Node Hierarchy Index
+		int nodeLimit = HIERARCHY_SUBDIVISION;
+
+		for(int j=1; j<i; j++)
+			nodeLimit *= HIERARCHY_SUBDIVISION;
+
+		cout << "Node Limit = " << nodeLimit << endl;
+		cout << "Ray Total = " << rayTotal << endl;
+		cout << "Hierarchy Node Total = " << hierarchyNodeTotal[i] << endl;
+		cout << "[LocalIntersection] Grid = " << intersectionGrid.x << endl;
+
+		LocalIntersection2<<<intersectionGrid, intersectionBlock>>>(
+			rayArray, 
+			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
+			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
+			hierarchyArray,
+			i+1,
+			hierarchyNodeTotal[i],
+			hierarchyNodeOffset[i],
+			windowWidth, windowHeight,
+			pixelBufferObject);*/
 	}
 
 	void RayTraceWrapper(	// Input Array containing the unsorted Rays

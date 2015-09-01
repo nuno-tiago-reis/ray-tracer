@@ -6,8 +6,8 @@
 #define RADIANS_TO_DEGREES 180.0f/PI
 
 // Viewport Size Constants
-#define WIDTH 250
-#define HEIGHT 250
+#define WIDTH 512
+#define HEIGHT 512
 
 // Ray Casting Constants
 #define LIGHT_SOURCE_MAXIMUM 1
@@ -17,7 +17,5 @@
 #define CHUNK_DIVISION 10
 
 // Hierarchy Depth Constants
-#define HIERARCHY_MAXIMUM_DEPTH 4
+#define HIERARCHY_MAXIMUM_DEPTH 8
 #define HIERARCHY_SUBDIVISION 4
-
-#define HIERARCHY_HIT_SUBDIVISION 100

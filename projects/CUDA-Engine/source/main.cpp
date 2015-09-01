@@ -312,6 +312,8 @@ extern "C" {
 							// Input Arrays containing the sorted Ray Indices
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
+							// Input Array containing the Ray Hierarchy
+							float4* hierarchyArray,
 							// Input Array containing the Hierarchy Node Hits
 							int2* hierarchyHitsArray,
 							// Input Array contraining the Updated Triangle Positions
@@ -425,7 +427,6 @@ void update(int value) {
 
 	/* Update the Scene */
 	sceneManager->update(elapsedTime);
-	sceneManager->getCamera(PERSPECTIVE_NAME)->update(0, 5, 0, elapsedTime);
 
 	glutTimerFunc(FPS_60, update, 0);
 
@@ -591,7 +592,7 @@ void display() {
 		Utility::checkCUDAError("HierarchyCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("HierarchyCreationWrapper::cudaGetLastError()", cudaGetLastError());
 
-		// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres
+		// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
 		HierarchyTraversalWrapper(	
 			cudaHierarchyArrayDP,
 			cudaUpdatedTrianglePositionsDP,
@@ -619,6 +620,7 @@ void display() {
 			cudaRayArrayDP,
 			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			cudaHierarchyArrayDP,
 			cudaSecondaryHierarchyHitsArrayDP,
 			cudaUpdatedTrianglePositionsDP,
 			hierarchyHitTotal,
@@ -629,256 +631,266 @@ void display() {
 		
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
-	;
 
-	/*// Kernel Launches
-	int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+	if(false) {
 
-	int rayArraySize = arraySize * 2;
+		// Kernel Launches
+		int arraySize = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
 
-	int hierarchyArraySize = 0;
-	int hierarchyNodeSize[HIERARCHY_MAXIMUM_DEPTH];
+		int rayArraySize = arraySize * 2;
+
+		int hierarchyArraySize = 0;
+		int hierarchyNodeSize[HIERARCHY_MAXIMUM_DEPTH];
 	
-	hierarchyNodeSize[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-	hierarchyArraySize= hierarchyNodeSize[0];
-	for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
-		hierarchyNodeSize[i] = hierarchyNodeSize[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeSize[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-		hierarchyArraySize += hierarchyNodeSize[i]; 
-	}
+		hierarchyNodeSize[0] = arraySize / HIERARCHY_SUBDIVISION + (arraySize % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+		hierarchyArraySize= hierarchyNodeSize[0];
+		for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
+			hierarchyNodeSize[i] = hierarchyNodeSize[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeSize[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+			hierarchyArraySize += hierarchyNodeSize[i]; 
+		}
 
-	float3* rayArray = new float3[rayArraySize];
+		float3* rayArray = new float3[rayArraySize];
 
-	int* rayIndexKeysArray = new int[arraySize];
-	int* rayIndexValuesArray = new int[arraySize];
+		int* rayIndexKeysArray = new int[arraySize];
+		int* rayIndexValuesArray = new int[arraySize];
 
-	int* trimmedRayIndexKeysArray = new int[arraySize];
-	int* trimmedRayIndexValuesArray = new int[arraySize];
+		int* trimmedRayIndexKeysArray = new int[arraySize];
+		int* trimmedRayIndexValuesArray = new int[arraySize];
 
-	int* chunkBasesArray = new int[arraySize];
-	int* chunkSizesArray = new int[arraySize];
+		int* chunkBasesArray = new int[arraySize];
+		int* chunkSizesArray = new int[arraySize];
 
-	int* chunkHashArray = new int[arraySize];
-	int* chunkValuesArray = new int[arraySize];
+		int* chunkHashArray = new int[arraySize];
+		int* chunkValuesArray = new int[arraySize];
 
-	int* sortedChunkHashArray = new int[arraySize];
-	int* sortedChunkValuesArray = new int[arraySize];
+		int* sortedChunkHashArray = new int[arraySize];
+		int* sortedChunkValuesArray = new int[arraySize];
 
-	int* headFlagsArray = new int[hierarchyNodeSize[0] * triangleTotal];
-	int* scanArray = new int[hierarchyNodeSize[0] * triangleTotal];
+		int* headFlagsArray = new int[hierarchyNodeSize[0] * triangleTotal];
+		int* scanArray = new int[hierarchyNodeSize[0] * triangleTotal];
 
-	float4* hierarchyArray = new float4[hierarchyArraySize * 2];
-	int2* primaryHierarchyHitsArray = new int2[hierarchyNodeSize[0] * triangleTotal];
-	int2* secondaryHierarchyHitsArray = new int2[hierarchyNodeSize[0] * triangleTotal];
+		float4* hierarchyArray = new float4[hierarchyArraySize * 2];
+		int2* primaryHierarchyHitsArray = new int2[hierarchyNodeSize[0] * triangleTotal];
+		int2* secondaryHierarchyHitsArray = new int2[hierarchyNodeSize[0] * triangleTotal];
 
-	// Copy the Arrays from CUDA	
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayArray[0], cudaRayArrayDP, rayArraySize * sizeof(float3), cudaMemcpyDeviceToHost));
+		// Copy the Arrays from CUDA	
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayArray[0], cudaRayArrayDP, rayArraySize * sizeof(float3), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexKeysArray[0], cudaPrimaryRayIndexKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexValuesArray[0], cudaPrimaryRayIndexValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexKeysArray[0], cudaPrimaryRayIndexKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&rayIndexValuesArray[0], cudaPrimaryRayIndexValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trimmedRayIndexKeysArray[0], cudaSecondaryRayIndexKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trimmedRayIndexValuesArray[0], cudaSecondaryRayIndexValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trimmedRayIndexKeysArray[0], cudaSecondaryRayIndexKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&trimmedRayIndexValuesArray[0], cudaSecondaryRayIndexValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkBasesArray[0], cudaChunkBasesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkSizesArray[0], cudaChunkSizesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkBasesArray[0], cudaChunkBasesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkSizesArray[0], cudaChunkSizesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkHashArray[0], cudaPrimaryChunkKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkValuesArray[0], cudaPrimaryChunkValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkHashArray[0], cudaPrimaryChunkKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&chunkValuesArray[0], cudaPrimaryChunkValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&sortedChunkHashArray[0], cudaSecondaryChunkKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&sortedChunkValuesArray[0], cudaSecondaryChunkValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&sortedChunkHashArray[0], cudaSecondaryChunkKeysArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&sortedChunkValuesArray[0], cudaSecondaryChunkValuesArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&headFlagsArray[0], cudaHeadFlagsArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&scanArray[0], cudaScanArrayDP, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&headFlagsArray[0], cudaHeadFlagsArrayDP, hierarchyNodeSize[0] * triangleTotal * sizeof(int), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&scanArray[0], cudaScanArrayDP, hierarchyNodeSize[0] * triangleTotal * sizeof(int), cudaMemcpyDeviceToHost));
 
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&hierarchyArray[0], cudaHierarchyArrayDP, hierarchyArraySize * sizeof(float4) * 2, cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&primaryHierarchyHitsArray[0], cudaPrimaryHierarchyHitsArrayDP, hierarchyNodeSize[0] * triangleTotal * sizeof(int2), cudaMemcpyDeviceToHost));
-	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&secondaryHierarchyHitsArray[0], cudaSecondaryHierarchyHitsArrayDP, hierarchyNodeSize[0] * triangleTotal * sizeof(int2), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&hierarchyArray[0], cudaHierarchyArrayDP, hierarchyArraySize * sizeof(float4) * 2, cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&primaryHierarchyHitsArray[0], cudaPrimaryHierarchyHitsArrayDP, hierarchyNodeSize[0] * triangleTotal * sizeof(int2), cudaMemcpyDeviceToHost));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&secondaryHierarchyHitsArray[0], cudaSecondaryHierarchyHitsArrayDP, hierarchyNodeSize[0] * triangleTotal * sizeof(int2), cudaMemcpyDeviceToHost));
 
-	printf("\nArray Dump (%d)\n\n", arraySize);*/
+		printf("\nArray Dump (%d) Resolution (%d-%d)\n\n", arraySize, windowWidth, windowHeight);
 
-	int rayCounter = 0;
+		int rayCounter = 0;
 
-	/*printf("Ray Indices\n");
-	for(int i=0; i<arraySize; i++) {
+		/*printf("Ray Indices\n");
+		for(int i=0; i<arraySize; i++) {
 
-		//printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
+			//printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
 
-		if(rayIndexKeysArray[i] != 0)
-			rayCounter++;
-	}
-	printf("\n");
+			if(rayIndexKeysArray[i] != 0)
+				rayCounter++;
+		}
+		printf("\n");
 
-	printf("Ray Indices Breaks\n");
-	for(int i=arrayBase; i<arrayBase+arraySize; i++)
-		if(i > 0 && rayIndexKeysArray[i] == 0 && rayIndexKeysArray[i-1] != 0)
-			printf("\nbreaking\t%d", i);
-		else if(i > 0 && rayIndexKeysArray[i] != 0 && rayIndexKeysArray[i-1] == 0)
-			printf("\nrestarting\t%d", i);
-	printf("\n");*/
+		printf("Ray Indices Breaks\n");
+		for(int i=arrayBase; i<arrayBase+arraySize; i++)
+			if(i > 0 && rayIndexKeysArray[i] == 0 && rayIndexKeysArray[i-1] != 0)
+				printf("\nbreaking\t%d", i);
+			else if(i > 0 && rayIndexKeysArray[i] != 0 && rayIndexKeysArray[i-1] == 0)
+				printf("\nrestarting\t%d", i);
+		printf("\n");*/
 	
-	int trimmedRayCounter = 0;
+		int trimmedRayCounter = 0;
 
-	/*printf("Trimmed Ray Hashes and Positions\n");
-	for(int i=0; i<rayTotal; i++) {
+		/*printf("Trimmed Ray Hashes and Positions\n");
+		for(int i=0; i<rayTotal; i++) {
 		
-		printf("%u#%d\t", trimmedRayIndexKeysArray[i], trimmedRayIndexValuesArray[i]);
+			printf("%u#%d\t", trimmedRayIndexKeysArray[i], trimmedRayIndexValuesArray[i]);
 		
-		if(trimmedRayIndexKeysArray[i] != 0)
-			trimmedRayCounter++;
-	}
-	printf("\n");
+			if(trimmedRayIndexKeysArray[i] != 0)
+				trimmedRayCounter++;
+		}
+		printf("\n");*/
+	
+		int chunkCounter = 0;
 
-	printf("Real Trimmed Ray Hashes and Positions\n");
-	for(int i=0; i<arraySize; i++) {
+		/*printf("Chunk Base & Size Arrays\n");
+		for(int i=0; i<chunkTotal; i++) {
+
+			printf("%u#%u\t", chunkBasesArray[i], chunkSizesArray[i]);
 		
-		if(rayIndexKeysArray[i] != 0)
+			if(chunkBasesArray[i] != 0 || i == 0)
+				chunkCounter++;
+		}	
+		printf("\n");
+
+		printf("Chunk Hash & Position Arrays\n");
+		for(int i=0; i<chunkTotal; i++)
+			printf("%u#%u\t", chunkHashArray[i], chunkValuesArray[i]);
+		printf("\n");
+
+		printf("Sorted Chunk Base & Size Arrays\n");
+		for(int i=0; i<chunkTotal; i++) {
+
+			printf("%u#%u\t", chunkBasesArray[sortedChunkValuesArray[i]], chunkSizesArray[sortedChunkValuesArray[i]]);
+		
+			if(chunkBasesArray[i] != 0 || i == 0)
+				chunkCounter++;
+		}	
+		printf("\n");
+
+		printf("Sorted Chunk Hash & Position Arrays\n");
+		for(int i=0; i<chunkTotal; i++)
+			printf("%u#%u\t", sortedChunkHashArray[i], sortedChunkValuesArray[i]);
+		printf("\n");*/
+
+		int sortedRayCounter = 0;
+
+		/*printf("Sorted Ray Hashes and Positions\n");
+		for(int i=0; i<rayTotal; i++) {
+		
 			printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
-	}
-	printf("\n\n");
+		
+			if(rayIndexKeysArray[i] != 0)
+				sortedRayCounter++;
+		}
+		printf("\n");*/
 
-	printf("Trimmed Ray Indices Breaks\n");
-	for(int i=arrayBase; i<rayTotal; i++)
-		if(i > 0 && trimmedRayIndexKeysArray[i] == 0 && trimmedRayIndexKeysArray[i-1] != 0)
-			printf("\n[starting empty streak at %d]", i);
-	printf("\n");*/
+		/*printf("Sorted Rays\n");
+		for(int i=0; i<rayTotal; i++) {
+
+			float3 ray = rayArray[trimmedRayIndexValuesArray[rayIndexValuesArray[i]]*2];
+
+			printf("Ray Origin %d:\t%.4f\t%.4f\t%.4f\n", i, ray.x,ray.y,ray.z);
+		}
+		printf("\n");*/
+
+		int nodeCounter = 0;
+
+		int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
+		hierarchyNodeOffset[0] = arraySize / HIERARCHY_SUBDIVISION + (arraySize % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+		for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++)
+			hierarchyNodeOffset[i] = hierarchyNodeOffset[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeOffset[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+
+		/*printf("Hierarchy Nodes\n\n");	
+		for(int i=0; i<hierarchyArraySize; i++) {
+
+			nodeCounter++;
+
+			if(i == 0)
+				printf("Level 1\n");
+			if(i == hierarchyNodeOffset[0])
+				printf("Level 2\n");
+			if(i == hierarchyNodeOffset[0] + hierarchyNodeOffset[1])
+				printf("Level 3\n");
+			if(i == hierarchyNodeOffset[0] + hierarchyNodeOffset[1] + hierarchyNodeOffset[2])
+				printf("Level 4\n");
+		
+			printf("[%04d] Sphere: x\t%.4f\ty\t%.4f\tz\t%.4f\tr\t%.4f\t", i*2, hierarchyArray[i*2].x, hierarchyArray[i*2].y, hierarchyArray[i*2].z, hierarchyArray[i*2].w);
+			printf("[%04d] Cone: x\t%.4f\ty\t%.4f\tz\t%.4f\ta\t%.4f\n", i*2+1, hierarchyArray[i*2+1].x, hierarchyArray[i*2+1].y, hierarchyArray[i*2+1].z, hierarchyArray[i*2+1].w);
+		}
+		printf("\n");*/
+
+		int primaryHitCounter = 0;
+		int primaryNodeHitCounter = 0;
+
+		printf("Primary Hierarchy Hits (Triangle Total %d, Node Total %d, Hit Maximum %d)\n", triangleTotal, hierarchyNodeSize[0], triangleTotal * hierarchyNodeSize[0]);	
+		for(int i=0; i<hierarchyNodeSize[0] * triangleTotal; i++) {
+		
+			if(((primaryHierarchyHitsArray[i].x != 0 || primaryHierarchyHitsArray[i].y != 0) && i != 0) || i == 0)
+				primaryNodeHitCounter++;
 	
-	int chunkCounter = 0;
-
-	/*printf("Chunk Base & Size Arrays\n");
-	for(int i=0; i<chunkTotal; i++) {
-
-		printf("%u#%u\t", chunkBasesArray[i], chunkSizesArray[i]);
+			if(i % triangleTotal == 0 && i != 0) {
 		
-		if(chunkBasesArray[i] != 0 || i == 0)
-			chunkCounter++;
-	}	
-	printf("\n");
+				//printf("Node %d Hit Total = %d\n", i / triangleTotal-1, primaryNodeHitCounter);
 
-	printf("Chunk Hash & Position Arrays\n");
-	for(int i=0; i<chunkTotal; i++)
-		printf("%u#%u\t", chunkHashArray[i], chunkValuesArray[i]);
-	printf("\n");
+				primaryHitCounter += primaryNodeHitCounter;
+				primaryNodeHitCounter = 0;
+			}
 
-	printf("Sorted Chunk Base & Size Arrays\n");
-	for(int i=0; i<chunkTotal; i++) {
-
-		printf("%u#%u\t", chunkBasesArray[sortedChunkValuesArray[i]], chunkSizesArray[sortedChunkValuesArray[i]]);
+			if(i == hierarchyNodeSize[0] * triangleTotal - 1) {
 		
-		if(chunkBasesArray[i] != 0 || i == 0)
-			chunkCounter++;
-	}	
-	printf("\n");
-
-	printf("Sorted Chunk Hash & Position Arrays\n");
-	for(int i=0; i<chunkTotal; i++)
-		printf("%u#%u\t", sortedChunkHashArray[i], sortedChunkValuesArray[i]);
-	printf("\n");
-
-	int sortedRayCounter = 0;
-
-	printf("Sorted Ray Indices\n");
-	for(int i=0; i<rayTotal; i++) {
-		
-		printf("%u#%d\t", rayIndexKeysArray[i], rayIndexValuesArray[i]);
-		
-		if(rayIndexKeysArray[i] != 0)
-			sortedRayCounter++;
-	}
-	printf("\n");*/
-
-	int nodeCounter = 0;
-
-	int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
-	hierarchyNodeOffset[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-	for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++)
-		hierarchyNodeOffset[i] = hierarchyNodeOffset[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeOffset[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-
-	/*printf("Hierarchy Nodes\n\n");	
-	for(int i=0; i<hierarchyArraySize; i++) {
-
-		nodeCounter++;
-
-		if(i == 0)
-			printf("Level 1\n");
-		if(i == hierarchyNodeOffset[0])
-			printf("Level 2\n");
-		if(i == hierarchyNodeOffset[0] + hierarchyNodeOffset[1])
-			printf("Level 3\n");
-		if(i == hierarchyNodeOffset[0] + hierarchyNodeOffset[1] + hierarchyNodeOffset[2])
-			printf("Level 4\n");
-		
-		printf("[%04d] Sphere: x\t%f\ty\t%f\tz\t%f\tr\t%f\t", i*2, hierarchyArray[i*2].x, hierarchyArray[i*2].y, hierarchyArray[i*2].z, hierarchyArray[i*2].w);
-		printf("[%04d] Cone: x\t%f\ty\t%f\tz\t%f\ta\t%f\n", i*2+1, hierarchyArray[i*2+1].x, hierarchyArray[i*2+1].y, hierarchyArray[i*2+1].z, hierarchyArray[i*2+1].w);
-	}
-	printf("\n");*/
-
-	int primaryHitCounter = 0;
-	int primaryNodeHitCounter = 0;
-
-	/*printf("Primary Hierarchy Hits (Triangle Total %d, Node Total %d, Hit Maximum %d)\n", triangleTotal, hierarchyNodeSize[0], triangleTotal * hierarchyNodeSize[0]);	
-	for(int i=0; i<hierarchyNodeSize[0] * triangleTotal; i++) {
-		
-		if(((primaryHierarchyHitsArray[i].x != 0 || primaryHierarchyHitsArray[i].y != 0) && i != 0) || i == 0)
-			primaryNodeHitCounter++;
-	
-		if(i % triangleTotal == 0 && i != 0) {
-		
-			//printf("Node %d Hit Total = %d\n", i / triangleTotal-1, primaryNodeHitCounter);
-
-			primaryHitCounter += primaryNodeHitCounter;
-			primaryNodeHitCounter = 0;
-		}
-
-		if(i == hierarchyNodeSize[0] * triangleTotal - 1) {
-		
-			//printf("Node %d Hit Total = %d\n", i / triangleTotal, primaryNodeHitCounter);
+				//printf("Node %d Hit Total = %d\n", i / triangleTotal, primaryNodeHitCounter);
 			
-			primaryHitCounter += primaryNodeHitCounter;
-			primaryNodeHitCounter = 0;
+				primaryHitCounter += primaryNodeHitCounter;
+				primaryNodeHitCounter = 0;
+			}
 		}
-	}
-	printf("\n");*/
+		printf("\n");
 
-	int secondaryHitCounter = 0;
-	int secondaryNodeHitCounter = 0;
+		int secondaryHitCounter = 0;
+		int secondaryNodeHitCounter = 0;
 
-	/*printf("Secondary Hierarchy Hits (Triangle Total %d, Node Total %d, Hit Maximum %d)\n", triangleTotal, hierarchyNodeSize[0], triangleTotal * hierarchyNodeSize[0]);	
-	for(int i=0; i<hierarchyNodeSize[0] * triangleTotal; i++) {
+		printf("Secondary Hierarchy Hits (Triangle Total %d, Node Total %d, Hit Maximum %d)\n", triangleTotal, hierarchyNodeSize[0], triangleTotal * hierarchyNodeSize[0]);	
+		for(int i=0; i<hierarchyNodeSize[0] * triangleTotal; i++) {
 		
-		if(((secondaryHierarchyHitsArray[i].x != 0 || secondaryHierarchyHitsArray[i].y != 0) && i != 0) || i == 0)
-			secondaryNodeHitCounter++;
-		//else
-			//printf("fuck at %d\nx= %dy= %d\n", i, secondaryHierarchyHitsArray[i].x, secondaryHierarchyHitsArray[i].y);
+			if(((secondaryHierarchyHitsArray[i].x != 0 || secondaryHierarchyHitsArray[i].y != 0) && i != 0) || i == 0)
+				secondaryNodeHitCounter++;
 
-		if(i % triangleTotal == 0 && i != 0) {
+			if(i % triangleTotal == 0 && i != 0) {
 		
-			//printf("Node %d Hit Total = %d\n", i / triangleTotal-1, secondaryNodeHitCounter);
+				//printf("Node %d Hit Total = %d\n", i / triangleTotal-1, secondaryNodeHitCounter);
 
-			secondaryHitCounter += secondaryNodeHitCounter;
-			secondaryNodeHitCounter = 0;
-		}
+				secondaryHitCounter += secondaryNodeHitCounter;
+				secondaryNodeHitCounter = 0;
+			}
 
-		if(i == hierarchyNodeSize[0] * triangleTotal - 1) {
+			if(i == hierarchyNodeSize[0] * triangleTotal - 1) {
 		
-			//printf("Node %d Hit Total = %d\n", i / triangleTotal, secondaryNodeHitCounter);
+				//printf("Node %d Hit Total = %d\n", i / triangleTotal, secondaryNodeHitCounter);
 			
-			secondaryHitCounter += secondaryNodeHitCounter;
-			secondaryNodeHitCounter = 0;
+				secondaryHitCounter += secondaryNodeHitCounter;
+				secondaryNodeHitCounter = 0;
+			}
+
+			if(i % triangleTotal != 0) {
+		
+				//if(secondaryHierarchyHitsArray[i-1].y == secondaryHierarchyHitsArray[i].y - 1)
+					//printf("FUCK [Node: %d] [%d - %d]\n", i / triangleTotal, secondaryHierarchyHitsArray[i-1].y, secondaryHierarchyHitsArray[i].y);
+				
+			}
+
+			if(i!=0) {
+
+				printf("%04d [N%04d T%04d] => (%d/%d) => [N%04d T%04d]\n", i, 
+					primaryHierarchyHitsArray[i].x, primaryHierarchyHitsArray[i].y, scanArray[i], headFlagsArray[i], secondaryHierarchyHitsArray[i].x, secondaryHierarchyHitsArray[i].y);
+			}
 		}
+		printf("\n");
+
+		/*printf("Trimmed Ray Counter %d\n", trimmedRayCounter);
+		printf("Sorted Ray Counter \t%d\n", sortedRayCounter);
+		printf("Chunk Counter %d\n", chunkCounter);
+		printf("Node Counter %d\n", nodeCounter);*/
+		printf("Primary Hit Counter %d\n", primaryHitCounter);
+		printf("Secondary Hit Counter %d\n", secondaryHitCounter);
+
+		printf("Ray Total %d\n", rayTotal);
+		printf("Chunk Total %d\n", chunkTotal);
+		printf("Hit Total %d\n", hierarchyHitTotal);
+
+		exit(0);
 	}
-	printf("\n");*/
-
-	/*printf("Trimmed Ray Counter %d\n", trimmedRayCounter);
-	printf("Sorted Ray Counter \t%d\n", sortedRayCounter);
-	printf("Chunk Counter %d\n", chunkCounter);
-	printf("Node Counter %d\n", nodeCounter);
-	printf("Primary Hit Counter %d\n", primaryHitCounter);
-	printf("Secondary Hit Counter %d\n", secondaryHitCounter);
-
-	printf("Ray Total %d\n", rayTotal);
-	printf("Chunk Total %d\n", chunkTotal);
-	printf("Hit Total %d\n", hierarchyHitTotal);*/
 
 	/*printf("Trimmed Hierarchy Hit List\n");
 
@@ -1540,8 +1552,37 @@ void init(int argc, char* argv[]) {
 	// Add the Object to the Map (CUDA Loading)
 	objectMap[tableSurface->getID()] = tableSurface;
 
+	// Cube
+	Object* cubeObject = new Object("Cube");
+
+		// Set the Objects Mesh
+		Mesh* cubeMesh = new Mesh(TABLE_SURFACE, "cube.obj");
+
+		cubeObject->setMesh(cubeMesh);
+
+		// Set the Objects Transform
+		Transform* cubeTransform = new Transform("Cube");
+		cubeTransform->setPosition(Vector(0.0f, 2.5f, 0.0f, 1.0f));
+		cubeTransform->setScale(Vector(7.5f, 2.5f, 7.5f, 1.0f));
+
+		cubeObject->setTransform(cubeTransform);
+
+		// Set the Objects Material
+		Material* cubeMaterial = new Material("Cube", "cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		
+		cubeObject->setMaterial(cubeMaterial);
+
+		// Initialize the Object
+		cubeObject->createMesh();
+		cubeObject->setID(sceneManager->getObjectID());
+
+	// Add the Object to the Scene Manager
+	sceneManager->addObject(cubeObject);
+	// Add the Object to the Map (CUDA Loading)
+	objectMap[cubeObject->getID()] = cubeObject;
+
 	// Blinn-Phong Sphere 0
-	Object* sphere0Object = new Object(SPHERE_0);
+	/*Object* sphere0Object = new Object(SPHERE_0);
 
 		// Set the Objects Mesh
 		Mesh* sphere0Mesh = new Mesh(SPHERE_0, "sphere.obj");
@@ -1622,7 +1663,7 @@ void init(int argc, char* argv[]) {
 	// Add the Object to the Scene Manager
 	sceneManager->addObject(sphere2Object);
 	// Add the Object to the Map (CUDA Loading)
-	objectMap[sphere2Object->getID()] = sphere2Object;
+	objectMap[sphere2Object->getID()] = sphere2Object;*/
 
 	cout << endl;
 
@@ -1634,18 +1675,22 @@ void init(int argc, char* argv[]) {
 	SceneNode* tableSurfaceNode = new SceneNode(TABLE_SURFACE);
 	tableSurfaceNode->setObject(tableSurface);
 
-	SceneNode* sphere0ObjectNode = new SceneNode(SPHERE_0);
+	/*SceneNode* sphere0ObjectNode = new SceneNode(SPHERE_0);
 	sphere0ObjectNode->setObject(sphere0Object);
 	SceneNode* sphere1ObjectNode = new SceneNode(SPHERE_1);
 	sphere1ObjectNode->setObject(sphere1Object);
 	SceneNode* sphere2ObjectNode = new SceneNode(SPHERE_2);
-	sphere2ObjectNode->setObject(sphere2Object);
+	sphere2ObjectNode->setObject(sphere2Object);*/
+
+	SceneNode* cubeNode = new SceneNode("Cube");
+	cubeNode->setObject(cubeObject);
 
 	// Add the Root Nodes to the Scene
 	sceneManager->addSceneNode(tableSurfaceNode);
-	sceneManager->addSceneNode(sphere0ObjectNode);
+	/*sceneManager->addSceneNode(sphere0ObjectNode);
 	sceneManager->addSceneNode(sphere1ObjectNode);
-	sceneManager->addSceneNode(sphere2ObjectNode);
+	sceneManager->addSceneNode(sphere2ObjectNode);*/
+	sceneManager->addSceneNode(cubeNode);
 
 	// Init the SceneManager
 	sceneManager->init();
@@ -1807,7 +1852,163 @@ void init(int argc, char* argv[]) {
 	}
 }
 
+float4 CreateHierarchyCone2(const float4 &cone1, const float4 &cone2) {
+
+	float3 coneDirection1 = make_float3(cone1);
+	float3 coneDirection2 = make_float3(cone2);
+	
+	float3 coneDirection = normalize(coneDirection1 + coneDirection2);
+	float coneSpread = clamp(acos(dot(coneDirection1, coneDirection2)) * 0.5f + max(cone1.w, cone2.w), 0.0f, HALF_PI);
+
+	return make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread); 
+}
+
+float4 CreateHierarchySphere2(const float4 &sphere1, const float4 &sphere2) {
+
+	float3 sphereCenter1 = make_float3(sphere1);
+	float3 sphereCenter2 = make_float3(sphere2);
+
+	float3 sphereDirection = normalize(sphereCenter2 - sphereCenter1);
+	float sphereDistance = length(sphereCenter2 - sphereCenter1);
+
+	if(sphereDistance + sphere2.w <= sphere1.w)
+		return sphere1;
+
+	if(sphereDistance + sphere1.w <= sphere2.w)
+		return sphere2;
+
+	float3 sphereCenter = sphereCenter1 + sphereDirection * sphereDistance * 0.5f;
+	float sphereRadius = sphereDistance * 0.5f + max(sphere1.w , sphere2.w);
+
+	return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
+}
+
+// Ray - Node Intersection Code
+bool SphereNodeIntersection2(const float4 &sphere, const float4 &cone, const float4 &triangle) {
+	
+	float3 coneDirection = make_float3(cone);
+	float3 sphereCenter = make_float3(sphere);
+	float3 triangleCenter = make_float3(triangle);
+
+	float3 sphereToTriangle = triangleCenter - sphereCenter;
+	float3 sphereToTriangleProjection = dot(sphereToTriangle, coneDirection) * coneDirection;
+
+	float product = 
+		(sphereToTriangleProjection.x - sphereCenter.x) * coneDirection.x + 
+		(sphereToTriangleProjection.y - sphereCenter.y) * coneDirection.y + 
+		(sphereToTriangleProjection.z - sphereCenter.z) * coneDirection.z;
+
+	printf("Sphere To Triangle: %.4f %.4f %.4f # %.4f\n", sphereToTriangle.x, sphereToTriangle.y, sphereToTriangle.z);
+	printf("Sphere To Triangle Projection: %.4f %.4f %.4f # %.4f\n", sphereToTriangleProjection.x, sphereToTriangleProjection.y, sphereToTriangleProjection.z);
+	
+	printf("Height = %.4f\n", length(sphereCenter - sphereToTriangleProjection));
+	printf("Tangent = %.4f\n", tan(cone.w));
+	printf("Height * Tangent = %.4f\n", length(sphereCenter - sphereToTriangleProjection) * tan(cone.w));
+	printf("Radius = %.4f\n", sphere.w + triangle.w);
+	printf("Cosine = %.4f\n", cos(cone.w));
+	printf("Radius / Cosine = %.4f\n", (sphere.w + triangle.w) / cos(cone.w));
+	
+	printf("Distance = %.4f\n", length(triangleCenter - sphereToTriangleProjection));
+
+	if(product < 0.0f)
+		return false;
+
+	//return true;
+	return (length(sphereCenter - sphereToTriangleProjection) * tan(cone.w) + (sphere.w + triangle.w) / cos(cone.w)) >= length(triangleCenter - sphereToTriangleProjection);
+}
+
 int main(int argc, char* argv[]) {
+
+	/*// Position and Radius
+	float3 spherePosition = make_float3(0.0f,0.0f,0.0f);
+	float sphereRadius = 0.0f;
+	
+	float4 sphere = make_float4(spherePosition.x, spherePosition.y, spherePosition.z, sphereRadius);
+
+	// Direction and Spread
+	float3 coneDirection = normalize(make_float3(1.0f,1.0f,0.0f));
+	float coneSpread = DEGREES_TO_RADIANS * 45.0f;
+
+	float4 cone = make_float4(coneDirection.x, coneDirection.y, coneDirection.z, coneSpread);
+
+	// Position and Radius
+	float3 trianglePosition = make_float3(-1.0f,1.0f,0.0f);
+	float triangleRadius = 1.0f;
+
+	float4 triangle = make_float4(trianglePosition.x, trianglePosition.y, trianglePosition.z, triangleRadius);
+
+	printf("Sphere: %.4f %.4f %.4f # %.4f\n", sphere.x, sphere.y, sphere.z, sphere.w);
+	printf("Cone: %.4f %.4f %.4f # %.4f\n", cone.x, cone.y, cone.z, cone.w);
+
+	printf("Triangle: %.4f %.4f %.4f # %.4f\n", triangle.x, triangle.y, triangle.z, triangle.w);
+
+	printf("Test = %d\n", SphereNodeIntersection2(sphere, cone, triangle));*/
+
+	/*float low = -50.0f;
+	float high = 50.0f;
+
+	int testsPassed = 100000;
+
+	for(int i=0; i<100000; i++) {
+
+		float x1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float y1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float z1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float w1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+
+		float x2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float y2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float z2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float w2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+
+		float4 sphere1 = make_float4(x1,y1,z1,w1);
+		float4 sphere2 = make_float4(x2,y2,z2,w2);
+
+		float4 sphereN = CreateHierarchySphere2(sphere1, sphere2);
+
+		if(length(make_float3(sphereN) - make_float3(sphere1)) * 0.5f + sphere1.w > sphereN.w)
+			testsPassed--;
+
+		if(length(make_float3(sphereN) - make_float3(sphere2)) * 0.5f + sphere2.w > sphereN.w)
+			testsPassed--;
+	}
+
+	printf("%d Tests Passed\n", testsPassed);*/
+
+	/*float low = -1.0f;
+	float high = 1.0f;
+
+	float lowRadian= 0.0f;
+	float highRadian = HALF_PI / 2.0f;
+
+	int testsPassed = 100000;
+
+	for(int i=0; i<100000; i++) {
+
+		float x1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float y1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float z1 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+
+		float x2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float y2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+		float z2 = low + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(high-low)));
+
+		float3 coneDirection1 = normalize(make_float3(x1,y1,z1));
+		float3 coneDirection2 = normalize(make_float3(x2,y2,z2));
+
+		float coneSpread1 = lowRadian + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(highRadian-lowRadian)));
+		float coneSpread2 = lowRadian + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(highRadian-lowRadian)));
+
+		float4 coneN = CreateHierarchyCone2(make_float4(coneDirection1.x, coneDirection1.y, coneDirection1.z, coneSpread1), make_float4(coneDirection2.x, coneDirection2.y, coneDirection2.z, coneSpread2));
+
+		if(acos(dot(coneDirection1, make_float3(coneN))) * 0.5f > coneN.w)
+			testsPassed--;
+
+		if(acos(dot(coneDirection2, make_float3(coneN))) * 0.5f > coneN.w)
+			testsPassed--;
+	}
+
+	printf("%d Tests Passed\n", testsPassed);*/
 
 	freopen("output.txt","w",stderr);
 	freopen("output.txt","w",stdout);
