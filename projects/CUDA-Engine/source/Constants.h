@@ -17,5 +17,8 @@
 #define CHUNK_DIVISION 10
 
 // Hierarchy Depth Constants
-#define HIERARCHY_MAXIMUM_DEPTH 8
-#define HIERARCHY_SUBDIVISION 4
+#define HIERARCHY_MAXIMUM_DEPTH 4
+#define HIERARCHY_SUBDIVISION 8
+
+// Ray-Tracing Depth Constants
+#define DEPTH 3

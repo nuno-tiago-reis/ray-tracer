@@ -33,7 +33,7 @@ static void *radixSortTemporaryStorage = NULL;
 static size_t radixSortTemporaryStoreBytes = 0;
 
 // Ray testing Constant
-__constant__ __device__ static const float epsilon = 0.001f;
+__constant__ __device__ static const float epsilon = 0.01f;
 
 // Ray indexing Constants
 __constant__ __device__ static const float bit_mask_1_4_f = 15.0f;
@@ -156,8 +156,44 @@ __device__ float3 SphericalToCartesian(float2 spherical) {
 	return make_float3(x,y,z);
 }
 
-// Converts a ray to an integer hash value
-__device__ int CreateRayIndex(float3 origin, float3 direction) {
+// Converts a ray to an Integer Hash Value
+__device__ int CreateShadowRayIndex(float3 origin, float3 direction) {
+
+	int index = 0;
+
+	// Clamp the Origin to the 0-15 range
+	index = (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.y + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	
+	// Convert the Direction to Spherical Coordinates
+	index = (index << 4) | (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
+	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
+
+	index++;
+
+	return index;
+}
+
+__device__ int CreateReflectionRayIndex(float3 origin, float3 direction) {
+
+	int index = 0;
+
+	// Clamp the Origin to the 0-15 range
+	index = (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.y + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
+	
+	// Convert the Direction to Spherical Coordinates
+	index = (index << 4) | (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
+	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
+
+	index++;
+
+	return index;
+}
+
+__device__ int CreateRefractionRayIndex(float3 origin, float3 direction) {
 
 	int index = 0;
 
@@ -187,14 +223,6 @@ __device__ bool SphereNodeIntersection(const float4 &sphere, const float4 &cone,
 
 	if(cone.w == HALF_PI)
 		return true;
-
-	/*float product = 
-		(triangleCenter.x - sphereCenter.x) * coneDirection.x + 
-		(triangleCenter.y - sphereCenter.y) * coneDirection.y + 
-		(triangleCenter.z - sphereCenter.z) * coneDirection.z;
-
-	if(product < 0.0f)
-		return false;*/
 
 	return (length(sphereToTriangleProjection) * tan(cone.w) + (sphere.w + triangle.w) / cos(cone.w)) >= length((triangleCenter - sphereCenter) - sphereToTriangleProjection);
 }
@@ -333,18 +361,17 @@ __device__ float4 CreateHierarchySphere(const float4 &sphere1, const float4 &sph
 	return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
 }
 
-// Implementation of the Matrix Multiplication
 __global__ void UpdateVertex(
-							// Updated Normal Matrices Array
+							// Input Array containing the Updated Model Matrices.
 							float* modelMatricesArray,
-							// Updated Normal Matrices Array
+							// Input Array containing the Updated Normal Matrices.
 							float* normalMatricesArray,
-							// Updated Triangle Positions Array
+							// Auxiliary Variable containing the Vertex Total.
+							const int vertexTotal,
+							// Output Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
-							// Updated Triangle Normals Array
-							float4* triangleNormalsArray,
-							// Total Number of Vertices in the Scene
-							int vertexTotal) {
+							// Output Array containing the Updated Triangle Normals.
+							float4* triangleNormalsArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -399,17 +426,126 @@ __global__ void UpdateVertex(
 	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
 }
 
-//	Ray index Array	
-__global__ void CreateRays(
-							// Input Array containing the unsorted Rays
-							float3* rayArray,
-							// Screen Dimensions
-							int windowWidth, int windowHeight,
-							// Total number of Light Sources in the Scene
-							int lightTotal,
-							// Cameras Position in the Scene
+__global__ void PreparePixels(	
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const  int windowHeight,
+							// Auxiliary Variables containing the Number of Lights.
+							const int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
 							float3 cameraPosition,
-							// Output Array containing the exclusing scan result
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	// Fragment Color
+	float3 fragmentColor = make_float3(0.0f);
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	// Triangle Material Properties
+	float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
+	float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
+
+	// Primary Ray
+	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), fragmentNormal);
+
+	for(int l = 0; l < lightTotal; l++) {
+
+		float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
+
+		// Light Direction and Distance
+		float3 lightDirection = lightPosition - fragmentPosition;
+
+		float lightDistance = length(lightDirection);
+		lightDirection = normalize(lightDirection);
+
+		// Diffuse Factor
+		float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
+		clamp(diffuseFactor, 0.0f, 1.0f);
+
+		if(diffuseFactor > 0.0f) {
+
+			// Blinn-Phong approximation Halfway Vector
+			float3 halfwayVector = lightDirection - rayDirection;
+			halfwayVector = normalize(halfwayVector);
+
+			// Light Color
+			float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
+			// Light Intensity (x = diffuse, y = specular)
+			float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+			// Light Attenuation (x = constant, y = linear, z = exponential)
+			float3 lightAttenuation = make_float3(0.0f, 0.0f, 0.0f);
+
+			float attenuation = 1.0f / (1.0f + lightAttenuation.x + lightDistance * lightAttenuation.y + lightDistance * lightDistance * lightAttenuation.z);
+
+			// Diffuse Component
+			fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
+
+			// Specular Factor
+			float specularFactor = powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w);
+			clamp(specularFactor, 0.0f, 1.0f);
+
+			// Specular Component
+			if(specularFactor > 0.0f)
+				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
+		}
+	}
+	
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(255.0f, 255.0f, 255.0f);
+	//pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+}
+
+__global__ void Debug(	
+							// Input Array containing the Rays.
+							float3* rayArray,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const  int windowHeight,
+							// Auxiliary Variables containing the Number of Lights.
+							const int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							float3 cameraPosition,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	//float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	//float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	// Primary Ray
+	//float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
+	//float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), fragmentNormal);
+
+	// Primary Ray
+	float3 rayOrigin = rayArray[(x + y * windowWidth) * 2];
+	float3 rayDirection = rayArray[(x + y * windowWidth) * 2 + 1];
+
+	float3 fragmentColor = normalize(rayOrigin);
+
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+}
+
+__global__ void CreateShadowRays(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Light Index.
+							const int lightIndex,
+							// Output Array containing the unsorted Rays.
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
 							int* headFlagsArray, 
 							// Output Arrays containing the Ray Indices [Keys = Hashes, Values = Indices]
 							int* rayIndexKeysArray, 
@@ -421,8 +557,68 @@ __global__ void CreateRays(
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	int rayBase = windowWidth * windowHeight;
-	int rayOffset = x + y * windowWidth;
+	int rayIndex = x + y * windowWidth;
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	if(length(fragmentPosition) != 0.0f) {
+
+		// Calculate the Shadow Rays Origin and Direction
+		float3 shadowRayOrigin = make_float3(tex1Dfetch(lightPositionsTexture, lightIndex));
+		float3 shadowRayDirection = normalize(fragmentPosition - shadowRayOrigin);
+
+		// Diffuse Factor (Negate the Normal because the Ray Origin is reversed)
+		float diffuseFactor = max(dot(shadowRayDirection, -fragmentNormal), 0.0f);
+		clamp(diffuseFactor, 0.0f, 1.0f);
+				
+		// Store the Shadow Rays its direction
+		if(diffuseFactor > 0.0f) {
+			
+			// Store the Shadow Rays Origin
+			rayArray[rayIndex * 2] = shadowRayOrigin;
+			// Store the Shadow Rays Direction
+			rayArray[rayIndex * 2 + 1] = shadowRayDirection;
+
+			// Store the Shadow Rays Hash Key
+			rayIndexKeysArray[rayIndex] = CreateShadowRayIndex(shadowRayOrigin, shadowRayDirection);
+			// Store the Shadow Rays Index Value
+			rayIndexValuesArray[rayIndex] = rayIndex;
+
+			// Store the Shadow Rays Flag (Trimming)
+			headFlagsArray[rayIndex] = 0;
+
+			return;
+		}
+	}
+			
+	// Store the Shadow Rays Flag (Trimming)
+	headFlagsArray[rayIndex] = 1;
+}
+
+__global__ void CreateReflectionRays(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Cameras World Space Position.
+							float3 cameraPosition,
+							// Auxiliary Array containing the Ray Hit Distances.
+							float* rayDistancesArray,
+							// Input Array containing the Unsorted Rays
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
+							int* headFlagsArray, 
+							// Output Arrays containing the Ray Indices [Keys = Hashes, Values = Indices]
+							int* rayIndexKeysArray, 
+							int* rayIndexValuesArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	int rayIndex = x + y * windowWidth;
 
 	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
@@ -430,124 +626,94 @@ __global__ void CreateRays(
 
 	if(length(fragmentPosition) != 0.0f) {
 		
-		// Ray Direction Creation
-		float3 rayReflectionDirection = reflect(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal));
-		float3 rayRefractionDirection = refract(normalize(fragmentPosition-cameraPosition), normalize(fragmentNormal), 1.0f / 1.52f);
+		// Calculate the Reflection Rays Position and Direction
+		float3 reflectionRayOrigin = fragmentPosition;
+		float3 reflectionRayDirection = reflect(normalize(reflectionRayOrigin-cameraPosition), normalize(fragmentNormal));
 		
-		// Light Positions - Sent from the CPU
-		float3 shadowRayPositions[LIGHT_SOURCE_MAXIMUM];
-		float3 shadowRayDirections[LIGHT_SOURCE_MAXIMUM];
-
-		// Create the Reflection and Refraction Rays and store their directions
-		rayArray[(rayOffset * 2)] = fragmentPosition;
-		rayArray[(rayOffset * 2) + 1] = rayReflectionDirection;
-
-		rayArray[(rayBase + rayOffset) * 2] = fragmentPosition;
-		rayArray[(rayBase + rayOffset) * 2 + 1] = rayRefractionDirection;
-
-		// Create the Shadow Rays
-		for(int l = 0; l < lightTotal; l++) {
-
-			// Calculate the Shadow Rays Position and Direction
-			shadowRayPositions[l] = make_float3(tex1Dfetch(lightPositionsTexture, l));
-			shadowRayDirections[l] = normalize(shadowRayPositions[l] - fragmentPosition);
-
-			// Diffuse Factor
-			float diffuseFactor = max(dot(shadowRayDirections[l], fragmentNormal), 0.0f);
-			clamp(diffuseFactor, 0.0f, 1.0f);
-				
-			// Store the Shadow Rays its direction
-			if(diffuseFactor <= 0.0f)
-				shadowRayDirections[l] = make_float3(0.0f);
-			
-			rayArray[(rayBase * (2 + l) + rayOffset) * 2] = fragmentPosition;
-			rayArray[(rayBase * (2 + l) + rayOffset) * 2 + 1] = shadowRayDirections[l];
-		}
-
-		// Store the Reflection and Refraction Ray indices
-		rayIndexKeysArray[rayOffset] = CreateRayIndex(fragmentPosition, rayReflectionDirection);
-		rayIndexValuesArray[rayOffset] = rayOffset;
-
-		rayIndexKeysArray[rayBase + rayOffset] = CreateRayIndex(fragmentPosition, rayRefractionDirection);
-		rayIndexValuesArray[rayBase + rayOffset] = rayBase + rayOffset;
-
-		// Store the Shadow Ray Indices
-		for(int l = 0; l < lightTotal; l++) {
-				
-			// Create the Shadow Ray and store its direction
-			if(length(shadowRayDirections[l]) > 0.0f) {
-
-				rayIndexKeysArray[rayBase * (2 + l) + rayOffset] = CreateRayIndex(shadowRayPositions[l], shadowRayDirections[l]);
-				rayIndexValuesArray[rayBase * (2 + l) + rayOffset] = rayBase * (2 + l) + rayOffset;
-			}
-			else {
-
-				rayIndexKeysArray[rayBase * (2 + l) + rayOffset] = 0;
-				rayIndexValuesArray[rayBase * (2 + l) + rayOffset] = 0;
-			}
-		}
+		// Store the Reflection Rays Origin
+		rayArray[rayIndex * 2] = reflectionRayOrigin;
+		// Store the Reflection Rays Direction
+		rayArray[rayIndex * 2 + 1] = reflectionRayDirection;
 		
-		// Clean the Shadow Ray Index storage
-		for(int l = lightTotal; l < LIGHT_SOURCE_MAXIMUM; l++) {
+		// Store the Reflection Rays Hash Key
+		rayIndexKeysArray[rayIndex] = CreateReflectionRayIndex(reflectionRayOrigin, reflectionRayDirection);
+		// Store the Reflection Rays Index Value
+		rayIndexValuesArray[rayIndex] = rayIndex;
 		
-			rayIndexKeysArray[rayBase * (2 + l) + rayOffset] = 0;
-			rayIndexValuesArray[rayBase * (2 + l) + rayOffset] = 0;
-		}
+		// Store the Reflection Rays Flag (Trimming)
+		headFlagsArray[rayIndex] = 0;
 
-		// Store the Reflection and Refraction Ray flags
-		headFlagsArray[rayOffset] = 0;
-		headFlagsArray[rayBase + rayOffset] = 0;
-
-		// Store the Shadow Ray Indices
-		for(int l = 0; l < lightTotal; l++) {
-			
-			// Create the Shadow Ray and store its direction
-			if(length(shadowRayDirections[l]) > 0.0f)
-				headFlagsArray[rayBase * (2 + l) + rayOffset] = 0;
-			else
-				headFlagsArray[rayBase * (2 + l) + rayOffset] = 1;
-		}
-		
-		// Clean the Shadow Ray Index storage
-		for(int l = lightTotal; l < LIGHT_SOURCE_MAXIMUM; l++) 	
-			headFlagsArray[rayBase * (2 + l) + rayOffset] = 1;
+		// Clear the Ray Distance
+		rayDistancesArray[rayIndex] = FLT_MAX;
 	}
-	else {		
 
-		// Clear the Reflection and Refraction Ray Indices
-		rayIndexKeysArray[rayOffset] = 0;
-		rayIndexValuesArray[rayOffset] = 0;
-		
-		rayIndexKeysArray[rayBase + rayOffset] = 0;
-		rayIndexValuesArray[rayBase + rayOffset] = 0;
-
-		// Clean the Shadow Ray Indices		
-		for(int l = 0; l < LIGHT_SOURCE_MAXIMUM; l++)  {
-		
-			rayIndexKeysArray[rayBase * (2 + l) + rayOffset] = 0;
-			rayIndexValuesArray[rayBase * (2 + l) + rayOffset] = 0;
-		}
-
-		// Clear the Reflection and Refraction Ray Flags
-		headFlagsArray[rayOffset] = 1;
-		headFlagsArray[rayBase + rayOffset] = 1;
-
-		// Clear the Shadow Ray Flags	
-		for(int l = 0; l < LIGHT_SOURCE_MAXIMUM; l++) 
-			headFlagsArray[rayBase * (2 + l) + rayOffset] = 1;
-	}
+	// Store the Reflection Rays Flag (Trimming)
+	headFlagsArray[rayIndex] = 1;
 }
 
-// Implementation of the Ray Trimming
-__global__ void TrimRays(	
-							// Input Arrays containing the untrimmed Ray Indices [Keys = Hashes, Values = Indices]
+__global__ void CreateRefractionRays(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Cameras World Space Position.
+							float3 cameraPosition,
+							// Auxiliary Array containing the Ray Hit Distances.
+							float* rayDistancesArray,
+							// Input Array containing the Unsorted Rays
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
+							int* headFlagsArray, 
+							// Output Arrays containing the Ray Indices [Keys = Hashes, Values = Indices]
+							int* rayIndexKeysArray, 
+							int* rayIndexValuesArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	int rayIndex = x + y * windowWidth;
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	if(length(fragmentPosition) != 0.0f) {
+		
+		// Calculate the Refraction Rays Position and Direction
+		float3 refractionRayOrigin = fragmentPosition;
+		float3 refractionRayDirection = refract(normalize(refractionRayOrigin-cameraPosition), normalize(fragmentNormal), 1.0f / 1.52f);
+		
+		// Store the Refraction Rays Origin
+		rayArray[rayIndex * 2] = refractionRayOrigin;
+		// Store the Refraction Rays Direction
+		rayArray[rayIndex * 2 + 1] = refractionRayDirection;
+		
+		// Store the Refraction Rays Hash Key
+		rayIndexKeysArray[rayIndex] = CreateRefractionRayIndex(refractionRayOrigin, refractionRayDirection);
+		// Store the Refraction Rays Index Value
+		rayIndexValuesArray[rayIndex] = rayIndex;
+		
+		// Store the Refraction Rays Flag (Trimming)
+		headFlagsArray[rayIndex] = 0;
+
+		// Clear the Ray Distance
+		rayDistancesArray[rayIndex] = FLT_MAX;
+	}
+
+	// Store the Refraction Rays Flag (Trimming)
+	headFlagsArray[rayIndex] = 1;
+}
+
+__global__ void CreateTrimmedRays(	
+							// Input Arrays containing the Untrimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* rayIndexKeysArray, 
 							int* rayIndexValuesArray,
-							// Total number of Rays
-							int screenDimensions,
-							// Auxiliary Array containing the exclusing scan result
+							// Auxiliary Variable containing the Screen Dimensions.
+							const int screenDimensions,
+							// Auxiliary Array containing the Inclusive Scan Output.
 							int* inclusiveScanArray, 
-							// Output Arrays containing the trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							// Output Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray) {
 
@@ -556,12 +722,8 @@ __global__ void TrimRays(
 	if(x >= screenDimensions)
 		return;
 
-	int startingPosition = 0;
-
-	// Initial Position
+	// First Ray
 	if(x == 0) {
-
-		startingPosition = 1;
 		
 		if(inclusiveScanArray[0] == 0) {
 
@@ -569,34 +731,29 @@ __global__ void TrimRays(
 			trimmedRayIndexValuesArray[0] = rayIndexValuesArray[0];
 		}
 	}
+	// Remaining Rays
+	else {
+	
+		// Current and Previous Offsets taken from the Inclusive Sum Array. 
+		int currentOffset = inclusiveScanArray[x];
+		int previousOffset = inclusiveScanArray[x - 1];
 
-	// Remaining Positions
-	for(int i=startingPosition; i<RAYS_PER_PIXEL_MAXIMUM; i++) {
-
-		int currentPosition = x * RAYS_PER_PIXEL_MAXIMUM + i;
-
-		// Sum Array Offsets
-		int currentOffset = inclusiveScanArray[currentPosition];
-		int previousOffset = inclusiveScanArray[currentPosition - 1];
-
-		// If the Current and the Next Scan value are the same then shift the Ray
+		// Equal Offsets means that the Ray should be shifted to the left.
 		if(currentOffset == previousOffset) {
 
-			trimmedRayIndexKeysArray[currentPosition - currentOffset] = rayIndexKeysArray[currentPosition];
-			trimmedRayIndexValuesArray[currentPosition - currentOffset] = rayIndexValuesArray[currentPosition];
+			trimmedRayIndexKeysArray[x - currentOffset] = rayIndexKeysArray[x];
+			trimmedRayIndexValuesArray[x - currentOffset] = rayIndexValuesArray[x];
 		}
 	}
 }
 	
-
-// Implementation of the Ray Compression
 __global__ void CreateChunkFlags(	
-							// Input Arrays containing the trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray,
-							// Total number of Rays
-							int rayTotal,
-							// Output Array containing the Chunk Head Flags
+							// Auxiliary Variable containing the Ray Total.
+							const int rayTotal,
+							// Output Array containing the Chunk Head Flags.
 							int* headFlagsArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -604,86 +761,70 @@ __global__ void CreateChunkFlags(
 	if(x >= rayTotal)
 		return;
 
-	int startingPosition = 0;
-
-	// Initial Position
+	// First Chunk
 	if(x == 0) {
-
-		startingPosition = 1;
 
 		headFlagsArray[x] = 1;
 	}
-
-	// Remaining Positions
-	for(int i=startingPosition; i<CHUNK_DIVISION; i++) {
-
-		int currentPosition = x * CHUNK_DIVISION + i;
-
-		if(currentPosition >= rayTotal)
-			return;
-	
-		// Ray Hashes
-		int currentHash = trimmedRayIndexKeysArray[currentPosition];
-		int previousHash = trimmedRayIndexKeysArray[currentPosition - 1];
-
-		// If the Current and Previous Ray Hashes are different, store the Head Flag
-		if(currentHash != previousHash)
-			headFlagsArray[currentPosition] = 1;
+	// Remaining Chunks
+	else {
+		
+		// Current and Previous Hashes taken from the Trimmed Ray Keys Array
+		int currentKey = trimmedRayIndexKeysArray[x];
+		int previousKey = trimmedRayIndexKeysArray[x - 1];
+		
+		// Different Keys means that a new Chunk should be created.
+		if(currentKey != previousKey)
+			headFlagsArray[x] = 1;
 		else
-			headFlagsArray[currentPosition] = 0;
+			headFlagsArray[x] = 0;
 	}
 }
 
 __global__ void CreateChunkBases(	
-							// Input Arrays containing the trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray,
-							// Total number of Rays
-							int rayTotal,
-							// Auxiliary Array containing the head flags result
+							// Auxiliary Variable containing the Ray Total.
+							const int rayTotal,
+							// Auxiliary Array containing the Chunk Head Flags.
 							int* headFlagsArray, 
-							// Auxiliary Array containing the exclusing scan result
+							// Auxiliary Array containing the Exclusive Scan Output.
 							int* scanArray, 
-							// Output Array containing the Ray Chunk Bases
+							// Output Array containing the Ray Chunk Bases.
 							int* chunkBasesArray,
 							// Output Arrays containing the Ray Chunks  [Keys = Hashes, Values = Indices]
 							int* chunkIndexKeysArray, 
 							int* chunkIndexValuesArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	
-	// Remaining Positions
-	for(int i=0; i<CHUNK_DIVISION; i++) {
 
-		int currentPosition = x * CHUNK_DIVISION + i ;
-
-		if(currentPosition >= rayTotal)
-			return;
+	if(x >= rayTotal)
+		return;
 		
-		// If the Head Flag isn't 1, continue;
-		if(headFlagsArray[currentPosition] == 0)
-			continue;
+	// Head Flags containing 0 indicate there's no new Chunk to be created.
+	if(headFlagsArray[x] == 0)
+		return;
 
-		// Store the Position of the Chunk
-		int position = scanArray[currentPosition] - 1;
+	// Store the Position of the new Chunk.
+	int position = scanArray[x] - 1;
 
-		// Store the Ray Base for the Chunk
-		chunkBasesArray[position] = currentPosition; 
+	// Store the Ray Index Base for the Chunk.
+	chunkBasesArray[position] = x; 
 	
-		// Store the Ray Hash and the Chunk Position for the Chunk
-		chunkIndexKeysArray[position] = trimmedRayIndexKeysArray[currentPosition];
-		chunkIndexValuesArray[position] = position;
-	}
+	// Store the Ray Hash and the Chunk Position for the Chunk
+	chunkIndexKeysArray[position] = trimmedRayIndexKeysArray[x];
+	chunkIndexValuesArray[position] = position;
 }
 
 __global__ void CreateChunkSizes(
-							// Input Array containing the Ray Chunk Bases
+							// Input Array containing the Ray Chunk Bases.
 							int* chunkBasesArray,
-							// Total number of Ray Chunks
-							int chunkTotal,
-							// Total number of Rays
-							int rayTotal,
-							// Output Array containing the Ray Chunks Sizes
+							// Auxiliary Variable containing the Chunk Total.
+							const int chunkTotal,
+							// Auxiliary Variable containing the Ray Total.
+							const int rayTotal,
+							// Output Array containing the Ray Chunk Sizes.
 							int* chunkSizesArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -691,56 +832,65 @@ __global__ void CreateChunkSizes(
 	if(x >= chunkTotal)
 		return;
 
-	// Final Position
+	// Last Chunk
 	if(x == chunkTotal - 1) {
 
 		// Chunk Bases
 		int currentBase = chunkBasesArray[x];
+		int nextBase = rayTotal;
 	
-		chunkSizesArray[x] = rayTotal - currentBase;
+		// Store the Chunk Sizes based on the Chunk Base of the Current Chunk and the Ray Total.
+		chunkSizesArray[x] = nextBase - currentBase;
 	}
+	// Remaining Chunks
 	else {
 		
 		// Chunk Bases
 		int currentBase = chunkBasesArray[x];
 		int nextBase = chunkBasesArray[x+1];
 
+		// Store the Chunk Sizes based on the Chunk Base of the Current and the Next Chunks.
 		chunkSizesArray[x] = nextBase - currentBase;
 	}
 }
 
-__global__ void CreateChunkSkeleton(
-							// Input Array containing the Ray Chunk Sizes
+__global__ void CreateSortedRaySkeleton(
+							// Input Array containing the Ray Chunk Sizes.
 							int* chunkSizesArray,
-							// Input Array containing the Ray Chunk Values
+							// Input Array containing the Ray Chunk Values [Values = Positions].
 							int* sortedChunkValuesArray,
-							// Total number of Ray Chunks
-							int chunkTotal,
-							// Output Array containing the Ray Chunk Arrays skeleton
+							// Auxiliary Variable containing the Chunk Total.
+							const int chunkTotal,
+							// Output Array containing the Sorted Ray Arrays Skeleton.
 							int* skeletonArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(x >= chunkTotal)
 		return;
-
+	
+	// Store the Sorted Ray Arrays Skeleton based on the Sorted Chunk Value (Position).
 	skeletonArray[x] = chunkSizesArray[sortedChunkValuesArray[x]];
 }
 
 __global__ void CreateSortedRays(
-							// Input Arrays containing the Ray Chunk Bases and Sizes
+							// Input Array containing the Ray Chunk Bases.
 							int* chunkBasesArray,
+							// Input Array containing the Ray Chunk Sizes.
 							int* chunkSizesArray,
-							// Input Array containing the chunk hashes and positions
+							// Input Arrays containing the Ray Chunks  [Keys = Hashes, Values = Indices]
 							int* sortedChunkKeysArray,
 							int* sortedChunkValuesArray,
-							// Input Array containing the inclusive segmented scan result
+							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Array containing the Inclusive Scan Output.
 							int* scanArray, 
-							// Total number of Ray Chunks
-							int chunkTotal,
-							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							// Input Array containing the Sorted Ray Arrays Skeleton.
 							int* skeletonArray,
-							// Output Arrays containing the sorted Ray Indices
+							// Auxiliary Variable containing the Chunk Total.
+							const int chunkTotal,
+							// Output Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray) {
 
@@ -749,40 +899,40 @@ __global__ void CreateSortedRays(
 	if(x >= chunkTotal)
 		return;
 
-	int chunkKey = sortedChunkKeysArray[x];
+	// Store the Chunk Key and Value.
 	int chunkValue = sortedChunkValuesArray[x];
-
+	
+	// Store the Chunk Base and Size.
 	int chunkBase = chunkBasesArray[chunkValue];
 	int chunkSize = chunkSizesArray[chunkValue];
 
+	// Store the Ray starting and final Positions.
 	int startingPosition = scanArray[x];
 	int finalPosition = startingPosition + chunkSize;
 
-	sortedRayIndexKeysArray[startingPosition] = chunkKey;
-	sortedRayIndexValuesArray[startingPosition] = chunkBase;
+	// First Ray.
+	sortedRayIndexKeysArray[startingPosition] = trimmedRayIndexKeysArray[chunkBase];
+	sortedRayIndexValuesArray[startingPosition] = trimmedRayIndexValuesArray[chunkBase];
 
-	// Remaining Positions
+	// Remaining Rays.
 	for(int i=startingPosition+1, j=1; i<finalPosition; i++, j++) {
 
-		sortedRayIndexKeysArray[i] = chunkKey;
-		sortedRayIndexValuesArray[i] = chunkBase + j;
+		sortedRayIndexKeysArray[i] = trimmedRayIndexKeysArray[chunkBase + j];
+		sortedRayIndexValuesArray[i] = trimmedRayIndexValuesArray[chunkBase + j];
 	}
 }
 
 __global__ void CreateHierarchyLevel1(	
-							// Input Array containing the Rays
+							// Input Array containing the Unsorted Rays.
 							float3* rayArray,
-							// Input Arrays containing the trimmed Ray Indices
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
-							// Input Arrays containing the sorted Ray Indices
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
-							// Total number of Rays
-							int rayTotal,
-							// Total number of Nodes
-							int nodeTotal,
-							// Output Array containing the Ray Hierarchy
+							// Auxiliary Variable containing the Ray Total.
+							const int rayTotal,
+							// Auxiliary Variable containing the Node Total.
+							const int nodeTotal,
+							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
@@ -791,9 +941,9 @@ __global__ void CreateHierarchyLevel1(
 		return;
 
 	// Ray Origins are stored in the first offset
-	float4 sphere = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION]] * 2], 0.0f);
+	float4 sphere = make_float4(rayArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION] * 2], 0.0f);
 	// Ray Directions are stored in the second offset
-	float4 cone = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION]] * 2 + 1], 0.0f);
+	float4 cone = make_float4(rayArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION] * 2 + 1], 0.0f);
 	
 	for(int i=1; i<HIERARCHY_SUBDIVISION; i++) {
 
@@ -801,27 +951,31 @@ __global__ void CreateHierarchyLevel1(
 			break;
 
 		// Ray Origins are stored in the first offset
-		float4 currentSphere = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION + i]] * 2], 0.0f);
+		float4 currentSphere = make_float4(rayArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION + i] * 2], 0.0f);
 		// Ray Directions are stored in the second offset
-		float4 currentCone = make_float4(rayArray[trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION + i]] * 2 + 1], 0.0f);
+		float4 currentCone = make_float4(rayArray[sortedRayIndexValuesArray[x * HIERARCHY_SUBDIVISION + i] * 2 + 1], 0.0f);
 		
+		// Combine the Ray Sphere with the existing Node Sphere
 		sphere = CreateHierarchySphere(sphere, currentSphere);
+		// Combine the Ray Cone with the existing Node Cone
 		cone = CreateHierarchyCone(cone, currentCone);
 	}
 
+	// Store the Node Sphere
 	hierarchyArray[x * 2] = sphere;
+	// Store the Node Cone
 	hierarchyArray[x * 2 + 1] = cone;
 }
 
 __global__ void CreateHierarchyLevelN(	
-							// Input and Output Array containing the Ray Hierarchy
+							// Input and Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
-							// Starting Node Index
-							int nodeWriteOffset,
-							// Starting Node Index
-							int nodeReadOffset,
-							// Total number of Nodes
-							int nodeTotal) {
+							// Auxiliary Variable containing the Write Node Index.
+							const int nodeWriteOffset,
+							// Auxiliary Variable containing the Read Node Index.
+							const int nodeReadOffset,
+							// Auxiliary Variable containing the Node Total.
+							const int nodeTotal) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -843,28 +997,32 @@ __global__ void CreateHierarchyLevelN(
 		// Ray Directions are stored in the second offset
 		float4 currentCone = hierarchyArray[(nodeReadOffset + x * HIERARCHY_SUBDIVISION + i) * 2 + 1];
 		
+		// Combine the new Node Sphere with the current Node Sphere
 		sphere = CreateHierarchySphere(sphere, currentSphere);
+		// Combine the new Node Cone with the current Node Cone
 		cone = CreateHierarchyCone(cone, currentCone);
 	}
-
+	
+	// Store the Node Sphere
 	hierarchyArray[(nodeWriteOffset + x) * 2] = sphere;
+	// Store the Node Cone
 	hierarchyArray[(nodeWriteOffset + x) * 2 + 1] = cone;
 }
 
 __global__ void CreateHierarchyLevel0Hits(	
-							// Input Array containing the Ray Hierarchy
+							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
-							// Input Array contraining the Updated Triangle Positions
+							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
-							// Total number of Triangles
-							int triangleTotal,
-							// Starting Node Index
-							int nodeOffset,
-							// Total number of Nodes Read
-							int nodeReadTotal,
-							// Output Array containing the inclusive segmented scan result
+							// Auxiliary Variable containing the Triangle Total.
+							const int triangleTotal,
+							// Auxiliary Variable containing the Node Offset.
+							const int nodeOffset,
+							// Auxiliary Variable containing the Node Read Total.
+							const int nodeReadTotal,
+							// Output Array containing the Inclusive Scan Output.
 							int* headFlagsArray, 
-							// Output Arrays containing the Ray Hierarchy Hits
+							// Output Arrays containing the Ray Hierarchy Hits.
 							int2* hierarchyHitsArray,
 							int2* trimmedHierarchyHitsArray) {
 
@@ -900,21 +1058,21 @@ __global__ void CreateHierarchyLevel0Hits(
 }
 
 __global__ void CreateHierarchyLevelNHits(	
-							// Input Array containing the Ray Hierarchy
+							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
-							// Input Array contraining the Updated Triangle Positions
+							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
-							// Total number of Triangles
-							int triangleTotal,
-							// Starting Node Index
-							int nodeOffset,
-							// Total number of Nodes Written
-							int nodeWriteTotal,
-							// Total number of Hits
-							int hitTotal,
-							// Output Array containing the inclusive segmented scan result
+							// Auxiliary Variable containing the Triangle Total.
+							const int triangleTotal,
+							// Auxiliary Variable containing the Hit Total.
+							const int hitTotal,
+							// Auxiliary Variable containing the Node Offset.
+							const int nodeOffset,
+							// Auxiliary Variable containing the Node Write Total.
+							const int nodeWriteTotal,
+							// Output Array containing the Inclusive Scan Output.
 							int* headFlagsArray, 
-							// Output Arrays containing the Ray Hierarchy Hits
+							// Output Arrays containing the Ray Hierarchy Hits.
 							int2* hierarchyHitsArray,
 							int2* trimmedHierarchyHitsArray) {
 
@@ -955,356 +1113,220 @@ __global__ void CreateHierarchyLevelNHits(
 	}
 }
 
-__global__ void TrimHierarchyHits(	
-							// Input Array containing the Ray Hierarchy Hits
+__global__ void CreateTrimmedHierarchyHits(	
+							// Input Array containing the Ray Hierarchy Hits.
 							int2* hierarchyHitsArray,
-							// Input Array containing the inclusive segmented scan result
-							int* scanArray, 
-							// Total number of Hits
-							int hitTotal,
-							// Output Array containing the Trimmed Ray Hierarchy Hits
+							// Input Array containing the Inclusive Scan Output.
+							const int* scanArray, 
+							// Auxiliary Variable containing the Hit Total.
+							const int hitTotal,
+							// Output Array containing the Trimmed Ray Hierarchy Hits.
 							int2* trimmedHierarchyHitsArray) {
-
-	/*unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	int startingPosition = 0;
-
-	// Initial Position
-	if(x == 0) {
-
-		startingPosition = 1;
-
-		if(scanArray[0] == 0)
-			trimmedHierarchyHitsArray[0] = hierarchyHitsArray[0];
-	}
-
-	// Remaining Positions
-	for(int i=startingPosition; i<HIERARCHY_SUBDIVISION; i++) {
-		
-		if(x * HIERARCHY_SUBDIVISION + i >= hitTotal)
-			return;
-
-		// Sum Array Offsets
-		int currentOffset = scanArray[x * HIERARCHY_SUBDIVISION + i];
-		int previousOffset = scanArray[x * HIERARCHY_SUBDIVISION - 1 + i];
-
-		// If the Current and the Next Scan value are the same then shift the Ray
-		if(currentOffset == previousOffset)
-			trimmedHierarchyHitsArray[x * HIERARCHY_SUBDIVISION - currentOffset + i] = hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i];
-	}*/
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(x > hitTotal)
 		return;
 
-	// Initial Position
+	// First Hit
 	if(x == 0) {
 
 		if(scanArray[0] == 0)
 			trimmedHierarchyHitsArray[0] = hierarchyHitsArray[0];
 	}
+	// Remaining Hits
 	else {
-
-		// Sum Array Offsets
+		
+		// Equal Offsets means that the Ray should be shifted to the left.
 		int currentOffset = scanArray[x];
 		int previousOffset = scanArray[x - 1];
-
-		// If the Current and the Next Scan value are the same then shift the Ray
+		
+		// Equal Offsets means that the Hit should be shifted to the left.
 		if(currentOffset == previousOffset)
 			trimmedHierarchyHitsArray[x- currentOffset] = hierarchyHitsArray[x];
 	}
 }
 
 __global__ void LocalIntersection(	
-							// Input Arrays containing the Rays
+							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
-							// Input Arrays containing the trimmed Ray Indices
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
-							// Input Arrays containing the sorted Ray Indices
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
-							// Input Array containing the Hierarchy Node Hits
+							// Input Array containing the Ray Hierarchy Hits.
 							int2* hierarchyHitsArray,
-							// Input Array contraining the Updated Triangle Positions
+							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
-							// Total number of Hierarchy Hits
-							int hitTotal,
-							// Total number of Rays
-							int rayTotal,
-							// Screen Dimensions
-							int windowWidth, 
-							int windowHeight,
-							// Device Pointer to the Screen Buffer
+							// Auxiliary Variable containing the Number of Hits.
+							const int hitTotal,
+							// Auxiliary Variable containing the Number of Rays.
+							const int rayTotal,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Output Array containing the Shadow Ray Flags.
+							int* shadowFlagsArray,
+							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
-
-	/*unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-
-	if(x >= hitTotal)
-		return;
-
-	int2 hit = hierarchyHitsArray[x];
-
-	float3 vertex0 = make_float3(trianglePositionsArray[hit.y * 3]);
-	float3 edge1 = make_float3(trianglePositionsArray[hit.y * 3 + 1]) - vertex0;
-	float3 edge2 = make_float3(trianglePositionsArray[hit.y * 3 + 2]) - vertex0;
-
-	// Ray Index Base
-	int rayBase = windowWidth * windowHeight;
-
-	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
-
-		if(hit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
-			return;
-
-		// Fetch the Ray Index
-		int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[hit.x * HIERARCHY_SUBDIVISION + i]];
-
-		// Fetch the Ray
-		float3 origin = rayArray[rayIndex * 2];
-		float3 direction = rayArray[rayIndex * 2 + 1];
-
-		// Fragment Material Properties
-		float4 fragmentDiffuseColor = tex2D(diffuseTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
-		float4 fragmentSpecularColor = tex2D(specularTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
-
-		// Calculate the Interesection Time
-		if(RayTriangleIntersection(Ray(origin + direction * 0.1f, direction), vertex0, edge1, edge2) > epsilon) {	
-			
-			// Triangle Material Identifier
-			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hit.y * 3);
-
-			// Triangle Material Properties
-			float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
-			float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
-
-			float4 finalColor = fragmentDiffuseColor + diffuseColor;
-
-			// Reflection Ray
-			if(rayIndex < rayBase) {
-
-				pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * finalColor.x, 255.0f * finalColor.y, 255.0f * finalColor.z);
-			}
-			// Refraction Ray
-			else if(rayIndex < rayBase * 2) {
-				 
-				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
-			}
-			// Shadow Ray
-			else if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
-							
-				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentSpecularColor.x, 255.0f * fragmentSpecularColor.y, 255.0f * fragmentSpecularColor.z);
-			}
-		}
-	}*/
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(x >= hitTotal)
 		return;
 
-	int2 hit = hierarchyHitsArray[x];
+	// Store the Hierarchy Hit
+	int2 hierarchyHit = hierarchyHitsArray[x];
 
-	float3 vertex0 = make_float3(trianglePositionsArray[hit.y * 3]);
-	float3 edge1 = make_float3(trianglePositionsArray[hit.y * 3 + 1]) - vertex0;
-	float3 edge2 = make_float3(trianglePositionsArray[hit.y * 3 + 2]) - vertex0;
-
-	// Ray Index Base
-	int rayBase = windowWidth * windowHeight;
+	// Store the Triangles Vertices and Edges
+	float3 vertex0 = make_float3(trianglePositionsArray[hierarchyHit.y * 3]);
+	float3 edge1 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 1]) - vertex0;
+	float3 edge2 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 2]) - vertex0;
 
 	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
 
-		if(hit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
+		// Check if the Extrapolated Ray exists.
+		if(hierarchyHit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
 			return;
 
 		// Fetch the Ray Index
-		int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[hit.x * HIERARCHY_SUBDIVISION + i]];
+		int rayIndex = sortedRayIndexValuesArray[hierarchyHit.x * HIERARCHY_SUBDIVISION + i];
 
 		// Fetch the Ray
-		float3 origin = rayArray[rayIndex * 2];
-		float3 direction = rayArray[rayIndex * 2 + 1];
+		float3 rayOrigin = rayArray[rayIndex * 2];
+		float3 rayDirection = rayArray[rayIndex * 2 + 1];
 
-		// Fragment Material Properties
-		float4 fragmentDiffuseColor = tex2D(diffuseTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
-		float4 fragmentSpecularColor = tex2D(specularTexture, (rayIndex % rayBase) % windowWidth, (rayIndex % rayBase) / windowWidth);
+		float intersectionDistance = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, edge1, edge2);
 
 		// Calculate the Interesection Time
-		if(RayTriangleIntersection(Ray(origin + direction * epsilon, direction), vertex0, edge1, edge2) > epsilon) {
-			
-			// Triangle Material Identifier
-			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, hit.y * 3);
+		if(intersectionDistance > epsilon) {
 
-			// Triangle Material Properties
-			float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
-			float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+			// Fetch the Fragment Position
+			float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, rayIndex % windowWidth, rayIndex / windowWidth));
 
-			float4 finalColor = fragmentDiffuseColor + diffuseColor;
+			// Calculate the Lights Distance to the Fragment
+			float lightDistance = length(rayOrigin - fragmentPosition);
 
-			// Reflection Ray
-			if(rayIndex < rayBase) {
-
-				pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * finalColor.x, 255.0f * finalColor.y, 255.0f * finalColor.z);
-			}
-			// Refraction Ray
-			else if(rayIndex < rayBase * 2) {
-				 
-				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentDiffuseColor.x, 255.0f * fragmentDiffuseColor.y, 255.0f * fragmentDiffuseColor.z);
-			}
-			// Shadow Ray
-			else if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
-							
-				//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * fragmentSpecularColor.x, 255.0f * fragmentSpecularColor.y, 255.0f * fragmentSpecularColor.z);
-			}
+			if(intersectionDistance < lightDistance - epsilon * 2.0f)
+				shadowFlagsArray[rayIndex] = INT_MAX;
 		}
 	}
 }
 
-__global__ void LocalIntersection2(
-							// Input Arrays containing the Rays
-							float3* rayArray, 
-							// Input Arrays containing the trimmed Ray Indices
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
-							// Input Arrays containing the sorted Ray Indices
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray,
-							// Input Array containing the Hierarchy Node Hits
-							float4* hierarchyArray,
-							// Total number of Hierarchy Hits
-							int hierarchyLevel,
-							// Total number of Hierarchy Hits
-							int nodeTotal,
-							// Total number of Rays
-							int nodeOffset,
-							// Screen Dimensions
-							int windowWidth, 
-							int windowHeight,
-							// Device Pointer to the Screen Buffer
+__global__ void Colouring(	
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Output Array containing the Shadow Ray Flags.
+							int* shadowFlagsArray,
+							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
 
-	if(x >= nodeTotal)
+	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	// Ray Index Base
-	int rayBase = windowWidth * windowHeight;
+	// Fragment Color
+	float3 fragmentColor = make_float3(0.0f);
 
-	// Node Hierarchy Index
-	int nodeLimit = HIERARCHY_SUBDIVISION;
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
-	for(int i=1; i<hierarchyLevel; i++)
-		nodeLimit *= HIERARCHY_SUBDIVISION;
+	// Triangle Material Properties
+	float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
+	float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
 
-	int nodeIndex = x * nodeLimit;
+	// Primary Ray
+	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), fragmentNormal);
 
-	for(int i=0; i<nodeLimit; i++) {
+	for(int l = 0; l < lightTotal; l++) {
 
-		// Fetch the Ray Index
-		int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[nodeIndex + i]];
-			
-		if(rayIndex < rayBase) {
-		//if(rayIndex < rayBase * RAYS_PER_PIXEL_MAXIMUM) {
+		// Check if the Light is Blocked
+		if(shadowFlagsArray[x + y * windowWidth] != INT_MAX) {
 
-			//float4 finalColor = make_float4((float)((nodeIndex & 0x0000003F) >> 0) / 64.0f, (float)((nodeIndex & 0x00000FC0) >> 6) / 64.0f, (float)((nodeIndex & 0x0003F000) >> 12) / 64.0f, 1.0f);
-			//float4 finalColor = make_float4((float)((nodeIndex & 0x0000007F) >> 0) / 128.0f, (float)((nodeIndex & 0x00003F80) >> 7) / 128.0f, (float)((nodeIndex & 0x001FC000) >> 14) / 128.0f, 1.0f);
+			float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
 
-			if(nodeIndex == 0)
-				pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * 1.0f, 255.0f * 1.0f, 255.0f * 1.0f);
+			// Light Direction and Distance
+			float3 lightDirection = lightPosition - fragmentPosition;
 
-			//pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * finalColor.x, 255.0f * finalColor.y, 255.0f * finalColor.z);
+			float lightDistance = length(lightDirection);
+			lightDirection = normalize(lightDirection);
+
+			// Blinn-Phong approximation Halfway Vector
+			float3 halfwayVector = lightDirection - rayDirection;
+			halfwayVector = normalize(halfwayVector);
+
+			// Light Color
+			float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
+			// Light Intensity (x = diffuse, y = specular)
+			float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+
+			// Diffuse Factor
+			float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
+			clamp(diffuseFactor, 0.0f, 1.0f);
+			// Diffuse Component
+			fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x;
+
+			// Specular Factor
+			float specularFactor = powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w);
+			clamp(specularFactor, 0.0f, 1.0f);
+			// Specular Component
+			fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y;
 		}
 	}
-}
-
-// Implementation of Whitteds Ray-Tracing Algorithm
-__global__ void ClearPixels(	// Screen Dimensions
-								int windowWidth, int windowHeight,
-								// Device Pointer to the Screen Buffer
-								unsigned int *pixelBufferObject) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
-
-	if(x >= windowWidth * windowHeight)
-		return;
-
-	pixelBufferObject[x] = RgbToInt(255.0f * 0.0f, 255.0f * 0.0f, 255.0f * 0.0f);
-}
-
-// Implementation of Whitteds Ray-Tracing Algorithm
-__global__ void FillPixels(		// Input Array containing the unsorted Rays
-								float3* rayArray,
-								// Input Arrays containing the trimmed Ray Indices
-								int* trimmedRayIndexKeysArray, 
-								int* trimmedRayIndexValuesArray,
-								// Input Arrays containing the sorted Ray Indices
-								int* sortedRayIndexKeysArray, 
-								int* sortedRayIndexValuesArray,
-								// Total Number of Rays
-								int rayTotal,
-								// Screen Dimensions
-								int windowWidth, int windowHeight,
-								// Device Pointer to the Screen Buffer
-								unsigned int *pixelBufferObject) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
-
-	if(x >= rayTotal)
-		return;
-
-	// Ray Index Base
-	int rayBase = windowWidth*windowHeight;
-	// Fetch the Ray Index
-	int rayIndex = trimmedRayIndexValuesArray[sortedRayIndexValuesArray[x]];
 	
-	if(rayIndex >= rayBase && rayIndex < rayBase * 2) {
-			
-		// Fetch the Ray
-		float3 origin = rayArray[rayIndex * 2];
-		float3 direction = rayArray[rayIndex * 2 + 1];
-
-		float size = length(origin);
-
-		if(size != 0.0f)
-			pixelBufferObject[rayIndex % rayBase] = RgbToInt(255.0f * origin.x / size, 255.0f * origin.y / size, 255.0f * origin.z / size);
-	}
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
 }
 
 extern "C" {
 
-	void TriangleUpdateWrapper(	// Array containing the updated Model Matrices
-								float* modelMatricesArray,
-								// Array containing the updated Normal Matrices
-								float* normalMatricesArray,
-								// Array containing the updated Triangle Positions
-								float4* trianglePositionsArray,
-								// Array containing the updated Triangle Normals
-								float4* triangleNormalsArray,
-								// Total Number of Triangles in the Scene
-								int triangleTotal) {
+	void TriangleUpdateWrapper(	
+							// Input Array containing the updated Model Matrices.
+							float* modelMatricesArray,
+							// Input Array containing the updated Normal Matrices.
+							float* normalMatricesArray,
+							// Auxiliary Variable containing the Triangle Total.
+							int triangleTotal,
+							// Output Array containing the updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Output Array containing the updated Triangle Normals.
+							float4* triangleNormalsArray) {
 		
+		int vertexTotal = triangleTotal * 3;
+
 		// Grid based on the Triangle Count
 		dim3 multiplicationBlock(1024);
-		dim3 multiplicationGrid(triangleTotal*3/multiplicationBlock.x + 1);
+		dim3 multiplicationGrid(vertexTotal / multiplicationBlock.x + 1);
 		
 		// Model and Normal Matrix Multiplication
-		UpdateVertex<<<multiplicationGrid, multiplicationBlock>>>(modelMatricesArray, normalMatricesArray, trianglePositionsArray, triangleNormalsArray, triangleTotal * 3);
+		UpdateVertex<<<multiplicationGrid, multiplicationBlock>>>(
+			modelMatricesArray, normalMatricesArray, 
+			vertexTotal,
+			trianglePositionsArray, triangleNormalsArray);
 	}
 
-	void PreparationWrapper(
-							// Screen Dimensions
+	void MemoryPreparationWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
 							int windowWidth, int windowHeight,
-							// Total number of Triangles in the Scene
+							// Auxiliary Variable containing the Triangle Total.
 							int triangleTotal,
-							// Auxiliary Array containing the head flags
+							// Auxiliary Array containing the Head Flags.
 							int* headFlagsArray, 
-							// Auxiliary Array containing the exclusing scan result
+							// Auxiliary Array containing the Scan Output.
 							int* scanArray,
-							// Auxiliary Arrays containing the Ray Chunks
+							// Auxiliary Arrays containing the Ray Chunks.
 							int* chunkIndexKeysArray, 
 							int* chunkIndexValuesArray,
-							// Auxiliary Arrays containing the Ray Chunks
+							// Auxiliary Arrays containing the Sorted Ray Chunks.
 							int* sortedChunkIndexKeysArray, 
 							int* sortedChunkIndexValuesArray) {
 
@@ -1337,53 +1359,75 @@ extern "C" {
 		}
 	}
 
-	void RayCreationWrapper(
-							// Input Array containing the unsorted Rays
-							float3* rayArray,
-							// Screen Dimensions
-							int windowWidth, int windowHeight,
-							// Total number of Light Sources in the Scene
+	void ScreenPreparationWrapper(
+							// Input Array containing the Unsorted Rays.
+							float3* rayArray, 
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, int windowHeight,							
+							// Auxiliary Variables containing the Number of Lights.
 							int lightTotal,
-							// Cameras Position in the Scene
+							// Auxiliary Variables containing the Camera Position.
 							float3 cameraPosition,
-							// Output Array containing the exclusing scan result
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+		// Grid based on the Screen Dimensions.
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);								
+
+		// Prepare the Screen
+		//PreparePixels<<<grid, block>>>(windowWidth, windowHeight, lightTotal, cameraPosition, pixelBufferObject);
+
+		//Debug<<<grid, block>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, pixelBufferObject);
+	}
+
+	void ShadowRayCreationWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, 
+							int windowHeight,
+							// Auxiliary Variables containing the Light Index.
+							int lightIndex,
+							// Output Array containing the Unsorted Rays.
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
 							int* headFlagsArray, 
-							// Output Arrays containing the unsorted Ray Indices
+							// Output Arrays containing the Unsorted Ray Indices.
 							int* rayIndexKeysArray, 
 							int* rayIndexValuesArray) {
 
-		// Grid based on the Pixel Count
+		// Grid based on the Screen Dimensions.
 		dim3 block(32,32);
-		dim3 grid(windowWidth/block.x + 1,windowHeight/block.y + 1);
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);
 
 		#ifdef BLOCK_GRID_DEBUG
-			cout << "[TrimRays] Block = " << block.x << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
+			cout << "[ShadowRayCreationWrapper] Block = " << block.x * block.y << " Threads " << "Grid = " << grid.x * grid.y << " Blocks" << endl;
 		#endif
 
-		// Create the Rays
-		CreateRays<<<grid, block>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
+		// Create the Shadow Rays
+		CreateShadowRays<<<grid, block>>>(windowWidth, windowHeight, lightIndex, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
 	}
 
 	void RayTrimmingWrapper(	
-							// Input Arrays containing the unsorted Ray Indices
+							// Input Arrays containing the Untrimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* rayIndexKeysArray, 
 							int* rayIndexValuesArray,
-							// Screen Dimensions
-							int windowWidth, int windowHeight,
-							// Auxiliary Array containing the head flags
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, 
+							int windowHeight,
+							// Auxiliary Array containing the Ray Head Flags.
 							int* headFlagsArray, 
-							// Auxiliary Array containing the exclusing scan result
+							// Auxiliary Array containing the Inclusive Scan Output.
 							int* scanArray, 
-							// Output Arrays containing the sorted Ray Indices
+							// Output Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray,
-							// Output int containing the number of Rays
+							// Output Variable containing the Number of Rays.
 							int* rayTotal) {
 	
-		// Number of Rays potentialy being cast per Frame
-		int rayMaximum = windowWidth * windowHeight * RAYS_PER_PIXEL_MAXIMUM;
+		// Maximum Number of Rays being cast per Frame
+		int rayMaximum = windowWidth * windowHeight;
 
-		// Create the Trim Scan Array
+		// Calculate the Inclusive Scan using the Ray Head Flags.
 		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayMaximum));
 
 		// Number of Pixels per Frame
@@ -1397,37 +1441,38 @@ extern "C" {
 			cout << "[TrimRays] Block = " << block.x << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
 		#endif
 
-		// Trim the Ray Indices Array
-		TrimRays<<<grid, block>>>(rayIndexKeysArray, rayIndexValuesArray, screenDimensions, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
+		// Create the Trimmed Rays
+		CreateTrimmedRays<<<grid, block>>>(rayIndexKeysArray, rayIndexValuesArray, screenDimensions, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
 
-		// Check the Ray Total (last position of the scan array minus the maximum number of rays)
+		// Check the Inclusive Scan Output (Last position gives us the number of Rays that weren't generated)
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(rayTotal, &scanArray[rayMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
-		// Account for the fact that the Scan Array was calculated using an exclusive scan on the missing rays
+
+		// Calculate the Ray Total
 		*rayTotal = rayMaximum - *rayTotal;
 	}
 
 	void RayCompressionWrapper(	
-							// Input Arrays containing the trimmed Ray Indices
+							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray,
-							// Total number of Rays
+							// Auxiliary Variable containing the Number of Rays.
 							int rayTotal,
-							// Auxiliary Array containing the head flags result
+							// Auxiliary Array containing the Ray Chunk Head Flags.
 							int* headFlagsArray, 
-							// Auxiliary Array containing the exclusing scan result
+							// Auxiliary Array containing the Inclusive Scan Output.
 							int* scanArray, 
-							// Output Arrays containing the Ray Chunk Bases and Sizes
+							// Output Arrays containing the Ray Chunk Bases and Sizes.
 							int* chunkBasesArray,
 							int* chunkSizesArray,
-							// Output Arrays containing the Ray Chunks
+							// Output Arrays containing the Ray Chunks [Keys = Hashes, Values = Indices]
 							int* chunkIndexKeysArray, 
 							int* chunkIndexValuesArray,
-							// Output int containing the number of Chunks
+							// Output Variable containing the Number of Chunks.
 							int* chunkTotal) {
 
 		// Grid based on the Ray Count
 		dim3 rayBlock(1024);
-		dim3 rayGrid(rayTotal/CHUNK_DIVISION/rayBlock.x + 1);
+		dim3 rayGrid(rayTotal/rayBlock.x + 1);
 		
 		#ifdef BLOCK_GRID_DEBUG
 			cout << "[CreateChunkFlags] Block = " << rayBlock.x << " Threads " << "Grid = " << rayGrid.x << " Blocks" << endl;
@@ -1435,11 +1480,11 @@ extern "C" {
 
 		// Create the Chunk Flags
 		CreateChunkFlags<<<rayGrid, rayBlock>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
-
-		// Update the Scan Array with each Chunks 
+		
+		// Calculate the Inclusive Scan using the Chunk Head Flags.
 		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
-
-		// Check the Ray Total (last position of the scan array)
+		
+		// Check the Inclusive Scan Output (Last position gives us the number of Chunks that were generated)
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
 
 		// Create the Chunk Bases
@@ -1458,17 +1503,17 @@ extern "C" {
 	}
 
 	void RaySortingWrapper(	
-							// Input Arrays containing the Ray Chunks
+							// Input Arrays containing the Ray Chunks [Keys = Hashes, Values = Indices]
 							int* chunkIndexKeysArray, 
 							int* chunkIndexValuesArray,
-							// Total number of Ray Chunks
+							// Auxiliary Variable containing the Number of Chunks.
 							int chunkTotal,
-							// Output Arrays containing the Ray Chunks
+							// Output Arrays containing the Sorted Ray Chunks [Keys = Hashes, Values = Indices]
 							int* sortedChunkIndexKeysArray, 
 							int* sortedChunkIndexValuesArray) {
 		
-		// Run sorting operation
-		Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs2()", 
+		// Sort the Chunks
+		Utility::checkCUDAError("cub::DeviceRadixSort::SortPairs()", 
 			cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
 			chunkIndexKeysArray, sortedChunkIndexKeysArray,
 			chunkIndexValuesArray, sortedChunkIndexValuesArray, 
@@ -1476,19 +1521,23 @@ extern "C" {
 	}
 
 	void RayDecompressionWrapper(	
-							// Input Arrays containing the Ray Chunk Bases and Sizes
+							// Input Array containing the Ray Chunk Bases.
 							int* chunkBasesArray,
+							// Input Array containing the Ray Chunk Sizes.
 							int* chunkSizesArray,
-							// Input Arrays containing the Ray Chunks
+							// Input Arrays containing the Ray Chunks  [Keys = Hashes, Values = Indices]
 							int* sortedChunkIndexKeysArray, 
 							int* sortedChunkIndexValuesArray,
-							// Total number of Ray Chunks
-							int chunkTotal, 
-							// Auxiliary Array containing the Ray Chunk Arrays skeleton
+							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
+							int* trimmedRayIndexKeysArray, 
+							int* trimmedRayIndexValuesArray,
+							// Input Array containing the Sorted Ray Arrays Skeleton.
 							int* skeletonArray,
-							// Auxiliary Array containing the inclusive segmented scan result
+							// Input Array containing the Inclusive Scan Output.
 							int* scanArray, 
-							// Output Arrays containing the sorted Ray Indices
+							// Auxiliary Variable containing the Chunk Total.
+							int chunkTotal, 
+							// Output Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray) {
 
@@ -1499,38 +1548,37 @@ extern "C" {
 		#ifdef BLOCK_GRID_DEBUG
 			cout << "[CreateChunkSkeleton] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
 		#endif
-
-		CreateChunkSkeleton<<<chunkGrid, chunkBlock>>>(
+			
+		// Create the Sorted Ray Skeleton
+		CreateSortedRaySkeleton<<<chunkGrid, chunkBlock>>>(
 			chunkSizesArray, 
 			sortedChunkIndexValuesArray,
 			chunkTotal, 
 			skeletonArray);
-
-		// Update the Scan Array with each Chunks 
+		
+		// Calculate the Inclusive Scan using the Sorted Ray Skeleton.
 		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
 
-		// Create the Chunk Bases
+		// Create the Sorted Rays
 		CreateSortedRays<<<chunkGrid, chunkBlock>>>(
 			chunkBasesArray, chunkSizesArray, 
 			sortedChunkIndexKeysArray, sortedChunkIndexValuesArray,
+			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
 			scanArray, 
-			chunkTotal, 
 			skeletonArray, 
+			chunkTotal, 
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
 	}
 
 	void HierarchyCreationWrapper(	
-							// Input Arrays containing the Rays
+							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
-							// Input Arrays containing the trimmed Ray Indices
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
-							// Input Arrays containing the sorted Ray Indices
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
-							// Total number of Rays
+							// Auxiliary Variable containing the Ray Total.
 							int rayTotal,
-							// Output Array containing the Ray Hierarchy
+							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray) {
 								
 		int hierarchyNodeWriteOffset = 0;
@@ -1545,16 +1593,15 @@ extern "C" {
 			cout << "[CreateHierarchyLevel1] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
 		#endif
 
+		// Create the First Level of the Ray Hierarchy.
 		CreateHierarchyLevel1<<<baseLevelGrid, baseLevelBlock>>>(
 			rayArray,
-			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray, 
 			rayTotal,
 			hierarchyNodeTotal, 
 			hierarchyArray);
-
-		//cout << "\nNodes : " << hierarchyNodeTotal << "(Write Offset: " << hierarchyNodeWriteOffset << ")" << " Grid: " << baseLevelGrid.x << " Block: " << baseLevelBlock.x << endl;
 		
+		// Create the Remaining Levels of the Ray Hierarchy.
 		for(int hierarchyLevel=1; hierarchyLevel<HIERARCHY_MAXIMUM_DEPTH; hierarchyLevel++) {
 			
 			hierarchyNodeReadOffset = hierarchyNodeWriteOffset;
@@ -1569,30 +1616,31 @@ extern "C" {
 				cout << "[CreateHierarchyLevelN] Block = " << nLevelBlock.x << " Threads " << "Grid = " << nLevelGrid.x << " Blocks" << endl;
 			#endif
 
-			CreateHierarchyLevelN<<<nLevelGrid, nLevelBlock>>>(hierarchyArray, hierarchyNodeWriteOffset, hierarchyNodeReadOffset, hierarchyNodeTotal);
-	
-			//cout << "Nodes : " << hierarchyNodeTotal << "(Write Offset: " << hierarchyNodeWriteOffset << " Read Offset: " << hierarchyNodeReadOffset << ")" << " Grid: " << nLevelGrid.x << " Block: " << nLevelBlock.x << endl;
-		}
+			CreateHierarchyLevelN<<<nLevelGrid, nLevelBlock>>>(
+				hierarchyArray, 
+				hierarchyNodeWriteOffset, 
+				hierarchyNodeReadOffset, 
+				hierarchyNodeTotal);
+			}
 	}
 
-	// Implementation of HierarchyTraversalWrapper is in the "RayTracer.cu" file
 	void HierarchyTraversalWrapper(	
-							// Input Array containing the Ray Hierarchy
+							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
-							// Input Array contraining the Updated Triangle Positions
+							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
-							// Total number of Rays
+							// Auxiliary Variable containing the Ray Total.
 							int rayTotal,
-							// Total Number of Triangles in the Scene
+							// Auxiliary Variable containing the Triangle Total.
 							int triangleTotal,
-							// Auxiliary Array containing the Hierarchy Hits Flags
+							// Auxiliary Array containing the Hierarchy Hits Flags.
 							int* headFlagsArray,
-							// Auxiliary Array containing the inclusive segmented scan result
+							// Auxiliary Array containing the Inclusive Scan Output.
 							int* scanArray, 
-							// Output Arrays containing the Ray Hierarchy Hits
+							// Output Arrays containing the Ray Hierarchy Hits.
 							int2* hierarchyHitsArray,
 							int2* trimmedHierarchyHitsArray,
-							// Output int containing the number of hits
+							// Output Variable containing the Number of Hits.
 							int* hierarchyHitTotal) {
 
 		// Calculate the Nodes Offset and Total
@@ -1632,7 +1680,7 @@ extern "C" {
 				CreateHierarchyLevel0Hits<<<baseLevelGrid, baseLevelBlock>>>(
 					hierarchyArray, 
 					trianglePositionsArray,
-					triangleTotal, 
+					triangleTotal,
 					hierarchyNodeOffset[hierarchyLevel], 
 					hierarchyNodeTotal[hierarchyLevel], 
 					headFlagsArray, 
@@ -1655,9 +1703,9 @@ extern "C" {
 					hierarchyArray, 
 					trianglePositionsArray,
 					triangleTotal, 
+					hitTotal,
 					hierarchyNodeOffset[hierarchyLevel], 
 					hierarchyNodeTotal[hierarchyLevel], 
-					hitTotal, 
 					headFlagsArray, 
 					hierarchyHitsArray, trimmedHierarchyHitsArray);
 
@@ -1680,7 +1728,7 @@ extern "C" {
 				cout << "[TrimHierarchyLevelNHits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
 			#endif
 
-			TrimHierarchyHits<<<baseHitGrid, baseHitBlock>>>(
+			CreateTrimmedHierarchyHits<<<baseHitGrid, baseHitBlock>>>(
 				hierarchyHitsArray,
 				scanArray,
 				hitMaximum,
@@ -1706,28 +1754,29 @@ extern "C" {
 	}
 
 	void LocalIntersectionWrapper(	
-							// Input Arrays containing the Rays
+							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
-							// Input Arrays containing the trimmed Ray Indices
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
-							// Input Arrays containing the sorted Ray Indices
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							int* sortedRayIndexKeysArray, 
 							int* sortedRayIndexValuesArray,
-							// Input Array containing the Hierarchy Nodes
-							float4* hierarchyArray,
-							// Input Array containing the Hierarchy Node Hits
+							// Input Array containing the Ray Hierarchy Hits.
 							int2* hierarchyHitsArray,
-							// Input Array contraining the Updated Triangle Positions
+							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
-							// Total number of Hierarchy Hits
+							// Auxiliary Variable containing the Number of Hits.
 							int hitTotal,
-							// Total number of Rays
+							// Auxiliary Variable containing the Number of Rays.
 							int rayTotal,
-							// Screen Dimensions
+							// Auxiliary Variables containing the Screen Dimensions.
 							int windowWidth, 
 							int windowHeight,
-							// Device Pointer to the Screen Buffer
+							// Auxiliary Variable containing the Number of Lights.
+							int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							float3 cameraPosition,
+							// Output Array containing the Shadow Ray Flags.
+							int* shadowFlagsArray,
+							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 								
 		// Grid based on the Hierarchy Hit Count
@@ -1741,91 +1790,23 @@ extern "C" {
 		// Local Intersection
 		LocalIntersection<<<intersectionGrid, intersectionBlock>>>(
 			rayArray, 
-			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
 			hierarchyHitsArray,
 			trianglePositionsArray,
 			hitTotal,
 			rayTotal,
 			windowWidth, windowHeight,
+			lightTotal,
+			cameraPosition,
+			shadowFlagsArray,
 			pixelBufferObject);
 
-		// Grid based on the Hierarchy Hit Count
+		// Grid based on the Screen Dimensions.
+		dim3 colouringBlock(32,32);
+		dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);								
 
-		// Calculate the Nodes Offset and Total
-		/*int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
-		int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
-		
-		hierarchyNodeOffset[0] = 0;
-		hierarchyNodeTotal[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-		
-		//printf("Level %d :: Offset = %d Total = %d\n", 0, hierarchyNodeOffset[0], hierarchyNodeTotal[0]);
-
-		for(int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
-
-			hierarchyNodeOffset[i] = hierarchyNodeTotal[i-1] + hierarchyNodeOffset[i-1];
-			hierarchyNodeTotal[i] = hierarchyNodeTotal[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-
-			//printf("Level %d :: Offset = %d Total = %d\n", i, hierarchyNodeOffset[i], hierarchyNodeTotal[i]);
-		}
-
-		int i=HIERARCHY_MAXIMUM_DEPTH-4;
-
-		dim3 intersectionBlock(1024);
-		dim3 intersectionGrid(hierarchyNodeTotal[i] / intersectionBlock.x + 1);
-
-		// Node Hierarchy Index
-		int nodeLimit = HIERARCHY_SUBDIVISION;
-
-		for(int j=1; j<i; j++)
-			nodeLimit *= HIERARCHY_SUBDIVISION;
-
-		cout << "Node Limit = " << nodeLimit << endl;
-		cout << "Ray Total = " << rayTotal << endl;
-		cout << "Hierarchy Node Total = " << hierarchyNodeTotal[i] << endl;
-		cout << "[LocalIntersection] Grid = " << intersectionGrid.x << endl;
-
-		LocalIntersection2<<<intersectionGrid, intersectionBlock>>>(
-			rayArray, 
-			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
-			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
-			hierarchyArray,
-			i+1,
-			hierarchyNodeTotal[i],
-			hierarchyNodeOffset[i],
-			windowWidth, windowHeight,
-			pixelBufferObject);*/
-	}
-
-	void RayTraceWrapper(	// Input Array containing the unsorted Rays
-							float3* rayArray,
-							// Input Arrays containing the trimmed Ray Indices
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
-							// Input Arrays containing the sorted Ray Indices
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray,
-							// Total number of Rays
-							int rayTotal,
-							// Device Pointer to the Screen Buffer
-							unsigned int *pixelBufferObject) {
-
-		// Pixel Clearing
-		dim3 clearBlock(1024);
-		dim3 clearGrid(WIDTH*HEIGHT/clearBlock.x + 1);								
-
-		ClearPixels<<<clearGrid, clearBlock>>>(	WIDTH, HEIGHT, 
-												pixelBufferObject);
-		// Pixel Filling
-		dim3 fillBlock(1024);
-		dim3 fillGrid(rayTotal/fillBlock.x + 1);
-
-		/*FillPixels<<<fillGrid, fillBlock>>>(	rayArray,
-												trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
-												sortedRayIndexKeysArray, sortedRayIndexValuesArray,
-												rayTotal, 
-												WIDTH, HEIGHT,
-												pixelBufferObject);*/
+		// Colour the Screen
+		Colouring<<<colouringGrid, colouringBlock>>>(windowWidth, windowHeight, lightTotal, cameraPosition, shadowFlagsArray, pixelBufferObject);
 	}
 
 	// OpenGL Texture Binding Functions
