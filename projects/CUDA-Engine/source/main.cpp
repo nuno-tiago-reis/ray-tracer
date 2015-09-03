@@ -218,6 +218,21 @@ extern "C" {
 							// Output Arrays containing the Unsorted Ray Indices.
 							int* rayIndexKeysArray, 
 							int* rayIndexValuesArray);
+	
+	// Implementation of 'ReflectionRayCreationWrapper' is in the "RayTracer.cu" file
+	void ReflectionRayCreationWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, 
+							int windowHeight,
+							// Auxiliary Variables containing the Camera Position.
+							float3 cameraPosition,
+							// Output Array containing the Unsorted Rays.
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
+							int* headFlagsArray, 
+							// Output Arrays containing the Unsorted Ray Indices.
+							int* rayIndexKeysArray, 
+							int* rayIndexValuesArray);
 
 	// Implementation of 'RayTrimmingWrapper' is in the "RayTracer.cu" file
 	void RayTrimmingWrapper(	
@@ -322,7 +337,7 @@ extern "C" {
 							int* hierarchyHitTotal);
 	
 	// Implementation of LocalIntersectionWrapper is in the "RayTracer.cu" file
-	void LocalIntersectionWrapper(	
+	void ShadowRayIntersectionWrapper(	
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
 							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
@@ -345,6 +360,35 @@ extern "C" {
 							float3 cameraPosition,
 							// Output Array containing the Shadow Ray Flags.
 							int* shadowFlagsArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject);
+	
+	// Implementation of ReflectionRayIntersectionWrapper is in the "RayTracer.cu" file
+	void ReflectionRayIntersectionWrapper(	
+							// Input Array containing the Unsorted Rays.
+							float3* rayArray, 
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Input Array containing the Ray Hierarchy Hits.
+							int2* hierarchyHitsArray,
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Input Array containing the Updated Triangle Normals.
+							float4* triangleNormalsArray,
+							// Auxiliary Variable containing the Number of Hits.
+							int hitTotal,
+							// Auxiliary Variable containing the Number of Rays.
+							int rayTotal,
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, 
+							int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							float3 cameraPosition,
+							// Auxiliary Array containing the Intersection Times.
+							int* intersectionTimeArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
 
@@ -425,233 +469,93 @@ extern "C" {
 
 // [Ray-Tracing]
 
-void castShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixelBufferObject) {
+// [Ray-Tracing] Creates a Batch of Shadow Rays.
+void createShadowRays(bool rasterizer, float3 cameraPosition) {
+
+	if(rasterizer == true) {
 	
-	// Create the Rays and Index them [DONE]
-	ShadowRayCreationWrapper(
-		windowWidth, windowHeight, 
-		0, 
-		cudaRayArrayDP, 
-		cudaHeadFlagsArrayDP, 
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+		// Create the Rays and Index them [DONE]
+		ShadowRayCreationWrapper(
+			windowWidth, windowHeight, 
+			0, 
+			cudaRayArrayDP, 
+			cudaHeadFlagsArrayDP, 
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 	
-	Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Trim the Ray Indices [DONE]
-	RayTrimmingWrapper(
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP, 
-		windowWidth, windowHeight, 
-		cudaHeadFlagsArrayDP, 
-		cudaScanArrayDP, 
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		&rayTotal);
-		
-	Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Compress the Unsorted Ray Indices into Chunks [DONE]
-	RayCompressionWrapper(
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP, 
-		rayTotal,
-		cudaHeadFlagsArrayDP, 
-		cudaScanArrayDP, 
-		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP, 
-		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
-		&chunkTotal);
-		
-	Utility::checkCUDAError("RayCompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayCompressionWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Sort the Chunks [DONE]
-	RaySortingWrapper(
-		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP, 
-		chunkTotal,
-		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
-		
-	Utility::checkCUDAError("RaySortingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RaySortingWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Decompress the Sorted Chunks into the Sorted Ray Indices [DONE]
-	RayDecompressionWrapper(
-		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP,
-		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP, 
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaHeadFlagsArrayDP,
-		cudaScanArrayDP, 
-		chunkTotal,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-		
-	Utility::checkCUDAError("RayDecompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayDecompressionWrapper::cudaGetLastError()", cudaGetLastError());
-
-	HierarchyCreationWrapper(
-		cudaRayArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		rayTotal,
-		cudaHierarchyArrayDP);
-		
-	Utility::checkCUDAError("HierarchyCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("HierarchyCreationWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
-	HierarchyTraversalWrapper(	
-		cudaHierarchyArrayDP,
-		cudaUpdatedTrianglePositionsDP,
-		rayTotal,
-		triangleTotal,
-		cudaHeadFlagsArrayDP,
-		cudaScanArrayDP,
-		cudaPrimaryHierarchyHitsArrayDP,
-		cudaSecondaryHierarchyHitsArrayDP,
-		&hierarchyHitTotal);
-		
-	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
-	LocalIntersectionWrapper(
-		cudaRayArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		cudaSecondaryHierarchyHitsArrayDP,
-		cudaUpdatedTrianglePositionsDP,
-		hierarchyHitTotal,
-		rayTotal,
-		windowWidth, windowHeight,
-		lightTotal,
-		cameraPosition,
-		cudaHeadFlagsArrayDP,
-		pixelBufferObject);
-		
-	Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
+	}
 }
 
-void castReflectionRays(unsigned int* pixelBufferObject) {
+// [Ray-Tracing] Colors a processed Batch of Shadow Rays.
+void colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixelBufferObject) {
 	
-	/*// Create the Rays and Index them [DONE]
-	RayCreationWrapper(
-		cudaRayArrayDP, 
-		windowWidth, windowHeight, 
-		lightTotal, 
-		make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]),
-		cudaHeadFlagsArrayDP, 
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-	
-	Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
+	if(rasterizer == true) {
 
-	// Trim the Ray Indices [DONE]
-	RayTrimmingWrapper(
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP, 
-		windowWidth, windowHeight, 
-		cudaHeadFlagsArrayDP, 
-		cudaScanArrayDP, 
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		&rayTotal);
+		// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
+		ShadowRayIntersectionWrapper(
+			cudaRayArrayDP,
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			cudaSecondaryHierarchyHitsArrayDP,
+			cudaUpdatedTrianglePositionsDP,
+			hierarchyHitTotal,
+			rayTotal,
+			windowWidth, windowHeight,
+			lightTotal,
+			cameraPosition,
+			cudaHeadFlagsArrayDP,
+			pixelBufferObject);
 		
-	Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Compress the Unsorted Ray Indices into Chunks [DONE]
-	RayCompressionWrapper(
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP, 
-		rayTotal,
-		cudaHeadFlagsArrayDP, 
-		cudaScanArrayDP, 
-		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP, 
-		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
-		&chunkTotal);
-		
-	Utility::checkCUDAError("RayCompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayCompressionWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Sort the Chunks [DONE]
-	RaySortingWrapper(
-		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP, 
-		chunkTotal,
-		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
-		
-	Utility::checkCUDAError("RaySortingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RaySortingWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Decompress the Sorted Chunks into the Sorted Ray Indices [DONE]
-	RayDecompressionWrapper(
-		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP,
-		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP, 
-		chunkTotal,
-		cudaHeadFlagsArrayDP,
-		cudaScanArrayDP, 
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-		
-	Utility::checkCUDAError("RayDecompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayDecompressionWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Create the Hierarchy from the Sorted Ray Indices [DONE]
-	HierarchyCreationWrapper(
-		cudaRayArrayDP,
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		rayTotal,
-		cudaHierarchyArrayDP);
-		
-	Utility::checkCUDAError("HierarchyCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("HierarchyCreationWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
-	HierarchyTraversalWrapper(	
-		cudaHierarchyArrayDP,
-		cudaUpdatedTrianglePositionsDP,
-		rayTotal,
-		triangleTotal,
-		cudaHeadFlagsArrayDP,
-		cudaScanArrayDP,
-		cudaPrimaryHierarchyHitsArrayDP,
-		cudaSecondaryHierarchyHitsArrayDP,
-		&hierarchyHitTotal);
-		
-	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Draw
-	RayTraceWrapper(
-		cudaRayArrayDP,
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		rayTotal,
-		pixelBufferDevicePointer);
-
-	// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
-	LocalIntersectionWrapper(
-		cudaRayArrayDP,
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		cudaHierarchyArrayDP,
-		cudaSecondaryHierarchyHitsArrayDP,
-		cudaUpdatedTrianglePositionsDP,
-		hierarchyHitTotal,
-		rayTotal,
-		windowWidth,
-		windowHeight,
-		pixelBufferDevicePointer);
-		
-	Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());*/
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	}
 }
 
-void castRefractionRays(unsigned int* pixelBufferObject) {
+// [Ray-Tracing] Creates a Batch of Reflection Rays.
+void createReflectionRays(bool rasterizer, float3 cameraPosition) {
 	
-	/*// Create the Rays and Index them [DONE]
-	RayCreationWrapper(
-		cudaRayArrayDP, 
-		windowWidth, windowHeight, 
-		lightTotal, 
-		make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]),
-		cudaHeadFlagsArrayDP, 
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+	if(rasterizer == true) {
+
+		// Create the Rays and Index them [DONE]
+		ReflectionRayCreationWrapper(
+			windowWidth, windowHeight,
+			cameraPosition,
+			cudaRayArrayDP, 
+			cudaHeadFlagsArrayDP, 
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 	
-	Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
+		Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
+	}
+}
+
+// [Ray-Tracing] Colors a processed Batch of Reflection Rays.
+void colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* pixelBufferObject) {
+	
+	if(rasterizer == true) {
+
+		// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
+		ReflectionRayIntersectionWrapper(
+			cudaRayArrayDP,
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			cudaSecondaryHierarchyHitsArrayDP,
+			cudaUpdatedTrianglePositionsDP,
+			cudaUpdatedTriangleNormalsDP,
+			hierarchyHitTotal,
+			rayTotal,
+			windowWidth, windowHeight,
+			lightTotal,
+			cameraPosition,
+			cudaHeadFlagsArrayDP,
+			pixelBufferObject);
+		
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	}
+}
+
+// [Ray-Tracing] Processes a Batch of Rays previously created.
+void castRays() {
 
 	// Trim the Ray Indices [DONE]
 	RayTrimmingWrapper(
@@ -691,18 +595,17 @@ void castRefractionRays(unsigned int* pixelBufferObject) {
 	RayDecompressionWrapper(
 		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP,
 		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP, 
-		chunkTotal,
+		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
 		cudaHeadFlagsArrayDP,
 		cudaScanArrayDP, 
+		chunkTotal,
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 		
 	Utility::checkCUDAError("RayDecompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 	Utility::checkCUDAError("RayDecompressionWrapper::cudaGetLastError()", cudaGetLastError());
 
-	// Create the Hierarchy from the Sorted Ray Indices [DONE]
 	HierarchyCreationWrapper(
 		cudaRayArrayDP,
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
 		rayTotal,
 		cudaHierarchyArrayDP);
@@ -711,7 +614,7 @@ void castRefractionRays(unsigned int* pixelBufferObject) {
 	Utility::checkCUDAError("HierarchyCreationWrapper::cudaGetLastError()", cudaGetLastError());
 
 	// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
-	HierarchyTraversalWrapper(	
+	HierarchyTraversalWrapper(
 		cudaHierarchyArrayDP,
 		cudaUpdatedTrianglePositionsDP,
 		rayTotal,
@@ -724,31 +627,6 @@ void castRefractionRays(unsigned int* pixelBufferObject) {
 		
 	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Draw
-	RayTraceWrapper(
-		cudaRayArrayDP,
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		rayTotal,
-		pixelBufferDevicePointer);
-
-	// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
-	LocalIntersectionWrapper(
-		cudaRayArrayDP,
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-		cudaHierarchyArrayDP,
-		cudaSecondaryHierarchyHitsArrayDP,
-		cudaUpdatedTrianglePositionsDP,
-		hierarchyHitTotal,
-		rayTotal,
-		windowWidth,
-		windowHeight,
-		pixelBufferDevicePointer);
-		
-	Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());*/
 }
 
 // [Scene] Updates the Scene
@@ -864,23 +742,45 @@ void display() {
 	// Preparation Kernels - [End]
 
 	// Ray-Tracing Kernels - [Start]
+	
+	for(int i=0; i<DEPTH; i++) {
 
-	castShadowRays(true, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]), pixelBufferObject);
-	/*
-		for(int i=0; i<DEPTH; i++) {
+		float3 cameraEye = make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]);
 
-			// Cast the Shadow Ray Batch
-			castShadowRays(true, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]), pixelBufferObject);
+		// Cast the Shadow Ray Batch
+		if(i == 0) {
 
-			if(i != DEPTH - 1) {
+			// Calculate the Shadow Rays based on the Rasterizer Input for the first Iteration.
+			createShadowRays(true, cameraEye);
 
-				// Cast the Reflection Ray Batch
-				castReflectionRays(pixelBufferObject);
+			// Cast the Generic Ray-Tracing Algorithm.
+			castRays();
+
+			// Calculate the Color based on the Rasterizer Input for the first Iteration.
+			colorShadowRays(true, cameraEye, pixelBufferObject);
+		}
+		
+		// Cast the Reflection and Refraction Ray Batches
+		if(i == 1) {
 			
-				// Cast the Refraction Ray Batch
-				castRefractionRays(pixelBufferObject);
-			}
-		}*/
+			// Calculate the Reflection Rays based on the Rasterizer Input for the first Iteration.
+			createReflectionRays(true, cameraEye);
+
+			// Cast the Generic Ray-Tracing Algorithm.
+			castRays();
+			
+			// Calculate the Color.
+			colorReflectionRays(true, cameraEye, pixelBufferObject);
+			
+			/*// Calculate the Refraction Rays based on the Rasterizer Input for the first Iteration.
+			createRefractionRays(true, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));
+
+			// Cast the Generic Ray-Tracing Algorithm.
+			castRays();
+
+			colorRefractionRays(pixelBufferObject);*/
+		}
+	}
 
 	// Ray-Tracing Kernels - [End]
 

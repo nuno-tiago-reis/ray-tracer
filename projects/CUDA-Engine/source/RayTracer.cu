@@ -117,8 +117,20 @@ struct HitRecord {
 	}
 };
 
+__device__ static inline unsigned int FloatFlip(unsigned int f) {
+
+	unsigned int mask = -(int)(f >> 31) | 0x80000000;
+	return f ^ mask;
+}
+
+__device__ static inline unsigned int IFloatFlip(unsigned int f) {
+
+	unsigned int mask = ((f >> 31) - 1) | 0x80000000;
+	return f ^ mask;
+}
+
 // Converts 8-bit integer to floating point rgb color
-__device__ float3 IntToRgb(int color) {
+__device__ static inline  float3 IntToRgb(int color) {
 
 	float red	= color & 255;
 	float green	= (color >> 8) & 255;
@@ -128,7 +140,7 @@ __device__ float3 IntToRgb(int color) {
 }
 
 // Converts floating point rgb color to 8-bit integer
-__device__ int RgbToInt(float red, float green, float blue) {
+__device__ static inline int RgbToInt(float red, float green, float blue) {
 
 	red		= clamp(red,	0.0f, 255.0f);
 	green	= clamp(green,	0.0f, 255.0f);
@@ -138,7 +150,7 @@ __device__ int RgbToInt(float red, float green, float blue) {
 }
 
 // Converts a Direction Vector to Spherical Coordinates
-__device__ float2 CartesianToSpherical(float3 direction) {
+__device__ static inline float2 CartesianToSpherical(float3 direction) {
 
 	float azimuth = atan(direction.y / direction.x) * 2.0f;
 	float polar = acos(direction.z);
@@ -147,7 +159,7 @@ __device__ float2 CartesianToSpherical(float3 direction) {
 }
 
 // Converts Spherical Coordinates to a Direction Vector
-__device__ float3 SphericalToCartesian(float2 spherical) {
+__device__ static inline float3 SphericalToCartesian(float2 spherical) {
 
 	float x = cos(spherical.x) * sin(spherical.y);
 	float y = sin(spherical.x) * sin(spherical.y);
@@ -157,7 +169,7 @@ __device__ float3 SphericalToCartesian(float2 spherical) {
 }
 
 // Converts a ray to an Integer Hash Value
-__device__ int CreateShadowRayIndex(float3 origin, float3 direction) {
+__device__ static inline int CreateShadowRayIndex(float3 origin, float3 direction) {
 
 	int index = 0;
 
@@ -175,7 +187,7 @@ __device__ int CreateShadowRayIndex(float3 origin, float3 direction) {
 	return index;
 }
 
-__device__ int CreateReflectionRayIndex(float3 origin, float3 direction) {
+__device__ static inline int CreateReflectionRayIndex(float3 origin, float3 direction) {
 
 	int index = 0;
 
@@ -193,7 +205,7 @@ __device__ int CreateReflectionRayIndex(float3 origin, float3 direction) {
 	return index;
 }
 
-__device__ int CreateRefractionRayIndex(float3 origin, float3 direction) {
+__device__ static inline int CreateRefractionRayIndex(float3 origin, float3 direction) {
 
 	int index = 0;
 
@@ -503,6 +515,23 @@ __global__ void PreparePixels(
 	//pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
 }
 
+__global__ void PrepareArray(	
+							// Input Variable containing the Preparation Value
+							const int value,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const  int windowHeight,
+							// Output Array containing the Exclusive Scan Output
+							int* scanArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	scanArray[x + y * windowWidth] = value;
+}
+
 __global__ void Debug(	
 							// Input Array containing the Rays.
 							float3* rayArray,
@@ -602,8 +631,6 @@ __global__ void CreateReflectionRays(
 							const int windowWidth, const int windowHeight,
 							// Auxiliary Variable containing the Cameras World Space Position.
 							float3 cameraPosition,
-							// Auxiliary Array containing the Ray Hit Distances.
-							float* rayDistancesArray,
 							// Input Array containing the Unsorted Rays
 							float3* rayArray,
 							// Output Array containing the Ray Head Flags.
@@ -622,7 +649,7 @@ __global__ void CreateReflectionRays(
 
 	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
-	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));		
 
 	if(length(fragmentPosition) != 0.0f) {
 		
@@ -643,8 +670,7 @@ __global__ void CreateReflectionRays(
 		// Store the Reflection Rays Flag (Trimming)
 		headFlagsArray[rayIndex] = 0;
 
-		// Clear the Ray Distance
-		rayDistancesArray[rayIndex] = FLT_MAX;
+		return;
 	}
 
 	// Store the Reflection Rays Flag (Trimming)
@@ -656,8 +682,6 @@ __global__ void CreateRefractionRays(
 							const int windowWidth, const int windowHeight,
 							// Auxiliary Variable containing the Cameras World Space Position.
 							float3 cameraPosition,
-							// Auxiliary Array containing the Ray Hit Distances.
-							float* rayDistancesArray,
 							// Input Array containing the Unsorted Rays
 							float3* rayArray,
 							// Output Array containing the Ray Head Flags.
@@ -697,8 +721,7 @@ __global__ void CreateRefractionRays(
 		// Store the Refraction Rays Flag (Trimming)
 		headFlagsArray[rayIndex] = 0;
 
-		// Clear the Ray Distance
-		rayDistancesArray[rayIndex] = FLT_MAX;
+		return;
 	}
 
 	// Store the Refraction Rays Flag (Trimming)
@@ -884,7 +907,7 @@ __global__ void CreateSortedRays(
 							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
 							int* trimmedRayIndexKeysArray, 
 							int* trimmedRayIndexValuesArray,
-							// Input Array containing the Inclusive Scan Output.
+							// Input Array containing the Exclusive Scan Output.
 							int* scanArray, 
 							// Input Array containing the Sorted Ray Arrays Skeleton.
 							int* skeletonArray,
@@ -1147,7 +1170,7 @@ __global__ void CreateTrimmedHierarchyHits(
 	}
 }
 
-__global__ void LocalIntersection(	
+__global__ void CalculateShadowRayIntersections(	
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
 							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
@@ -1215,7 +1238,7 @@ __global__ void LocalIntersection(
 	}
 }
 
-__global__ void Colouring(	
+__global__ void ColorPrimaryShadowRay(	
 							// Auxiliary Variables containing the Screen Dimensions.
 							const int windowWidth, const int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
@@ -1240,51 +1263,239 @@ __global__ void Colouring(
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
 	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
-	// Triangle Material Properties
-	float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
-	float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
+	if(length(fragmentPosition) != 0.0f) {
 
-	// Primary Ray
-	float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
-	float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), fragmentNormal);
+		// Triangle Material Properties
+		float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
+		float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
 
-	for(int l = 0; l < lightTotal; l++) {
+		for(int l = 0; l < lightTotal; l++) {
 
-		// Check if the Light is Blocked
-		if(shadowFlagsArray[x + y * windowWidth] != INT_MAX) {
+			// Check if the Light is Blocked
+			if(shadowFlagsArray[x + y * windowWidth] != INT_MAX) {
 
-			float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
+				float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
 
-			// Light Direction and Distance
-			float3 lightDirection = lightPosition - fragmentPosition;
+				// Light Direction and Distance
+				float3 lightDirection = lightPosition - fragmentPosition;
 
-			float lightDistance = length(lightDirection);
-			lightDirection = normalize(lightDirection);
+				float lightDistance = length(lightDirection);
+				lightDirection = normalize(lightDirection);
 
-			// Blinn-Phong approximation Halfway Vector
-			float3 halfwayVector = lightDirection - rayDirection;
-			halfwayVector = normalize(halfwayVector);
+				// Blinn-Phong approximation Halfway Vector
+				float3 halfwayVector = lightDirection - normalize(fragmentPosition - cameraPosition);
+				halfwayVector = normalize(halfwayVector);
 
-			// Light Color
-			float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
-			// Light Intensity (x = diffuse, y = specular)
-			float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+				// Light Color
+				float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
+				// Light Intensity (x = diffuse, y = specular)
+				float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
 
-			// Diffuse Factor
-			float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
-			clamp(diffuseFactor, 0.0f, 1.0f);
-			// Diffuse Component
-			fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x;
+				// Diffuse Factor
+				float diffuseFactor = max(dot(lightDirection, fragmentNormal), 0.0f);
+				clamp(diffuseFactor, 0.0f, 1.0f);
+				// Diffuse Component
+				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x;
 
-			// Specular Factor
-			float specularFactor = powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w);
-			clamp(specularFactor, 0.0f, 1.0f);
-			// Specular Component
-			fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y;
+				// Specular Factor
+				float specularFactor = powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w);
+				clamp(specularFactor, 0.0f, 1.0f);
+				// Specular Component
+				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y;
+			}
+		}
+	
+		pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+
+		return;
+	}
+
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(0.0f, 0.0f, 0.0f);
+}
+
+__global__ void CalculateReflectionRayIntersections(
+							// Input Array containing the Unsorted Rays.
+							float3* rayArray, 
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Input Array containing the Ray Hierarchy Hits.
+							int2* hierarchyHitsArray,
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Auxiliary Variable containing the Number of Hits.
+							const int hitTotal,
+							// Auxiliary Variable containing the Number of Rays.
+							const int rayTotal,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Auxiliary Array containing the Intersection Times.
+							int* intersectionTimeArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= hitTotal)
+		return;
+
+	// Store the Hierarchy Hit
+	int2 hierarchyHit = hierarchyHitsArray[x];
+
+	// Store the Triangles Vertices and Edges
+	float3 vertex0 = make_float3(trianglePositionsArray[hierarchyHit.y * 3]);
+	float3 edge1 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 1]) - vertex0;
+	float3 edge2 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 2]) - vertex0;;
+
+	for(int i=0; i<HIERARCHY_SUBDIVISION; i++) {
+
+		// Check if the Extrapolated Ray exists.
+		if(hierarchyHit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
+			return;
+
+		// Fetch the Ray Index
+		int rayIndex = sortedRayIndexValuesArray[hierarchyHit.x * HIERARCHY_SUBDIVISION + i];
+
+		// Fetch the Ray
+		float3 rayOrigin = rayArray[rayIndex * 2];
+		float3 rayDirection = rayArray[rayIndex * 2 + 1];
+
+		float intersectionDistance = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, edge1, edge2);
+
+		// Calculate the Intersection Time
+		if(intersectionDistance > epsilon) {
+
+			unsigned int newTime = ((unsigned int)(intersectionDistance * 10.0f + 1.0f) << 20) + hierarchyHit.y;
+			unsigned int oldTime = atomicMin((unsigned int*)&intersectionTimeArray[rayIndex], newTime);
 		}
 	}
+}
+
+__global__ void ColorReflectionRay(	
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Input Array containing the Updated Triangle Normals.
+							float4* triangleNormalsArray,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const int windowWidth, const int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Auxiliary Array containing the Intersection Times.
+							int* intersectionTimeArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	// Fragment Color
+	float3 fragmentColor = make_float3(0.0f);
+
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+
+	if(length(fragmentPosition) != 0.0f) {
+
+		// Reflection Ray Intersection Time
+		unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[x + y * windowWidth];
+		unsigned int intersectionTriangle = intersectionRecord & 0x000FFFFF;
+		unsigned int intersectionTime = (intersectionRecord & 0xFFF00000) >> 20;
+
+		if(intersectionRecord != UINT_MAX) {
+
+			// Triangle Index
+			int triangleID = intersectionTriangle;
+
+			// Triangle Material Properties
+			float4 fragmentDiffuseColor = tex2D(diffuseTexture, x,y);
+			float4 fragmentSpecularColor = tex2D(specularTexture, x,y);
+
+			// Reflection Ray
+			float3 rayOrigin = make_float3(tex2D(fragmentPositionTexture, x,y));
+			float3 rayDirection = reflect(normalize(rayOrigin-cameraPosition), fragmentNormal);
+
+			// Store the Triangles Vertices and Edges
+			float3 vertex0 = make_float3(trianglePositionsArray[triangleID * 3]);
+			float3 vertex1 = make_float3(trianglePositionsArray[triangleID * 3 + 1]);
+			float3 vertex2 = make_float3(trianglePositionsArray[triangleID * 3 + 2]);
+
+			// Intersection Time
+			float intersectionTime = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
+
+			// Hit Point
+			float3 hitPoint = rayOrigin + rayDirection * (epsilon + intersectionTime);
+			float3 hitNormal = make_float3(0.0f);
 	
-	pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+			// Store the Triangles Normals
+			float3 normal0 = make_float3(triangleNormalsArray[triangleID * 3]);
+			float3 normal1 = make_float3(triangleNormalsArray[triangleID * 3 + 1]);
+			float3 normal2 = make_float3(triangleNormalsArray[triangleID * 3 + 2]);
+
+			// Normal calculation using Barycentric Interpolation
+			float areaABC = length(cross(vertex1 - vertex0, vertex2 - vertex0));
+			float areaPBC = length(cross(vertex1 - hitPoint, vertex2 - hitPoint));
+			float areaPCA = length(cross(vertex0 - hitPoint, vertex2 - hitPoint));
+
+			hitNormal = (areaPBC / areaABC) * normal0 + (areaPCA / areaABC) * normal1 + (1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * normal2;
+
+			// Triangle Material Identifier
+			int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, triangleID * 3);
+
+			// Triangle Material Properties
+			float4 diffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+			float4 specularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+
+			for(int l = 0; l < lightTotal; l++) {
+
+				float3 lightPosition = make_float3(tex1Dfetch(lightPositionsTexture, l));
+
+				// Light Direction and Distance
+				float3 lightDirection = lightPosition - hitPoint;
+
+				float lightDistance = length(lightDirection);
+				lightDirection = normalize(lightDirection);
+
+				// Diffuse Factor
+				float diffuseFactor = max(dot(lightDirection, hitNormal), 0.0f);
+				clamp(diffuseFactor, 0.0f, 1.0f);
+
+				if(diffuseFactor > 0.0f) {
+
+					// Blinn-Phong approximation Halfway Vector
+					float3 halfwayVector = lightDirection - rayDirection;
+					halfwayVector = normalize(halfwayVector);
+
+					// Light Color
+					float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
+					// Light Intensity (x = diffuse, y = specular)
+					float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+
+					// Diffuse Component
+					fragmentColor += make_float3(diffuseColor) * lightColor * diffuseFactor * lightIntensity.x;
+
+					// Specular Factor
+					float specularFactor = powf(max(dot(halfwayVector, hitNormal), 0.0f), specularColor.w);
+					clamp(specularFactor, 0.0f, 1.0f);
+
+					// Specular Component
+					if(specularFactor > 0.0f)
+						fragmentColor += make_float3(specularColor) * lightColor * specularFactor * lightIntensity.y;
+				}
+			}
+
+			pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+		}
+	}
 }
 
 extern "C" {
@@ -1373,10 +1584,10 @@ extern "C" {
 
 		// Grid based on the Screen Dimensions.
 		dim3 block(32,32);
-		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);								
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);
 
 		// Prepare the Screen
-		//PreparePixels<<<grid, block>>>(windowWidth, windowHeight, lightTotal, cameraPosition, pixelBufferObject);
+		//PreparePixels<<<grid, block>>>(windowWidth, windowHeight, pixelBufferObject);
 
 		//Debug<<<grid, block>>>(rayArray, windowWidth, windowHeight, lightTotal, cameraPosition, pixelBufferObject);
 	}
@@ -1405,6 +1616,32 @@ extern "C" {
 
 		// Create the Shadow Rays
 		CreateShadowRays<<<grid, block>>>(windowWidth, windowHeight, lightIndex, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
+	}
+
+	void ReflectionRayCreationWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, 
+							int windowHeight,
+							// Auxiliary Variables containing the Camera Position.
+							float3 cameraPosition,
+							// Output Array containing the Unsorted Rays.
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
+							int* headFlagsArray, 
+							// Output Arrays containing the Unsorted Ray Indices.
+							int* rayIndexKeysArray, 
+							int* rayIndexValuesArray) {
+
+		// Grid based on the Screen Dimensions.
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);
+
+		#ifdef BLOCK_GRID_DEBUG
+			cout << "[ReflectionRayCreationWrapper] Block = " << block.x * block.y << " Threads " << "Grid = " << grid.x * grid.y << " Blocks" << endl;
+		#endif
+
+		// Create the Reflection Rays
+		CreateReflectionRays<<<grid, block>>>(windowWidth, windowHeight, cameraPosition, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
 	}
 
 	void RayTrimmingWrapper(	
@@ -1482,7 +1719,7 @@ extern "C" {
 		CreateChunkFlags<<<rayGrid, rayBlock>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
 		
 		// Calculate the Inclusive Scan using the Chunk Head Flags.
-		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 		
 		// Check the Inclusive Scan Output (Last position gives us the number of Chunks that were generated)
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
@@ -1548,15 +1785,15 @@ extern "C" {
 		#ifdef BLOCK_GRID_DEBUG
 			cout << "[CreateChunkSkeleton] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
 		#endif
-			
+
 		// Create the Sorted Ray Skeleton
 		CreateSortedRaySkeleton<<<chunkGrid, chunkBlock>>>(
 			chunkSizesArray, 
 			sortedChunkIndexValuesArray,
 			chunkTotal, 
 			skeletonArray);
-		
-		// Calculate the Inclusive Scan using the Sorted Ray Skeleton.
+
+		// Calculate the Exclusive Scan using the Sorted Ray Skeleton.
 		Utility::checkCUDAError("cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
 
 		// Create the Sorted Rays
@@ -1568,6 +1805,7 @@ extern "C" {
 			skeletonArray, 
 			chunkTotal, 
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
+
 	}
 
 	void HierarchyCreationWrapper(	
@@ -1753,7 +1991,7 @@ extern "C" {
 		}
 	}
 
-	void LocalIntersectionWrapper(	
+	void ShadowRayIntersectionWrapper(	
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
 							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
@@ -1784,11 +2022,11 @@ extern "C" {
 		dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
 
 		#ifdef BLOCK_GRID_DEBUG 
-			cout << "[LocalIntersection] Grid = " << intersectionGrid.x << endl;
+			cout << "[CalculateShadowRayIntersections] Grid = " << intersectionGrid.x << endl;
 		#endif
 
 		// Local Intersection
-		LocalIntersection<<<intersectionGrid, intersectionBlock>>>(
+		CalculateShadowRayIntersections<<<intersectionGrid, intersectionBlock>>>(
 			rayArray, 
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
 			hierarchyHitsArray,
@@ -1806,7 +2044,95 @@ extern "C" {
 		dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);								
 
 		// Colour the Screen
-		Colouring<<<colouringGrid, colouringBlock>>>(windowWidth, windowHeight, lightTotal, cameraPosition, shadowFlagsArray, pixelBufferObject);
+		ColorPrimaryShadowRay<<<colouringGrid, colouringBlock>>>(windowWidth, windowHeight, lightTotal, cameraPosition, shadowFlagsArray, pixelBufferObject);
+	}
+
+	void ReflectionRayIntersectionWrapper(	
+							// Input Array containing the Unsorted Rays.
+							float3* rayArray, 
+							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
+							int* sortedRayIndexKeysArray, 
+							int* sortedRayIndexValuesArray,
+							// Input Array containing the Ray Hierarchy Hits.
+							int2* hierarchyHitsArray,
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Input Array containing the Updated Triangle Normals.
+							float4* triangleNormalsArray,
+							// Auxiliary Variable containing the Number of Hits.
+							int hitTotal,
+							// Auxiliary Variable containing the Number of Rays.
+							int rayTotal,
+							// Auxiliary Variables containing the Screen Dimensions.
+							int windowWidth, 
+							int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							float3 cameraPosition,
+							// Auxiliary Array containing the Intersection Times.
+							int* intersectionTimeArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+								
+
+		// Grid based on the Screen Dimensions.
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);
+
+		// Prepare the Array
+		PrepareArray<<<grid, block>>>(UINT_MAX, windowWidth, windowHeight, intersectionTimeArray);
+
+		// Grid based on the Hierarchy Hit Count
+		dim3 intersectionBlock(1024);
+		dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
+
+		#ifdef BLOCK_GRID_DEBUG 
+			cout << "[CalculateReflectionRayIntersections] Grid = " << intersectionGrid.x << endl;
+		#endif
+
+		// Local Intersection
+		CalculateReflectionRayIntersections<<<intersectionGrid, intersectionBlock>>>(
+			rayArray, 
+			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
+			hierarchyHitsArray,
+			trianglePositionsArray,
+			hitTotal,
+			rayTotal,
+			windowWidth, windowHeight,
+			lightTotal,
+			cameraPosition,
+			intersectionTimeArray,
+			pixelBufferObject);
+
+		/*int rayMaximum = windowWidth * windowHeight;
+
+		int* scanArray = new int[rayMaximum];
+
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&scanArray[0], intersectionTimeArray, rayMaximum * sizeof(int), cudaMemcpyDeviceToHost));
+
+		printf("Intersections\n");
+		for(int i=0; i<rayMaximum; i++) {
+
+			if(scanArray[i] != UINT_MAX)
+				printf("%u\n", scanArray[i]);
+		}
+		printf("\n");
+
+		exit(0);*/
+
+		// Grid based on the Screen Dimensions.
+		dim3 colouringBlock(32,32);
+		dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+
+		// Colour the Screen
+		ColorReflectionRay<<<colouringGrid, colouringBlock>>>(
+			trianglePositionsArray, triangleNormalsArray, 
+			windowWidth, windowHeight, 
+			lightTotal, 
+			cameraPosition, 
+			intersectionTimeArray, 
+			pixelBufferObject);
 	}
 
 	// OpenGL Texture Binding Functions
