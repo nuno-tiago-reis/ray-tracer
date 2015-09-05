@@ -482,8 +482,10 @@ void createShadowRays(bool rasterizer, float3 cameraPosition) {
 			cudaHeadFlagsArrayDP, 
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 	
-		Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 	}
 }
 
@@ -506,8 +508,10 @@ void colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 			cudaHeadFlagsArrayDP,
 			pixelBufferObject);
 		
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 	}
 }
 
@@ -524,8 +528,10 @@ void createReflectionRays(bool rasterizer, float3 cameraPosition) {
 			cudaHeadFlagsArrayDP, 
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 	
-		Utility::checkCUDAError("RayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("RayCreationWrapper::cudaGetLastError()", cudaGetLastError());
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 	}
 }
 
@@ -549,8 +555,10 @@ void colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 			cudaHeadFlagsArrayDP,
 			pixelBufferObject);
 		
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 	}
 }
 
@@ -566,8 +574,10 @@ void castRays() {
 		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
 		&rayTotal);
 		
-	Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 
 	// Compress the Unsorted Ray Indices into Chunks [DONE]
 	RayCompressionWrapper(
@@ -579,8 +589,10 @@ void castRays() {
 		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
 		&chunkTotal);
 		
-	Utility::checkCUDAError("RayCompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayCompressionWrapper::cudaGetLastError()", cudaGetLastError());
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 
 	// Sort the Chunks [DONE]
 	RaySortingWrapper(
@@ -588,8 +600,10 @@ void castRays() {
 		chunkTotal,
 		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
 		
-	Utility::checkCUDAError("RaySortingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RaySortingWrapper::cudaGetLastError()", cudaGetLastError());
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 
 	// Decompress the Sorted Chunks into the Sorted Ray Indices [DONE]
 	RayDecompressionWrapper(
@@ -601,8 +615,10 @@ void castRays() {
 		chunkTotal,
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
 		
-	Utility::checkCUDAError("RayDecompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("RayDecompressionWrapper::cudaGetLastError()", cudaGetLastError());
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 
 	HierarchyCreationWrapper(
 		cudaRayArrayDP,
@@ -610,8 +626,10 @@ void castRays() {
 		rayTotal,
 		cudaHierarchyArrayDP);
 		
-	Utility::checkCUDAError("HierarchyCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("HierarchyCreationWrapper::cudaGetLastError()", cudaGetLastError());
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 
 	// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
 	HierarchyTraversalWrapper(
@@ -625,8 +643,10 @@ void castRays() {
 		cudaSecondaryHierarchyHitsArrayDP,
 		&hierarchyHitTotal);
 		
-	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 }
 
 // [Scene] Updates the Scene
@@ -834,6 +854,9 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 
+	//cudaDeviceReset();
+	//exit(0);
+
 	//cout << "[Callback] Display Successfull" << endl;
 }
 
@@ -885,6 +908,8 @@ void reshape(int weight, int height) {
 		// Each Node Maximum adds to the Hierarchy Maximum
 		hierarchyMaximum += hierarchyNodeMaximum[i]; 
 	}
+
+	size_t allocated = 0;
 	
 	// Update the CUDA Hierarchy Array
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaHierarchyArrayDP));
@@ -895,10 +920,16 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryHierarchyHitsArrayDP, hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryHierarchyHitsArrayDP, hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2)));
 
+	allocated += hierarchyMaximum * sizeof(float4) * 2;
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2);
+
 	// Update the CUDA Ray Array
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaRayArrayDP));
 
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaRayArrayDP, rayMaximum * sizeof(float3) * 2));
+
+	allocated += rayMaximum * sizeof(float3) * 2;
 
 	// Update the CUDA Chunks Base and Size Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaChunkBasesArrayDP));
@@ -906,6 +937,9 @@ void reshape(int weight, int height) {
 
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBasesArrayDP, rayMaximum * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizesArrayDP, rayMaximum * sizeof(int)));
+
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
 
 	// Update the CUDA Ray and Sorted Ray Index Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaPrimaryRayIndexKeysArrayDP));
@@ -917,6 +951,11 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryRayIndexValuesArrayDP, rayMaximum * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryRayIndexKeysArrayDP, rayMaximum * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryRayIndexValuesArrayDP, rayMaximum * sizeof(int)));
+
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
 	
 	// Update the CUDA Chunk and Sorted Chunk Index Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaPrimaryChunkKeysArrayDP));
@@ -929,18 +968,35 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryChunkKeysArrayDP, rayMaximum * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryChunkValuesArrayDP, rayMaximum * sizeof(int)));
 
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(int);
+
 	// Update the CUDA Head Flags and Scan Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaHeadFlagsArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaScanArrayDP));
 
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, hierarchyNodeMaximum[0] * triangleTotal * sizeof(int)));
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, hierarchyNodeMaximum[0] * triangleTotal  * sizeof(int)));
+
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int);
 	
 	size_t free, total;
-
 	Utility::checkCUDAError("cudaGetMemInfo()", cudaMemGetInfo(&free, &total));
 
-	cout << "[Callback] Free Memory: " << free << " Total Memory: " << total << endl;
+	cout << endl;
+
+	printf("[Callback] Total Memory:\t\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
+		total, total / 1024.0f, total / 1024.0f / 1024.0f, total / 1024.0f / 1024.0f / 1024.0f); 
+	printf("[Callback] Free Memory:\t\t\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
+		free, total / 1024.0f, free / 1024.0f / 1024.0f, free / 1024.0f / 1024.0f / 1024.0f);
+	printf("[Callback] Allocated Memory:\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
+		allocated, allocated / 1024.0f, allocated / 1024.0f / 1024.0f, allocated / 1024.0f / 1024.0f / 1024.0f);
+
+	cout << endl;
+
 	cout << "[Callback] Reshape Successfull" << endl << endl;
 }
 
@@ -969,8 +1025,6 @@ void timer(int value) {
 	std::ostringstream oss;
 	oss << CAPTION << ": " << frameCount << " FPS @ (" << windowWidth << "x" << windowHeight << ")";
 	std::string s = oss.str();
-
-	cout << "Frame Rate: " << frameCount << endl;
 
 	glutSetWindow(windowHandle);
 	glutSetWindowTitle(s.c_str());

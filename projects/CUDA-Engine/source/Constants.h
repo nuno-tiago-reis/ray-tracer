@@ -11,14 +11,10 @@
 
 // Ray Casting Constants
 #define LIGHT_SOURCE_MAXIMUM 1
-#define RAYS_PER_PIXEL_MAXIMUM 3
-
-// Chunk Division Constants
-#define CHUNK_DIVISION 10
-
-// Hierarchy Depth Constants
-#define HIERARCHY_MAXIMUM_DEPTH 2
-#define HIERARCHY_SUBDIVISION 16
 
 // Ray-Tracing Depth Constants
 #define DEPTH 2
+
+// Hierarchy Depth Constants
+#define HIERARCHY_MAXIMUM_DEPTH 2
+#define HIERARCHY_SUBDIVISION 8
