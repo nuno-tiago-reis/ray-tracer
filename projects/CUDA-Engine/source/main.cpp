@@ -1440,35 +1440,6 @@ void init(int argc, char* argv[]) {
 	// Add the Object to the Map (CUDA Loading)
 	objectMap[tableSurface->getID()] = tableSurface;
 
-	/*// Cube
-	Object* cubeObject = new Object("Cube");
-
-		// Set the Objects Mesh
-		Mesh* cubeMesh = new Mesh(TABLE_SURFACE, "cube.obj");
-
-		cubeObject->setMesh(cubeMesh);
-
-		// Set the Objects Transform
-		Transform* cubeTransform = new Transform("Cube");
-		cubeTransform->setPosition(Vector(0.0f, 2.5f, 0.0f, 1.0f));
-		cubeTransform->setScale(Vector(7.5f, 2.5f, 7.5f, 1.0f));
-
-		cubeObject->setTransform(cubeTransform);
-
-		// Set the Objects Material
-		Material* cubeMaterial = new Material("Cube", "cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
-		
-		cubeObject->setMaterial(cubeMaterial);
-
-		// Initialize the Object
-		cubeObject->createMesh();
-		cubeObject->setID(sceneManager->getObjectID());
-
-	// Add the Object to the Scene Manager
-	sceneManager->addObject(cubeObject);
-	// Add the Object to the Map (CUDA Loading)
-	objectMap[cubeObject->getID()] = cubeObject;*/
-
 	// Blinn-Phong Sphere 0
 	Object* sphere0Object = new Object(SPHERE_0);
 
@@ -1570,15 +1541,11 @@ void init(int argc, char* argv[]) {
 	SceneNode* sphere2ObjectNode = new SceneNode(SPHERE_2);
 	sphere2ObjectNode->setObject(sphere2Object);
 
-	/*SceneNode* cubeNode = new SceneNode("Cube");
-	cubeNode->setObject(cubeObject);*/
-
 	// Add the Root Nodes to the Scene
 	sceneManager->addSceneNode(tableSurfaceNode);
 	sceneManager->addSceneNode(sphere0ObjectNode);
 	sceneManager->addSceneNode(sphere1ObjectNode);
 	sceneManager->addSceneNode(sphere2ObjectNode);
-	//sceneManager->addSceneNode(cubeNode);
 
 	// Init the SceneManager
 	sceneManager->init();
@@ -1632,7 +1599,7 @@ void init(int argc, char* argv[]) {
 
 			// Material ID
 			int1 materialID = { materialTotal };
-			triangleMaterialIDList.push_back(materialID);			
+			triangleMaterialIDList.push_back(materialID);
 		}
 
 		// Get the Material from the mesh 
@@ -1652,7 +1619,6 @@ void init(int argc, char* argv[]) {
 		materialTotal++;
 	}
 
-
 	// Total number of Triangles should be the number of loaded vertices divided by 3
 	triangleTotal = trianglePositionList.size() / 3;
 
@@ -1669,6 +1635,13 @@ void init(int argc, char* argv[]) {
 	cout << "[Initialization] Triangle Object IDs Storage Size: " << triangleObjectIDListSize << " (" << triangleObjectIDList.size() << " int1s)" << endl;
 	size_t triangleMaterialIDListSize = triangleMaterialIDList.size() * sizeof(int1);
 	cout << "[Initialization] Triangle Material IDs Storage Size: " << triangleMaterialIDListSize << " (" << triangleMaterialIDList.size() << " int1s)" << endl;
+
+	size_t allocated = trianglePositionListSize + triangleNormalListSize + triangleTextureCoordinateListSize + triangleObjectIDListSize + triangleMaterialIDListSize;
+
+	cout << endl;
+
+	printf("[Initialization] Allocated Memory: \t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
+		allocated, allocated / 1024.0f, allocated / 1024.0f / 1024.0f, allocated / 1024.0f / 1024.0f / 1024.0f);
 
 	// Allocate the required CUDA Memory for the Triangles
 	if(triangleTotal > 0) {
