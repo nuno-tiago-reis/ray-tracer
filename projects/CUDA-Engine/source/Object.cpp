@@ -16,11 +16,11 @@ Object::~Object() {
 
 	destroyMesh();
 
-	if(this->mesh != NULL)
-		delete this->mesh;
+	//if(this->mesh != NULL)
+		//delete this->mesh;
 
-	if(this->material != NULL)
-		delete this->material;
+	//if(this->material != NULL)
+		//delete this->material;
 
 	if(this->transform != NULL)
 		delete this->transform;

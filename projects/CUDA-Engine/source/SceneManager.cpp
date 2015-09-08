@@ -256,56 +256,6 @@ void SceneManager::readKeyboard(GLfloat elapsedTime) {
 		this->lightMap["Spot Light 2"]->loadUniforms();
 	}*/
 
-	/* Sound Buttons */
-	if(handler->isSpecialKeyPressed(GLUT_KEY_F1) && handler->wasSpecialKeyPressed(GLUT_KEY_F1) == false) {
-
-		this->fmodSystem->playSound(FMOD_CHANNEL_FREE, this->soundMap[RAYQUAZA_SOUND_NAME]->getFmodSound(), false, &channel[0]);
-	}
-
-	if(handler->isSpecialKeyPressed(GLUT_KEY_F2) && handler->wasSpecialKeyPressed(GLUT_KEY_F2) == false) {
-
-		this->fmodSystem->playSound(FMOD_CHANNEL_FREE, this->soundMap[MUSIC_SOUND_NAME]->getFmodSound(), false, &channel[1]);
-	}
-
-	if(handler->isSpecialKeyPressed(GLUT_KEY_F3) && handler->wasSpecialKeyPressed(GLUT_KEY_F3) == false) {
-
-			bool paused;
-
-			channel[1]->getPaused(&paused);
-
-			if(paused)
-				channel[1]->setPaused(false);
-			else
-				channel[1]->setPaused(true);
-	}
-
-	if(handler->isSpecialKeyPressed(GLUT_KEY_F4) && handler->wasSpecialKeyPressed(GLUT_KEY_F4) == false) {
-
-		channel[1]->stop();
-	}
-
-	/* Teapot Selection Button */
-	if(handler->isKeyPressed('n'))
-		if(!handler->wasKeyPressed('n'))
-			this->currentObject = ++this->currentObject % 5;
-
-	/* Teapot Rotation Button */
-	if(handler->isKeyPressed('x'))
-		if(!handler->wasKeyPressed('x'))
-			this->rotationAxis = 1;
-
-	if(handler->isKeyPressed('y'))
-		if(!handler->wasKeyPressed('y'))
-			this->rotationAxis = 2;
-
-	if(handler->isKeyPressed('z'))
-		if(!handler->wasKeyPressed('z'))
-			this->rotationAxis = 3;
-
-	if(handler->isKeyPressed('s'))
-		if(!handler->wasKeyPressed('s'))
-			this->rotationAxis = 0;
-
 	if(handler->wasKeyPressedThisFrame('q'))
 		exit(0);
 	

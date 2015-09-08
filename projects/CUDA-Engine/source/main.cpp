@@ -72,8 +72,8 @@ int frameCount = 0;
 // Window Handling Global Variables
 int windowHandle = 0;
 
-int windowWidth = WIDTH;
-int windowHeight = HEIGHT;
+unsigned int windowWidth = WIDTH;
+unsigned int windowHeight = HEIGHT;
 
 // Clock Handling Global Variables
 GLint startTime = 0;
@@ -91,18 +91,21 @@ PixelBuffer *pixelBuffer;
 ScreenTexture *screenTexture;
 
 // Total number of Triangles - Used for the memory necessary to allocate
-int triangleTotal = 0;
+unsigned int triangleTotal = 0;
 // Total number of Materials - Used for the memory necessary to allocate
-int materialTotal = 0;
+unsigned int materialTotal = 0;
 // Total number of Lights - Used for the memory necessary to allocate
-int lightTotal = 0;
+unsigned int lightTotal = 0;
 
 // Total number of Rays - Updated per Frame
-int rayTotal;
+unsigned int rayTotal;
 // Total number of Chunks - Updated per Frame
-int chunkTotal;
+unsigned int chunkTotal;
 // Total number of Hierarchy Hits - Updated per Frame
-int hierarchyHitTotal;
+unsigned int hierarchyHitTotal;
+
+// Total number of Memory Allocated for the Hierarchy Hits
+unsigned int hierarchyHitMemoryTotal;
 
 // CUDA DevicePointers to the uploaded Triangles Positions and Normals
 float *cudaTrianglePositionsDP = NULL; 
@@ -133,31 +136,31 @@ float* cudaUpdatedNormalMatricesDP = NULL;
 // CUDA DevicePointer to the Hierarchy Array
 float4* cudaHierarchyArrayDP = NULL;
 // CUDA DevicePointer to the Hierarchy Hits Arrays
-int2* cudaPrimaryHierarchyHitsArrayDP = NULL;
-int2* cudaSecondaryHierarchyHitsArrayDP = NULL;
+uint2* cudaPrimaryHierarchyHitsArrayDP = NULL;
+uint2* cudaSecondaryHierarchyHitsArrayDP = NULL;
 
 // CUDA DevicePointers to the Unsorted Rays
 float3* cudaRayArrayDP = NULL;
 
 // CUDA DevicePointers to the Chunk Base and Size Arrays
-int* cudaChunkBasesArrayDP = NULL;
-int* cudaChunkSizesArrayDP = NULL;
+unsigned int* cudaChunkBasesArrayDP = NULL;
+unsigned int* cudaChunkSizesArrayDP = NULL;
 
 // CUDA DevicePointers to the Trimmed and Sorted Ray Index Arrays
-int* cudaPrimaryRayIndexValuesArrayDP = NULL;
-int* cudaPrimaryRayIndexKeysArrayDP = NULL;
-int* cudaSecondaryRayIndexValuesArrayDP = NULL;
-int* cudaSecondaryRayIndexKeysArrayDP = NULL;
+unsigned int* cudaPrimaryRayIndexValuesArrayDP = NULL;
+unsigned int* cudaPrimaryRayIndexKeysArrayDP = NULL;
+unsigned int* cudaSecondaryRayIndexValuesArrayDP = NULL;
+unsigned int* cudaSecondaryRayIndexKeysArrayDP = NULL;
 
 // CUDA DevicePointers to the Unsorted and Sorted Ray Index Arrays
-int* cudaPrimaryChunkKeysArrayDP = NULL;
-int* cudaPrimaryChunkValuesArrayDP = NULL;
-int* cudaSecondaryChunkKeysArrayDP = NULL;
-int* cudaSecondaryChunkValuesArrayDP = NULL;
+unsigned int* cudaPrimaryChunkKeysArrayDP = NULL;
+unsigned int* cudaPrimaryChunkValuesArrayDP = NULL;
+unsigned int* cudaSecondaryChunkKeysArrayDP = NULL;
+unsigned int* cudaSecondaryChunkValuesArrayDP = NULL;
 
 // CUDA DevicePointers to the Sorting Auxiliary Arrays
-int* cudaHeadFlagsArrayDP = NULL;
-int* cudaScanArrayDP = NULL;
+unsigned int* cudaHeadFlagsArrayDP = NULL;
+unsigned int* cudaScanArrayDP = NULL;
 
 // [CUDA-OpenGL Interop] 
 extern "C" {
@@ -169,7 +172,7 @@ extern "C" {
 							// Input Array containing the updated Normal Matrices.
 							float* normalMatricesArray,
 							// Auxiliary Variable containing the Triangle Total.
-							int triangleTotal,
+							const unsigned int triangleTotal,
 							// Output Array containing the updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Output Array containing the updated Triangle Normals.
@@ -178,217 +181,263 @@ extern "C" {
 	// Implementation of 'MemoryPreparationWrapper' is in the "RayTracer.cu" file
 	void MemoryPreparationWrapper(
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, int windowHeight,
-							// Auxiliary Variable containing the Triangle Total.
-							int triangleTotal,
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Auxiliary Variable containing the Hierarchy Hit Memory Size.
+							const unsigned int hierarchyHitMemoryTotal,
 							// Auxiliary Array containing the Head Flags.
-							int* headFlagsArray, 
+							unsigned int* headFlagsArray, 
 							// Auxiliary Array containing the Scan Output.
-							int* scanArray,
+							unsigned int* scanArray,
 							// Auxiliary Arrays containing the Ray Chunks.
-							int* chunkIndexKeysArray, 
-							int* chunkIndexValuesArray,
+							unsigned int* chunkIndexKeysArray, 
+							unsigned int* chunkIndexValuesArray,
 							// Auxiliary Arrays containing the Sorted Ray Chunks.
-							int* sortedChunkIndexKeysArray, 
-							int* sortedChunkIndexValuesArray);
+							unsigned int* sortedChunkIndexKeysArray, 
+							unsigned int* sortedChunkIndexValuesArray);
 
 	// Implementation of 'ScreenPreparationWrapper' is in the "RayTracer.cu" file
 	void ScreenPreparationWrapper(
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, int windowHeight,
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variables containing the Number of Lights.
-							int lightTotal,
+							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
-							float3 cameraPosition,
+							const float3 cameraPosition,
+							// Auxiliry Array containing the Head Flags.
+							unsigned int *headFlagsArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
 
 	// Implementation of 'ShadowRayCreationWrapper' is in the "RayTracer.cu" file
 	void ShadowRayCreationWrapper(
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, int windowHeight,
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variables containing the Light Index.
-							int lightIndex,
+							const unsigned int lightIndex,
 							// Output Array containing the Unsorted Rays.
 							float3* rayArray,
 							// Output Array containing the Ray Head Flags.
-							int* headFlagsArray, 
+							unsigned int* headFlagsArray, 
 							// Output Arrays containing the Unsorted Ray Indices.
-							int* rayIndexKeysArray, 
-							int* rayIndexValuesArray);
+							unsigned int* rayIndexKeysArray, 
+							unsigned int* rayIndexValuesArray);
 	
 	// Implementation of 'ReflectionRayCreationWrapper' is in the "RayTracer.cu" file
 	void ReflectionRayCreationWrapper(
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, 
-							int windowHeight,
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variables containing the Camera Position.
-							float3 cameraPosition,
+							const float3 cameraPosition,
 							// Output Array containing the Unsorted Rays.
 							float3* rayArray,
 							// Output Array containing the Ray Head Flags.
-							int* headFlagsArray, 
+							unsigned int* headFlagsArray, 
 							// Output Arrays containing the Unsorted Ray Indices.
-							int* rayIndexKeysArray, 
-							int* rayIndexValuesArray);
+							unsigned int* rayIndexKeysArray, 
+							unsigned int* rayIndexValuesArray);
 
 	// Implementation of 'RayTrimmingWrapper' is in the "RayTracer.cu" file
 	void RayTrimmingWrapper(	
 							// Input Arrays containing the Untrimmed Ray Indices [Keys = Hashes, Values = Indices]
-							int* rayIndexKeysArray, 
-							int* rayIndexValuesArray,
+							unsigned int* rayIndexKeysArray, 
+							unsigned int* rayIndexValuesArray,
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, int windowHeight,
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Array containing the Ray Head Flags.
-							int* headFlagsArray, 
+							unsigned int* headFlagsArray, 
 							// Auxiliary Array containing the Inclusive Scan Output.
-							int* scanArray, 
+							unsigned int* scanArray, 
 							// Output Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
+							unsigned int* trimmedRayIndexKeysArray, 
+							unsigned int* trimmedRayIndexValuesArray,
 							// Output Variable containing the Number of Rays.
-							int* rayTotal);
+							unsigned int* rayTotal);
 
 	// Implementation of 'RayCompressionWrapper' is in the "RayTracer.cu" file
 	void RayCompressionWrapper(	
 							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
+							unsigned int* trimmedRayIndexKeysArray, 
+							unsigned int* trimmedRayIndexValuesArray,
 							// Auxiliary Variable containing the Number of Rays.
-							int rayTotal,
+							const unsigned int rayTotal,
 							// Auxiliary Array containing the Ray Chunk Head Flags.
-							int* headFlagsArray, 
+							unsigned int* headFlagsArray, 
 							// Auxiliary Array containing the Inclusive Scan Output.
-							int* scanArray, 
+							unsigned int* scanArray, 
 							// Output Arrays containing the Ray Chunk Bases and Sizes.
-							int* chunkBasesArray,
-							int* chunkSizesArray,
+							unsigned int* chunkBasesArray,
+							unsigned int* chunkSizesArray,
 							// Output Arrays containing the Ray Chunks [Keys = Hashes, Values = Indices]
-							int* chunkIndexKeysArray, 
-							int* chunkIndexValuesArray,
+							unsigned int* chunkIndexKeysArray, 
+							unsigned int* chunkIndexValuesArray,
 							// Output Variable containing the Number of Chunks.
-							int* chunkTotal);
+							unsigned int* chunkTotal);
 	
 	// Implementation of 'RaySortingWrapper' is in the "RayTracer.cu" file
 	void RaySortingWrapper(	
 							// Input Arrays containing the Ray Chunks [Keys = Hashes, Values = Indices]
-							int* chunkIndexKeysArray, 
-							int* chunkIndexValuesArray,
+							unsigned int* chunkIndexKeysArray, 
+							unsigned int* chunkIndexValuesArray,
 							// Auxiliary Variable containing the Number of Chunks.
-							int chunkTotal,
+							const unsigned int chunkTotal,
 							// Output Arrays containing the Sorted Ray Chunks [Keys = Hashes, Values = Indices]
-							int* sortedChunkIndexKeysArray, 
-							int* sortedChunkIndexValuesArray);
+							unsigned int* sortedChunkIndexKeysArray, 
+							unsigned int* sortedChunkIndexValuesArray);
 
 	// Implementation of 'RayDecompressionWrapper' is in the "RayTracer.cu" file
 	void RayDecompressionWrapper(	
 							// Input Array containing the Ray Chunk Bases.
-							int* chunkBasesArray,
+							unsigned int* chunkBasesArray,
 							// Input Array containing the Ray Chunk Sizes.
-							int* chunkSizesArray,
+							unsigned int* chunkSizesArray,
 							// Input Arrays containing the Ray Chunks  [Keys = Hashes, Values = Indices]
-							int* sortedChunkIndexKeysArray, 
-							int* sortedChunkIndexValuesArray,
+							unsigned int* sortedChunkIndexKeysArray, 
+							unsigned int* sortedChunkIndexValuesArray,
 							// Input Arrays containing the Trimmed Ray Indices [Keys = Hashes, Values = Indices]
-							int* trimmedRayIndexKeysArray, 
-							int* trimmedRayIndexValuesArray,
+							unsigned int* trimmedRayIndexKeysArray, 
+							unsigned int* trimmedRayIndexValuesArray,
 							// Input Array containing the Sorted Ray Arrays Skeleton.
-							int* skeletonArray,
+							unsigned int* skeletonArray,
 							// Input Array containing the Inclusive Scan Output.
-							int* scanArray, 
+							unsigned int* scanArray, 
 							// Auxiliary Variable containing the Chunk Total.
-							int chunkTotal, 
+							const unsigned int chunkTotal, 
 							// Output Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray);
+							unsigned int* sortedRayIndexKeysArray, 
+							unsigned int* sortedRayIndexValuesArray);
 
-	// Implementation of HierarchyCreationWrapper is in the "RayTracer.cu" file
+	// Implementation of 'HierarchyCreationWrapper' is in the "RayTracer.cu" file
 	void HierarchyCreationWrapper(	
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray,
 							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray,
+							unsigned int* sortedRayIndexKeysArray, 
+							unsigned int* sortedRayIndexValuesArray,
 							// Auxiliary Variable containing the Ray Total.
-							int rayTotal,
+							const unsigned int rayTotal,
 							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray);
 
-	// Implementation of HierarchyTraversalWrapper is in the "RayTracer.cu" file
+	// Implementation of'HierarchyTraversalWrapper' is in the "RayTracer.cu" file
 	void HierarchyTraversalWrapper(	
 							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Ray Total.
-							int rayTotal,
+							const unsigned int rayTotal,
 							// Auxiliary Variable containing the Triangle Total.
-							int triangleTotal,
+							const unsigned int triangleTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Array containing the Hierarchy Hits Flags.
-							int* headFlagsArray,
+							unsigned int* headFlagsArray,
 							// Auxiliary Array containing the Inclusive Scan Output.
-							int* scanArray, 
+							unsigned int* scanArray, 
 							// Output Arrays containing the Ray Hierarchy Hits.
-							int2* hierarchyHitsArray,
-							int2* trimmedHierarchyHitsArray,
+							uint2* hierarchyHitsArray,
+							uint2* trimmedHierarchyHitsArray,
 							// Output Variable containing the Number of Hits.
-							int* hierarchyHitTotal);
+							unsigned int* hierarchyHitTotal,
+							// Output Variable containing the Hierarchy Hit Memory Size.
+							unsigned int *hierarchyHitMemoryTotal);
 	
-	// Implementation of LocalIntersectionWrapper is in the "RayTracer.cu" file
+	// Implementation of'ShadowRayPreparationWrapper' is in the "RayTracer.cu" file
+	void ShadowRayPreparationWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Output Array containing the Shadow Ray Flags.
+							unsigned int* shadowFlagsArray);
+	
+	// Implementation of 'ShadowRayIntersectionWrapper' is in the "RayTracer.cu" file
 	void ShadowRayIntersectionWrapper(	
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
 							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray,
+							unsigned int* sortedRayIndexKeysArray, 
+							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							int2* hierarchyHitsArray,
+							uint2* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
-							int hitTotal,
+							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
-							int rayTotal,
+							const unsigned int rayTotal,
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, 
-							int windowHeight,
+							const unsigned int windowWidth, 
+							const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
-							int lightTotal,
+							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
-							float3 cameraPosition,
+							const float3 cameraPosition,
 							// Output Array containing the Shadow Ray Flags.
-							int* shadowFlagsArray,
+							unsigned int* shadowFlagsArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
 	
-	// Implementation of ReflectionRayIntersectionWrapper is in the "RayTracer.cu" file
-	void ReflectionRayIntersectionWrapper(	
+	// Implementation of 'ShadowRayColoringWrapper'ShadowRayColoringWrapper is in the "RayTracer.cu" file
+	void ShadowRayColoringWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const unsigned int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Output Array containing the Shadow Ray Flags.
+							unsigned int* shadowFlagsArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject);
+	
+	// Implementation of 'ReflectionRayPreparationWrapper'ShadowRayColoringWrapper is in the "RayTracer.cu" file
+	void ReflectionRayPreparationWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Output Array containing the Shadow Ray Flags.
+							unsigned int* intersectionTimeArray);
+	
+	// Implementation of 'ReflectionRayIntersectionWrapper' is in the "RayTracer.cu" file
+	void ReflectionRayIntersectionWrapper(
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
 							// Input Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
-							int* sortedRayIndexKeysArray, 
-							int* sortedRayIndexValuesArray,
+							unsigned int* sortedRayIndexKeysArray, 
+							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							int2* hierarchyHitsArray,
+							uint2* hierarchyHitsArray,
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Auxiliary Variable containing the Number of Hits.
+							const unsigned int hitTotal,
+							// Auxiliary Variable containing the Number of Rays.
+							const unsigned int rayTotal,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const unsigned int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Auxiliary Array containing the Intersection Times.
+							unsigned int* intersectionTimeArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject);
+	
+	// Implementation of 'ReflectionRayColoringWrapper' is in the "RayTracer.cu" file
+	void ReflectionRayColoringWrapper(
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Input Array containing the Updated Triangle Normals.
 							float4* triangleNormalsArray,
-							// Auxiliary Variable containing the Number of Hits.
-							int hitTotal,
-							// Auxiliary Variable containing the Number of Rays.
-							int rayTotal,
 							// Auxiliary Variables containing the Screen Dimensions.
-							int windowWidth, 
-							int windowHeight,
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
-							int lightTotal,
+							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
-							float3 cameraPosition,
+							const float3 cameraPosition,
 							// Auxiliary Array containing the Intersection Times.
-							int* intersectionTimeArray,
+							unsigned int* intersectionTimeArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
 
@@ -494,23 +543,74 @@ void colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 	
 	if(rasterizer == true) {
 
-		// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
-		ShadowRayIntersectionWrapper(
-			cudaRayArrayDP,
-			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-			cudaSecondaryHierarchyHitsArrayDP,
-			cudaUpdatedTrianglePositionsDP,
-			hierarchyHitTotal,
-			rayTotal,
+		// Prepare the Shadow Flags Array
+		ShadowRayPreparationWrapper(
+			windowWidth,  windowHeight,
+			cudaSecondaryRayIndexKeysArrayDP);
+
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
+
+		// Traverse the Ray Hierarchy once for every Batch
+		for(int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
+			
+			//cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+			
+			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
+			unsigned int triangleDivision = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
+
+			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
+			HierarchyTraversalWrapper(
+				cudaHierarchyArrayDP,
+				cudaUpdatedTrianglePositionsDP,
+				rayTotal,
+				triangleDivision,
+				triangleOffset,
+				cudaHeadFlagsArrayDP,
+				cudaScanArrayDP,
+				cudaPrimaryHierarchyHitsArrayDP,
+				cudaSecondaryHierarchyHitsArrayDP,
+				&hierarchyHitTotal,
+				&hierarchyHitMemoryTotal);
+
+			#ifdef SYNCHRONIZE_DEBUG
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
+			#endif
+
+			// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
+			ShadowRayIntersectionWrapper(
+				cudaRayArrayDP,
+				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+				cudaSecondaryHierarchyHitsArrayDP,
+				cudaUpdatedTrianglePositionsDP,
+				hierarchyHitTotal,
+				rayTotal,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				cudaSecondaryRayIndexKeysArrayDP,
+				pixelBufferObject);
+
+			#ifdef SYNCHRONIZE_DEBUG
+				Utility::checkCUDAError("ShadowRayIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("ShadowRayIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+			#endif
+		}
+		
+		// Color the Scene according to the Shadow Rays
+		ShadowRayColoringWrapper(
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
-			cudaHeadFlagsArrayDP,
+			cudaSecondaryRayIndexKeysArrayDP,
 			pixelBufferObject);
-		
+
 		#ifdef SYNCHRONIZE_DEBUG
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 	}
 }
@@ -540,24 +640,76 @@ void colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 	
 	if(rasterizer == true) {
 
-		// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
-		ReflectionRayIntersectionWrapper(
-			cudaRayArrayDP,
-			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-			cudaSecondaryHierarchyHitsArrayDP,
-			cudaUpdatedTrianglePositionsDP,
+		// Prepare the Intersection Times Array
+		ReflectionRayPreparationWrapper(
+			windowWidth,  windowHeight,
+			cudaSecondaryRayIndexKeysArrayDP);
+
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
+
+		// Traverse the Ray Hierarchy once for every Batch
+		for(int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
+
+			//cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+
+			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
+			unsigned int triangleDivision = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
+
+			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
+			HierarchyTraversalWrapper(
+				cudaHierarchyArrayDP,
+				cudaUpdatedTrianglePositionsDP,
+				rayTotal,
+				triangleDivision,
+				triangleOffset,
+				cudaHeadFlagsArrayDP,
+				cudaScanArrayDP,
+				cudaPrimaryHierarchyHitsArrayDP,
+				cudaSecondaryHierarchyHitsArrayDP,
+				&hierarchyHitTotal,
+				&hierarchyHitMemoryTotal);
+
+			#ifdef SYNCHRONIZE_DEBUG
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cudaGetLastError()", cudaGetLastError());
+			#endif
+
+			// Traverse the Hierarchy Hits testing each Ray with the corresponding Triangle
+			ReflectionRayIntersectionWrapper(
+				cudaRayArrayDP,
+				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+				cudaSecondaryHierarchyHitsArrayDP,
+				cudaUpdatedTrianglePositionsDP,
+				hierarchyHitTotal,
+				rayTotal,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				cudaSecondaryRayIndexKeysArrayDP,
+				pixelBufferObject);
+		
+			#ifdef SYNCHRONIZE_DEBUG
+				Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+			#endif
+		}
+		
+		// Color the Scene according to the Reflection Rays
+		ReflectionRayColoringWrapper(
+			cudaUpdatedTrianglePositionsDP, 
 			cudaUpdatedTriangleNormalsDP,
-			hierarchyHitTotal,
-			rayTotal,
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
-			cudaHeadFlagsArrayDP,
+			cudaSecondaryRayIndexKeysArrayDP,
 			pixelBufferObject);
-		
+
 		#ifdef SYNCHRONIZE_DEBUG
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 	}
 }
@@ -620,28 +772,12 @@ void castRays() {
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
 	#endif
 
+	// Create the Ray Hierarchy
 	HierarchyCreationWrapper(
 		cudaRayArrayDP,
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
 		rayTotal,
 		cudaHierarchyArrayDP);
-		
-	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
-	#endif
-
-	// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
-	HierarchyTraversalWrapper(
-		cudaHierarchyArrayDP,
-		cudaUpdatedTrianglePositionsDP,
-		rayTotal,
-		triangleTotal,
-		cudaHeadFlagsArrayDP,
-		cudaScanArrayDP,
-		cudaPrimaryHierarchyHitsArrayDP,
-		cudaSecondaryHierarchyHitsArrayDP,
-		&hierarchyHitTotal);
 		
 	#ifdef SYNCHRONIZE_DEBUG
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -727,42 +863,20 @@ void display() {
 		normalMatrix.invert();
 		normalMatrix.getValue(&normalMatrices[object->getID() * 16]);
 	}
-
-	// Copy the Matrices to CUDA	
+	
+	// Update the Model and Normal Matrices
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedModelMatricesDP, &modelMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
 	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedNormalMatricesDP, &normalMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-	// Preparation Kernels - [Start]
-
-		// Update the Triangle Positions and Normals
-		TriangleUpdateWrapper(cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP, triangleTotal, cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP);
+	// Update the Triangle Positions and Normals
+	TriangleUpdateWrapper(cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP, triangleTotal, cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP);
 		
+	#ifdef SYNCHRONIZE_DEBUG
 		Utility::checkCUDAError("TriangleUpdateWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("TriangleUpdateWrapper::cudaGetLastError()", cudaGetLastError());
-
-		// Prepare the Auxiliary memory necessary.
-		MemoryPreparationWrapper(
-			windowWidth, windowHeight,
-			triangleTotal, 
-			cudaHeadFlagsArrayDP, cudaScanArrayDP,
-			cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
-			cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
-
-		// Prepare the Screen
-		ScreenPreparationWrapper(
-			cudaRayArrayDP,
-			windowWidth, windowHeight,
-			lightTotal, 
-			make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]),
-			pixelBufferObject);
-
-		Utility::checkCUDAError("PreparationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("PreparationWrapper::cudaGetLastError()", cudaGetLastError());
-
-	// Preparation Kernels - [End]
+	#endif
 
 	// Ray-Tracing Kernels - [Start]
-	
 	for(int i=0; i<DEPTH; i++) {
 
 		float3 cameraEye = make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]);
@@ -772,12 +886,12 @@ void display() {
 
 			// Calculate the Shadow Rays based on the Rasterizer Input for the first Iteration.
 			createShadowRays(true, cameraEye);
-
 			// Cast the Generic Ray-Tracing Algorithm.
 			castRays();
-
 			// Calculate the Color based on the Rasterizer Input for the first Iteration.
 			colorShadowRays(true, cameraEye, pixelBufferObject);
+
+			//ScreenPreparationWrapper(cudaRayArrayDP, windowWidth, windowHeight, lightTotal, cameraEye, cudaHeadFlagsArrayDP, pixelBufferObject);
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
@@ -785,13 +899,14 @@ void display() {
 			
 			// Calculate the Reflection Rays based on the Rasterizer Input for the first Iteration.
 			createReflectionRays(true, cameraEye);
-
 			// Cast the Generic Ray-Tracing Algorithm.
 			castRays();
-			
 			// Calculate the Color.
 			colorReflectionRays(true, cameraEye, pixelBufferObject);
-			
+
+			//ScreenPreparationWrapper(cudaRayArrayDP, windowWidth, windowHeight, lightTotal, cameraEye, cudaHeadFlagsArrayDP, pixelBufferObject);
+			;
+
 			/*// Calculate the Refraction Rays based on the Rasterizer Input for the first Iteration.
 			createRefractionRays(true, make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]));
 
@@ -801,7 +916,6 @@ void display() {
 			colorRefractionRays(pixelBufferObject);*/
 		}
 	}
-
 	// Ray-Tracing Kernels - [End]
 
 	frameBuffer->unmapCudaResource();
@@ -855,7 +969,7 @@ void display() {
 	glutSwapBuffers();
 
 	//cudaDeviceReset();
-	//exit(0);
+	exit(0);
 
 	//cout << "[Callback] Display Successfull" << endl;
 }
@@ -890,11 +1004,11 @@ void reshape(int weight, int height) {
 	screenTexture->createTexture();
 
 	// Update the Array Size 
-	int rayMaximum = windowWidth * windowHeight;
+	unsigned int rayMaximum = windowWidth * windowHeight;
 
 	// Update the CUDA Hierarchy Array Size
-	int hierarchyMaximum = 0;
-	int hierarchyNodeMaximum[HIERARCHY_MAXIMUM_DEPTH];
+	unsigned int hierarchyMaximum = 0;
+	unsigned int hierarchyNodeMaximum[HIERARCHY_MAXIMUM_DEPTH];
 
 	// Each Node Maximum is calculated form the Ray Maximum
 	hierarchyNodeMaximum[0] = rayMaximum / HIERARCHY_SUBDIVISION + (rayMaximum % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
@@ -906,23 +1020,29 @@ void reshape(int weight, int height) {
 		// Each Node Maximum is calculated form the Ray Maximum
 		hierarchyNodeMaximum[i] = hierarchyNodeMaximum[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeMaximum[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 		// Each Node Maximum adds to the Hierarchy Maximum
-		hierarchyMaximum += hierarchyNodeMaximum[i]; 
+		hierarchyMaximum += hierarchyNodeMaximum[i];
 	}
+
+	// Heuristic Modification
+	hierarchyNodeMaximum[0] = (unsigned int)(hierarchyNodeMaximum[0] * 0.20f);
+
+	// Store the Memory Total
+	hierarchyHitMemoryTotal = hierarchyNodeMaximum[0] * (HIERARCHY_TRIANGLE_MAXIMUM * 3);
 
 	size_t allocated = 0;
 	
-	// Update the CUDA Hierarchy Array
+	// Update the CUDA Hierarchy Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaHierarchyArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaPrimaryHierarchyHitsArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaSecondaryHierarchyHitsArrayDP));
 
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHierarchyArrayDP, hierarchyMaximum * sizeof(float4) * 2));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryHierarchyHitsArrayDP, hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryHierarchyHitsArrayDP, hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(uint2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(uint2)));
 
 	allocated += hierarchyMaximum * sizeof(float4) * 2;
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2);
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int2);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(uint2);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(uint2);
 
 	// Update the CUDA Ray Array
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaRayArrayDP));
@@ -935,11 +1055,11 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaChunkBasesArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaChunkSizesArrayDP));
 
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBasesArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizesArrayDP, rayMaximum * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkBasesArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaChunkSizesArrayDP, rayMaximum * sizeof(unsigned int)));
 
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
 
 	// Update the CUDA Ray and Sorted Ray Index Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaPrimaryRayIndexKeysArrayDP));
@@ -947,15 +1067,15 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaSecondaryRayIndexKeysArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaSecondaryRayIndexValuesArrayDP));
 
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryRayIndexKeysArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryRayIndexValuesArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryRayIndexKeysArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryRayIndexValuesArrayDP, rayMaximum * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryRayIndexKeysArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryRayIndexValuesArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryRayIndexKeysArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryRayIndexValuesArrayDP, rayMaximum * sizeof(unsigned int)));
 
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
 	
 	// Update the CUDA Chunk and Sorted Chunk Index Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaPrimaryChunkKeysArrayDP));
@@ -963,25 +1083,25 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaSecondaryChunkKeysArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaSecondaryChunkValuesArrayDP));
 
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryChunkKeysArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryChunkValuesArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryChunkKeysArrayDP, rayMaximum * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryChunkValuesArrayDP, rayMaximum * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryChunkKeysArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryChunkValuesArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryChunkKeysArrayDP, rayMaximum * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryChunkValuesArrayDP, rayMaximum * sizeof(unsigned int)));
 
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
-	allocated += rayMaximum * sizeof(int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
+	allocated += rayMaximum * sizeof(unsigned int);
 
 	// Update the CUDA Head Flags and Scan Arrays
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaHeadFlagsArrayDP));
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaScanArrayDP));
 
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, hierarchyNodeMaximum[0] * triangleTotal * sizeof(int)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, hierarchyNodeMaximum[0] * triangleTotal  * sizeof(int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHeadFlagsArrayDP, hierarchyHitMemoryTotal * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaScanArrayDP, hierarchyHitMemoryTotal  * sizeof(unsigned int)));
 
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int);
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(int);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
 	
 	size_t free, total;
 	Utility::checkCUDAError("cudaGetMemInfo()", cudaMemGetInfo(&free, &total));
@@ -991,11 +1111,19 @@ void reshape(int weight, int height) {
 	printf("[Callback] Total Memory:\t\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
 		total, total / 1024.0f, total / 1024.0f / 1024.0f, total / 1024.0f / 1024.0f / 1024.0f); 
 	printf("[Callback] Free Memory:\t\t\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
-		free, total / 1024.0f, free / 1024.0f / 1024.0f, free / 1024.0f / 1024.0f / 1024.0f);
+		free, free / 1024.0f, free / 1024.0f / 1024.0f, free / 1024.0f / 1024.0f / 1024.0f);
 	printf("[Callback] Allocated Memory:\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
 		allocated, allocated / 1024.0f, allocated / 1024.0f / 1024.0f, allocated / 1024.0f / 1024.0f / 1024.0f);
 
 	cout << endl;
+
+	// Prepare the Auxiliary memory necessary.
+	MemoryPreparationWrapper(
+		windowWidth, windowHeight,
+		hierarchyHitMemoryTotal,
+		cudaHeadFlagsArrayDP, cudaScanArrayDP,
+		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
+		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
 
 	cout << "[Callback] Reshape Successfull" << endl << endl;
 }
@@ -1333,7 +1461,7 @@ void initializeLights() {
 	}
 
 	// Total number of Lights 
-	cout << "[Initialization] Total number of lights:" << lightTotal << endl;
+	cout << "[Initialization] Total number of lights: " << lightTotal << endl;
 
 	// Each light has a Position, Color and Intensity
 	size_t lightPositionListSize = lightPositionList.size() * sizeof(float4);
@@ -1416,136 +1544,104 @@ void init(int argc, char* argv[]) {
 	// Table Surface
 	Object* tableSurface = new Object(TABLE_SURFACE);
 
-		// Set the Objects Mesh
+		// Create the Objects Mesh
 		Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "cube.obj");
-		tableSurface->setMesh(tableSurfaceMesh);
 
-		// Set the Objects Transform
+		// Create the Objects Material
+		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+
+		// Create the Objects Transform
 		Transform* tableSurfaceTransform = new Transform(TABLE_SURFACE);
 		tableSurfaceTransform->setPosition(Vector(0.0f,-7.5f, 0.0f, 1.0f));
-		tableSurfaceTransform->setScale(Vector(50.0f, 0.5f, 50.0f, 1.0f));
-
-		tableSurface->setTransform(tableSurfaceTransform);
-
+		tableSurfaceTransform->setScale(Vector(75.0f, 0.5f, 75.0f, 1.0f));
+		
+		// Set the Objects Mesh
+		tableSurface->setMesh(tableSurfaceMesh);
 		// Set the Objects Material
-		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 		tableSurface->setMaterial(tableSurfaceMaterial);
+		// Set the Objects Transform
+		tableSurface->setTransform(tableSurfaceTransform);
 
 		// Initialize the Object
 		tableSurface->createMesh();
 		tableSurface->setID(sceneManager->getObjectID());
 
-	// Add the Object to the Scene Manager
-	sceneManager->addObject(tableSurface);
-	// Add the Object to the Map (CUDA Loading)
-	objectMap[tableSurface->getID()] = tableSurface;
+		// Add the Object to the Scene Manager
+		sceneManager->addObject(tableSurface);
+		// Add the Object to the Object Map (CUDA Loading)
+		objectMap[tableSurface->getID()] = tableSurface;
 
-	// Blinn-Phong Sphere 0
-	Object* sphere0Object = new Object(SPHERE_0);
+		// Create the Objects Scene Node
+		SceneNode* tableSurfaceNode = new SceneNode(TABLE_SURFACE);
+		tableSurfaceNode->setObject(tableSurface);
 
-		// Set the Objects Mesh
-		Mesh* sphere0Mesh = new Mesh(SPHERE_0, "sphere.obj");
-		sphere0Object->setMesh(sphere0Mesh);
+	// Add the Root Nodes to the Scene
+	sceneManager->addSceneNode(tableSurfaceNode);
 
-		// Set the Objects Transform
-		Transform* sphere0Transform = new Transform(SPHERE_0);
-		sphere0Transform->setPosition(Vector(5.0f, 0.5f,0.0f,1.0f));
-		sphere0Transform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
-		sphere0Transform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
+	//cout << "[Initialization] Created the Object '" << tableSurface->getName() << "' [ID: " << tableSurface->getID() << "]" << endl << endl;
 
-		sphere0Object->setTransform(sphere0Transform);
+	// Create the Spheres Mesh
+	Mesh* sphereMesh = new Mesh("Sphere Mesh", "sphere/sphere.obj");
 
-		// Set the Objects Material
-		Material* sphere0Material = new Material(SPHERE_0, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
-		sphere0Object->setMaterial(sphere0Material);
+	// Create the Spheres Materials
+	Material* sphereMaterial[5];
+	sphereMaterial[0] = new Material("Sphere Gold Material", "sphere/gold.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+	sphereMaterial[1] = new Material("Sphere Gold Material", "sphere/silver.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+	sphereMaterial[2] = new Material("Sphere Gold Material", "sphere/ruby.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+	sphereMaterial[3] = new Material("Sphere Gold Material", "sphere/saphire.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+	sphereMaterial[4] = new Material("Sphere Gold Material", "sphere/emerald.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 
-		// Initialize the Object
-		sphere0Object->createMesh();
-		sphere0Object->setID(sceneManager->getObjectID());
+	for(int i=0; i<6; i++) {
 
-	// Add the Object to the Scene Manager
-	sceneManager->addObject(sphere0Object);
-	// Add the Object to the Map (CUDA Loading)
-	objectMap[sphere0Object->getID()] = sphere0Object;
+		for(int j=0; j<6; j++) {
 
-	// Blinn-Phong Sphere 1
-	Object* sphere1Object = new Object(SPHERE_1);
+			// Create the Objects Name
+			ostringstream stringStream;
+			stringStream << SPHERE << (i * 11 + j);
 
-		// Set the Objects Mesh
-		Mesh* sphere1Mesh = new Mesh(SPHERE_1, "sphere.obj");
-		sphere1Object->setMesh(sphere1Mesh);
+			// Create the Objects Name
+			string sphereName(stringStream.str());
 
-		// Set the Objects Transform
-		Transform* sphere1Transform = new Transform(SPHERE_1);
-		sphere1Transform->setPosition(Vector(-5.0f,0.5f,5.0f,1.0f));
-		sphere1Transform->setRotation(Vector(0.0f,90.0f,0.0f,1.0f));
-		sphere1Transform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
+			Object* sphereObject = new Object(sphereName);
 
-		sphere1Object->setTransform(sphere1Transform);
+				// Create the Objects Transform
+				Transform* sphereTransform = new Transform(sphereName);
 
-		// Set the Objects Material
-		Material* sphere1Material = new Material(SPHERE_1, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
-		sphere1Object->setMaterial(sphere1Material);
+				sphereTransform->setPosition(Vector(i * 7.5f - 22.5f, 0.5f, j * 7.5f - 22.5f,1.0f));
+				sphereTransform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
+				sphereTransform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
+				
+				// Set the Objects Mesh
+				sphereObject->setMesh(sphereMesh);
+				// Set the Objects Material
+				sphereObject->setMaterial(sphereMaterial[i % 5]);
+				// Set the Objects Transform
+				sphereObject->setTransform(sphereTransform);
 
-		// Initialize the Object
-		sphere1Object->createMesh();
-		sphere1Object->setID(sceneManager->getObjectID());
+				// Initialize the Object
+				sphereObject->createMesh();
+				sphereObject->setID(sceneManager->getObjectID());
 
-	// Add the Object to the Scene Manager
-	sceneManager->addObject(sphere1Object);
-	// Add the Object to the Map (CUDA Loading)
-	objectMap[sphere1Object->getID()] = sphere1Object;
+				// Add the Object to the Scene Manager
+				sceneManager->addObject(sphereObject);
+				// Add the Object to the Object Map (CUDA Loading)
+				objectMap[sphereObject->getID()] = sphereObject;
 
-	// Blinn-Phong Sphere 2
-	Object* sphere2Object = new Object(SPHERE_2);
+				// Create the Objects Scene Node
+				SceneNode* sphereObjectNode = new SceneNode(sphereName);
+				sphereObjectNode->setObject(sphereObject);
+	
+			sceneManager->addSceneNode(sphereObjectNode);
 
-		// Set the Objects Mesh
-		Mesh* sphere2Mesh = new Mesh(SPHERE_2, "sphere.obj");
-		sphere2Object->setMesh(sphere2Mesh);
-
-		// Set the Objects Transform
-		Transform* sphere2Transform = new Transform(SPHERE_2);
-		sphere2Transform->setPosition(Vector(-5.0f,0.5f,-5.0f,1.0f));
-		sphere2Transform->setRotation(Vector(0.0f,0.0f,0.0f,1.0f));
-		sphere2Transform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
-
-		sphere2Object->setTransform(sphere2Transform);
-
-		// Set the Objects Material
-		Material* sphere2Material = new Material(SPHERE_2, "teapot/GoldTeapot.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
-		sphere2Object->setMaterial(sphere2Material);
-
-		// Initialize the Object
-		sphere2Object->createMesh();
-		sphere2Object->setID(sceneManager->getObjectID());
-
-	// Add the Object to the Scene Manager
-	sceneManager->addObject(sphere2Object);
-	// Add the Object to the Map (CUDA Loading)
-	objectMap[sphere2Object->getID()] = sphere2Object;
+			//cout << "[Initialization] Created the Object '" << sphereObject->getName() << "' [ID: " << sphereObject->getID() << "]" << endl;
+		}
+	}
 
 	cout << endl;
 
 	// Destroy the Readers
 	OBJ_Reader::destroyInstance();
 	XML_Reader::destroyInstance();
-
-	// Create the Scene Graph Nodes
-	SceneNode* tableSurfaceNode = new SceneNode(TABLE_SURFACE);
-	tableSurfaceNode->setObject(tableSurface);
-
-	SceneNode* sphere0ObjectNode = new SceneNode(SPHERE_0);
-	sphere0ObjectNode->setObject(sphere0Object);
-	SceneNode* sphere1ObjectNode = new SceneNode(SPHERE_1);
-	sphere1ObjectNode->setObject(sphere1Object);
-	SceneNode* sphere2ObjectNode = new SceneNode(SPHERE_2);
-	sphere2ObjectNode->setObject(sphere2Object);
-
-	// Add the Root Nodes to the Scene
-	sceneManager->addSceneNode(tableSurfaceNode);
-	sceneManager->addSceneNode(sphere0ObjectNode);
-	sceneManager->addSceneNode(sphere1ObjectNode);
-	sceneManager->addSceneNode(sphere2ObjectNode);
 
 	// Init the SceneManager
 	sceneManager->init();
@@ -1622,7 +1718,7 @@ void init(int argc, char* argv[]) {
 	// Total number of Triangles should be the number of loaded vertices divided by 3
 	triangleTotal = trianglePositionList.size() / 3;
 
-	cout << "[Initialization] Total number of triangles:" << triangleTotal << endl;
+	cout << "[Initialization] Total number of triangles: " << triangleTotal << endl;
 
 	// Each triangle contains Position, Normal, Texture UV and Material Properties for 3 vertices
 	size_t trianglePositionListSize = trianglePositionList.size() * sizeof(float4);
@@ -1688,7 +1784,7 @@ void init(int argc, char* argv[]) {
 	cout << endl;
 
 	// Total number of Materials
-	cout << "[Initialization] Total number of Materials:" << materialTotal << endl;
+	cout << "[Initialization] Total number of Materials: " << materialTotal << endl;
 
 	// Each Material contains Diffuse and Specular Properties
 	size_t materialDiffusePropertyListSize = materialDiffusePropertyList.size() * sizeof(float4);
@@ -1715,7 +1811,7 @@ void init(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 
-	freopen("output.txt","w",stderr);
+	//freopen("output.txt","w",stderr);
 	freopen("output.txt","w",stdout);
 	
 	// Init the Animation
