@@ -22,6 +22,7 @@
 #include "Mesh.h"
 #include "Material.h"
 #include "Transform.h"
+#include "BoundingBox.h"
 
 /* Generic Shader */
 #include "ShaderProgram.h"
@@ -32,40 +33,40 @@ class Object {
 
 	protected:
 
-		/* Object Identifier */
+		// Object Identifiers
 		int id;
 		string name;
 		string parentName;
 
-		/* Object Components: Mesh, Material and Transform */
+		// Object Components: Mesh, Material and Transform
 		Mesh* mesh;
 		Material* material;
 		Transform* transform;
 
-		/* Objects Mesh OpenGL IDs */
+		// Objects Mesh OpenGL IDs
 		GLuint arrayObjectID;
 		GLuint bufferObjectID;
 
 	public:
 
-		/* Constructors & Destructors */
+		// Constructors & Destructors
 		Object(string name);
 		~Object();
 
-		/* GPU Creation & Destruction Methods */
+		// GPU Creation & Destruction Methods
 		void createMesh();
 		void destroyMesh();
 
-		/* Scene Methods */
+		// Scene Methods
 		virtual void draw();
 
 		virtual void update();
 		virtual void update(GLfloat elapsedTime);
 
-		/* Ray Cast Intersection Method */
+		// Ray Cast Intersection Method
 		GLfloat isIntersecting(Vector origin, Vector direction);
 
-		/* Getters */
+		// Getters
 		int getID();
 		string getName();
 		string getParentName();
@@ -77,7 +78,7 @@ class Object {
 		GLuint getArrayObjectID();
 		GLuint getBufferObjectID();
 
-		/* Setters */
+		// Setters
 		void setID(int id);
 		void setName(string name);
 		void setParentName(string parentName);
@@ -89,7 +90,7 @@ class Object {
 		void setArrayObjectID(GLuint arrayObjectID);
 		void setBufferObjectID(GLuint bufferObjectID);
 
-		/* Debug Methods */
+		// Debug Methods
 		void dump();
 };
 

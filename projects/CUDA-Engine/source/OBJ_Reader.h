@@ -25,6 +25,8 @@
 #include "Mesh.h"
 /* Material */
 #include "Material.h"
+/* Bounding Box */
+#include "BoundingBox.h"
 
 /* Constants */
 #define LOCATION "models/"

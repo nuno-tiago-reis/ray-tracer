@@ -94,6 +94,9 @@ ScreenTexture *screenTexture;
 unsigned int triangleTotal = 0;
 // Total number of Materials - Used for the memory necessary to allocate
 unsigned int materialTotal = 0;
+// Total number of Bounding Boxes - Used for the memory necessary to allocate
+unsigned int boundingBoxTotal = 0;
+
 // Total number of Lights - Used for the memory necessary to allocate
 unsigned int lightTotal = 0;
 
@@ -110,15 +113,18 @@ unsigned int hierarchyHitMemoryTotal;
 // CUDA DevicePointers to the uploaded Triangles Positions and Normals
 float *cudaTrianglePositionsDP = NULL; 
 float *cudaTriangleNormalsDP = NULL;
-// CUDA DevicePointers to the uploaded Triangles Texture Coordinates 
+// CUDA DevicePointers to the uploaded Triangles Texture Coordinates
 float *cudaTriangleTextureCoordinatesDP = NULL;
 // CUDA DevicePointers to the uploaded Triangles Object and Material IDs
 float *cudaTriangleObjectIDsDP = NULL;
 float *cudaTriangleMaterialIDsDP = NULL;
 
-// CUDA DevicePointers to the uploaded Triangles Materials 
+// CUDA DevicePointers to the uploaded Triangles Materials
 float *cudaMaterialDiffusePropertiesDP = NULL;
 float *cudaMaterialSpecularPropertiesDP = NULL;
+
+// CUDA DevicePointer to the uploaded Bounding Boxes
+float* cudaBoundingBoxesDP = NULL;
 
 // CUDA DevicePointers to the uploaded Lights
 float *cudaLightPositionsDP = NULL;
@@ -129,6 +135,9 @@ float *cudaLightIntensitiesDP = NULL;
 float4* cudaUpdatedTrianglePositionsDP = NULL;
 float4* cudaUpdatedTriangleNormalsDP = NULL;
 
+// CUDA DevicePointers to the Updated Bounding Boxes
+float4* cudaUpdatedBoundingBoxesDP = NULL;
+
 // CUDA DevicePointers to the Updated Matrices
 float* cudaUpdatedModelMatricesDP = NULL;
 float* cudaUpdatedNormalMatricesDP = NULL;
@@ -136,8 +145,8 @@ float* cudaUpdatedNormalMatricesDP = NULL;
 // CUDA DevicePointer to the Hierarchy Array
 float4* cudaHierarchyArrayDP = NULL;
 // CUDA DevicePointer to the Hierarchy Hits Arrays
-uint2* cudaPrimaryHierarchyHitsArrayDP = NULL;
-uint2* cudaSecondaryHierarchyHitsArrayDP = NULL;
+unsigned int* cudaPrimaryHierarchyHitsArrayDP = NULL;
+unsigned int* cudaSecondaryHierarchyHitsArrayDP = NULL;
 
 // CUDA DevicePointers to the Unsorted Rays
 float3* cudaRayArrayDP = NULL;
@@ -177,6 +186,15 @@ extern "C" {
 							float4* trianglePositionsArray,
 							// Output Array containing the updated Triangle Normals.
 							float4* triangleNormalsArray);
+	
+	// Implementation of 'BoundingBoxUpdateWrapper' is in the "RayTracer.cu" file
+	void BoundingBoxUpdateWrapper(
+							// Input Array containing the updated Model Matrices.
+							float* modelMatricesArray,
+							// Auxiliary Variable containing the Bounding Box Total.
+							unsigned int boundingBoxTotal,
+							// Output Array containing the updated Bounding Boxes.
+							float4* boundingBoxArray);
 	
 	// Implementation of 'MemoryPreparationWrapper' is in the "RayTracer.cu" file
 	void MemoryPreparationWrapper(
@@ -320,6 +338,34 @@ extern "C" {
 							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray);
 
+	// Implementation of'HierarchyTraversalWarmUpWrapper' is in the "RayTracer.cu" file
+	void HierarchyTraversalWarmUpWrapper(	
+							// Input Array containing the Ray Hierarchy.
+							float4* hierarchyArray,
+							// Output Array containing the updated Bounding Boxes.
+							float4* boundingBoxArray,
+							// Input Array containing the updated Normal Matrices.
+							float* normalMatricesArray,
+							// Auxiliary Variable containing the Bounding Box Total.
+							const unsigned int boundingBoxTotal,
+							// Auxiliary Variable containing the Ray Total.
+							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Total.
+							const unsigned int triangleTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
+							// Auxiliary Array containing the Hierarchy Hits Flags.
+							unsigned int* headFlagsArray,
+							// Auxiliary Array containing the Inclusive Scan Output.
+							unsigned int* scanArray, 
+							// Output Arrays containing the Ray Hierarchy Hits.
+							unsigned int* hierarchyHitsArray,
+							unsigned int* trimmedHierarchyHitsArray,
+							// Output Variable containing the Number of Hits.
+							unsigned int* hierarchyHitTotal,
+							// Output Variable containing the Hierarchy Hit Memory Size.
+							unsigned int *hierarchyHitMemoryTotal);
+
 	// Implementation of'HierarchyTraversalWrapper' is in the "RayTracer.cu" file
 	void HierarchyTraversalWrapper(	
 							// Input Array containing the Ray Hierarchy.
@@ -337,8 +383,8 @@ extern "C" {
 							// Auxiliary Array containing the Inclusive Scan Output.
 							unsigned int* scanArray, 
 							// Output Arrays containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
-							uint2* trimmedHierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
+							unsigned int* trimmedHierarchyHitsArray,
 							// Output Variable containing the Number of Hits.
 							unsigned int* hierarchyHitTotal,
 							// Output Variable containing the Hierarchy Hit Memory Size.
@@ -359,16 +405,17 @@ extern "C" {
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
-							const unsigned int windowWidth, 
-							const unsigned int windowHeight,
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
 							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
@@ -406,13 +453,15 @@ extern "C" {
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
@@ -465,6 +514,9 @@ extern "C" {
 	void bindMaterialDiffuseProperties(float *cudaDevicePointer, unsigned int materialTotal);
 	// Implementation of 'bindMaterialSpecularProperties' is in the "RayTracer.cu" file
 	void bindMaterialSpecularProperties(float *cudaDevicePointer, unsigned int materialTotal);
+	
+	// Implementation of 'bindBoundingBoxes' is in the "RayTracer.cu" file
+	void bindBoundingBoxes(float *cudaDevicePointer, unsigned int boundingBoxTotal);
 
 	// Implementation of 'bindLightPositions' is in the "RayTracer.cu" file
 	void bindLightPositions(float *cudaDevicePointer, unsigned int lightTotal);
@@ -556,17 +608,43 @@ void colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 		// Traverse the Ray Hierarchy once for every Batch
 		for(int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
 			
-			//cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+			#ifdef TRIANGLE_DIVISION_DEBUG
+				cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+			#endif
+
+			cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
 			
 			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
-			unsigned int triangleDivision = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
+			unsigned int triangleDivisionTotal = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
+			
+			#ifdef TRIANGLE_DIVISION_DEBUG
+				cout << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+			#endif
+
+			cout << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+
+			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
+			HierarchyTraversalWarmUpWrapper(
+				cudaHierarchyArrayDP,
+				cudaUpdatedBoundingBoxesDP,
+				cudaUpdatedNormalMatricesDP,
+				boundingBoxTotal,
+				rayTotal,
+				triangleDivisionTotal,
+				triangleOffset,
+				cudaHeadFlagsArrayDP,
+				cudaScanArrayDP,
+				cudaPrimaryHierarchyHitsArrayDP,
+				cudaSecondaryHierarchyHitsArrayDP,
+				&hierarchyHitTotal,
+				&hierarchyHitMemoryTotal);
 
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
 			HierarchyTraversalWrapper(
 				cudaHierarchyArrayDP,
 				cudaUpdatedTrianglePositionsDP,
 				rayTotal,
-				triangleDivision,
+				triangleDivisionTotal,
 				triangleOffset,
 				cudaHeadFlagsArrayDP,
 				cudaScanArrayDP,
@@ -588,6 +666,7 @@ void colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 				cudaUpdatedTrianglePositionsDP,
 				hierarchyHitTotal,
 				rayTotal,
+				triangleOffset,
 				windowWidth, windowHeight,
 				lightTotal,
 				cameraPosition,
@@ -652,18 +731,44 @@ void colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 
 		// Traverse the Ray Hierarchy once for every Batch
 		for(int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
+			
+			#ifdef TRIANGLE_DIVISION_DEBUG
+				cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+			#endif
 
-			//cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+			cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
 
 			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
-			unsigned int triangleDivision = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
+			unsigned int triangleDivisionTotal = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
+
+			#ifdef TRIANGLE_DIVISION_DEBUG
+				cout << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+			#endif
+
+			cout << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+
+			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
+			HierarchyTraversalWarmUpWrapper(
+				cudaHierarchyArrayDP,
+				cudaUpdatedBoundingBoxesDP,
+				cudaUpdatedNormalMatricesDP,
+				boundingBoxTotal,
+				rayTotal,
+				triangleDivisionTotal,
+				triangleOffset,
+				cudaHeadFlagsArrayDP,
+				cudaScanArrayDP,
+				cudaPrimaryHierarchyHitsArrayDP,
+				cudaSecondaryHierarchyHitsArrayDP,
+				&hierarchyHitTotal,
+				&hierarchyHitMemoryTotal);
 
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
 			HierarchyTraversalWrapper(
 				cudaHierarchyArrayDP,
 				cudaUpdatedTrianglePositionsDP,
 				rayTotal,
-				triangleDivision,
+				triangleDivisionTotal,
 				triangleOffset,
 				cudaHeadFlagsArrayDP,
 				cudaScanArrayDP,
@@ -685,6 +790,7 @@ void colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 				cudaUpdatedTrianglePositionsDP,
 				hierarchyHitTotal,
 				rayTotal,
+				triangleOffset,
 				windowWidth, windowHeight,
 				lightTotal,
 				cameraPosition,
@@ -848,6 +954,12 @@ void display() {
 	float* modelMatrices = new float[objectMap.size() * 16];
 	float* normalMatrices = new float[objectMap.size() * 16];
 
+	/****************************************************************/
+	/*																*/
+	/*						Triangle Updating						*/
+	/*																*/
+	/****************************************************************/
+
 	for(map<string,Object*>::const_iterator objectIterator = objectMap.begin(); objectIterator != objectMap.end(); objectIterator++) {
 
 		Object* object = objectIterator->second;
@@ -870,13 +982,58 @@ void display() {
 
 	// Update the Triangle Positions and Normals
 	TriangleUpdateWrapper(cudaUpdatedModelMatricesDP, cudaUpdatedNormalMatricesDP, triangleTotal, cudaUpdatedTrianglePositionsDP, cudaUpdatedTriangleNormalsDP);
-		
+
 	#ifdef SYNCHRONIZE_DEBUG
 		Utility::checkCUDAError("TriangleUpdateWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("TriangleUpdateWrapper::cudaGetLastError()", cudaGetLastError());
 	#endif
 
-	// Ray-Tracing Kernels - [Start]
+	/****************************************************************/
+	/*																*/
+	/*					Bounding Box Updating						*/
+	/*																*/
+	/****************************************************************/
+	
+	// Create the Matrices for the Bounding Boxes
+	for(map<string,Object*>::const_iterator objectIterator = objectMap.begin(); objectIterator != objectMap.end(); objectIterator++) {
+
+		Object* object = objectIterator->second;
+
+		// Object Transform
+		Transform* transform = object->getTransform();
+
+		// Model Matrix/
+		Matrix modelMatrix;
+		modelMatrix.translate(transform->getPosition());
+		modelMatrix.scale(transform->getScale());
+		modelMatrix.getValue(&modelMatrices[object->getID() * 16]);
+		
+		// Normal Matrix
+		Matrix normalMatrix;
+		normalMatrix.quaternionRotate(transform->getRotationQuaternion());
+		normalMatrix.transpose();
+		normalMatrix.invert();
+		normalMatrix.getValue(&normalMatrices[object->getID() * 16]);
+	}
+	
+	// Update the Model and Normal Matrices
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedModelMatricesDP, &modelMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
+	Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaUpdatedNormalMatricesDP, &normalMatrices[0], objectMap.size() * sizeof(float) * 16, cudaMemcpyHostToDevice));
+	
+	// Update the Bounding Boxes
+	BoundingBoxUpdateWrapper(cudaUpdatedModelMatricesDP, boundingBoxTotal, cudaUpdatedBoundingBoxesDP);
+
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("TriangleUpdateWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("TriangleUpdateWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
+
+	/****************************************************************/
+	/*																*/
+	/*						Ray-Tracing Core						*/
+	/*																*/
+	/****************************************************************/
+
 	for(int i=0; i<DEPTH; i++) {
 
 		float3 cameraEye = make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]);
@@ -898,11 +1055,11 @@ void display() {
 		if(i == 1) {
 			
 			// Calculate the Reflection Rays based on the Rasterizer Input for the first Iteration.
-			createReflectionRays(true, cameraEye);
+			//createReflectionRays(true, cameraEye);
 			// Cast the Generic Ray-Tracing Algorithm.
-			castRays();
+			//castRays();
 			// Calculate the Color.
-			colorReflectionRays(true, cameraEye, pixelBufferObject);
+			//colorReflectionRays(true, cameraEye, pixelBufferObject);
 
 			//ScreenPreparationWrapper(cudaRayArrayDP, windowWidth, windowHeight, lightTotal, cameraEye, cudaHeadFlagsArrayDP, pixelBufferObject);
 			;
@@ -916,10 +1073,15 @@ void display() {
 			colorRefractionRays(pixelBufferObject);*/
 		}
 	}
-	// Ray-Tracing Kernels - [End]
 
 	frameBuffer->unmapCudaResource();
 	pixelBuffer->unmapCudaResource();
+
+	/****************************************************************/
+	/*																*/
+	/*					OpenGL Colouring Core						*/
+	/*																*/
+	/****************************************************************/
 
 	// Copy the Output to the Texture
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pixelBuffer->getHandler());
@@ -968,8 +1130,7 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 
-	//cudaDeviceReset();
-	exit(0);
+	//exit(0);
 
 	//cout << "[Callback] Display Successfull" << endl;
 }
@@ -1027,7 +1188,7 @@ void reshape(int weight, int height) {
 	hierarchyNodeMaximum[0] = (unsigned int)(hierarchyNodeMaximum[0] * 0.20f);
 
 	// Store the Memory Total
-	hierarchyHitMemoryTotal = hierarchyNodeMaximum[0] * (HIERARCHY_TRIANGLE_MAXIMUM * 3);
+	hierarchyHitMemoryTotal = hierarchyNodeMaximum[0] * HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM;
 
 	size_t allocated = 0;
 	
@@ -1037,12 +1198,12 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaSecondaryHierarchyHitsArrayDP));
 
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaHierarchyArrayDP, hierarchyMaximum * sizeof(float4) * 2));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(uint2)));
-	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(uint2)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaPrimaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(unsigned int)));
+	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(unsigned int)));
 
 	allocated += hierarchyMaximum * sizeof(float4) * 2;
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(uint2);
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(uint2);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
+	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
 
 	// Update the CUDA Ray Array
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaRayArrayDP));
@@ -1578,8 +1739,6 @@ void init(int argc, char* argv[]) {
 	// Add the Root Nodes to the Scene
 	sceneManager->addSceneNode(tableSurfaceNode);
 
-	//cout << "[Initialization] Created the Object '" << tableSurface->getName() << "' [ID: " << tableSurface->getID() << "]" << endl << endl;
-
 	// Create the Spheres Mesh
 	Mesh* sphereMesh = new Mesh("Sphere Mesh", "sphere/sphere.obj");
 
@@ -1591,13 +1750,13 @@ void init(int argc, char* argv[]) {
 	sphereMaterial[3] = new Material("Sphere Gold Material", "sphere/saphire.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 	sphereMaterial[4] = new Material("Sphere Gold Material", "sphere/emerald.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 
-	for(int i=0; i<6; i++) {
+	for(int i=0; i<2; i++) {
 
-		for(int j=0; j<6; j++) {
+		for(int j=0; j<2; j++) {
 
 			// Create the Objects Name
 			ostringstream stringStream;
-			stringStream << SPHERE << (i * 11 + j);
+			stringStream << SPHERE << (i * 6 + j);
 
 			// Create the Objects Name
 			string sphereName(stringStream.str());
@@ -1607,7 +1766,8 @@ void init(int argc, char* argv[]) {
 				// Create the Objects Transform
 				Transform* sphereTransform = new Transform(sphereName);
 
-				sphereTransform->setPosition(Vector(i * 7.5f - 22.5f, 0.5f, j * 7.5f - 22.5f,1.0f));
+				//sphereTransform->setPosition(Vector(i * 7.5f - 22.5f, 0.5f, j * 7.5f - 22.5f,1.0f));
+				sphereTransform->setPosition(Vector(5.0f - i * 10.0f, 0.5f, 5.0f - j * 10.0f,1.0f));
 				sphereTransform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
 				sphereTransform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
 				
@@ -1632,8 +1792,6 @@ void init(int argc, char* argv[]) {
 				sphereObjectNode->setObject(sphereObject);
 	
 			sceneManager->addSceneNode(sphereObjectNode);
-
-			//cout << "[Initialization] Created the Object '" << sphereObject->getName() << "' [ID: " << sphereObject->getID() << "]" << endl;
 		}
 	}
 
@@ -1662,9 +1820,15 @@ void init(int argc, char* argv[]) {
 	vector<float4> materialDiffusePropertyList;
 	vector<float4> materialSpecularPropertyList;
 
+	// Stores the Bounding Boxes Information in the form of Arrays
+	vector<float4> boundingBoxList;
+
 	for(map<int,Object*>::const_iterator objectIterator = objectMap.begin(); objectIterator != objectMap.end(); objectIterator++) {
 
 		Object* object = objectIterator->second;
+
+		// Bounding Box Auxiliary Variables
+		int startingIndex = trianglePositionList.size() / 3;
 
 		// Used to store the Objects vertex data
 		map<int, Vertex*> vertexMap = object->getMesh()->getVertexMap();
@@ -1713,6 +1877,31 @@ void init(int argc, char* argv[]) {
 		materialSpecularPropertyList.push_back(specularProperty);
 
 		materialTotal++;
+
+		// Bounding Box Auxiliary Variables
+		int finalIndex = trianglePositionList.size() / 3 - 1;
+
+		// Get the Bounding Box from the mesh 
+		BoundingBox* boundingBox = object->getMesh()->getBoundingBox();
+
+		// Maximum and Minimum: Same as the original values
+		Vector originalMaximum = boundingBox->getMaximum();
+		Vector originalMinimum = boundingBox->getMinimum();
+
+		float4 maximum = { originalMaximum[VX], originalMaximum[VY], originalMaximum[VZ], startingIndex };
+		float4 minimum = { originalMinimum[VX], originalMinimum[VY], originalMinimum[VZ], finalIndex };
+
+		boundingBoxList.push_back(maximum);
+		boundingBoxList.push_back(minimum);
+
+		/*cout << "Bounding Box " << boundingBoxTotal << endl;
+
+		printf("Maximum = %02.04f %02.04f %02.04f\n", maximum.x, maximum.y, maximum.z);
+		printf("Minimum = %02.04f %02.04f %02.04f\n", minimum.x, minimum.y, minimum.z);
+
+		cout << "Bounds = " << maximum.w << " => " << minimum.w << endl;*/
+
+		boundingBoxTotal++;
 	}
 
 	// Total number of Triangles should be the number of loaded vertices divided by 3
@@ -1795,17 +1984,39 @@ void init(int argc, char* argv[]) {
 	// Allocate the required CUDA Memory for the Materials
 	if(materialTotal > 0) {
 	
-		// Load the Triangle Diffuse Properties
+		// Load the Material Diffuse Properties
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaMaterialDiffusePropertiesDP, materialDiffusePropertyListSize));
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaMaterialDiffusePropertiesDP, &materialDiffusePropertyList[0], materialDiffusePropertyListSize, cudaMemcpyHostToDevice));
 
 		bindMaterialDiffuseProperties(cudaMaterialDiffusePropertiesDP, materialTotal);
 
-		// Load the Triangle Specular Properties
+		// Load the Material Specular Properties
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaMaterialSpecularPropertiesDP, materialSpecularPropertyListSize));
 		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaMaterialSpecularPropertiesDP, &materialSpecularPropertyList[0], materialSpecularPropertyListSize, cudaMemcpyHostToDevice));
 
 		bindMaterialSpecularProperties(cudaMaterialSpecularPropertiesDP, materialTotal);
+	}
+
+	cout << endl;
+
+	// Total number of Bounding Boxes
+	cout << "[Initialization] Total number of Bounding Boxes: " << boundingBoxTotal << endl;
+
+	// Each Material contains Diffuse and Specular Properties
+	size_t boundingBoxListSize = boundingBoxList.size() * sizeof(float4);
+	cout << "[Initialization] Bounding Box Storage Size: " << boundingBoxListSize << " (" << boundingBoxList.size() << " float4s)" << endl;
+
+	// Allocate the required CUDA Memory for the Bounding Boxes
+	if(boundingBoxTotal > 0) {
+	
+		// Load the Bounding Boxes
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaBoundingBoxesDP, boundingBoxListSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaBoundingBoxesDP, &boundingBoxList[0], boundingBoxListSize, cudaMemcpyHostToDevice));
+
+		bindBoundingBoxes(cudaBoundingBoxesDP, boundingBoxTotal);
+
+		// Bounding Boxes Memory Allocation
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedBoundingBoxesDP, boundingBoxTotal * sizeof(float4) * 2));
 	}
 }
 

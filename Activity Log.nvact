@@ -120,5 +120,6 @@
     <Property Name="EnableToolsExtResourceNaming" Value="True" />
     <Property Name="EnableToolsExtStartEndRangeTrace" Value="True" />
     <Property Name="ExtensionsToSynchronize" Value="*.*;" />
+    <Property Name="KillApplicationOnStop" Value="True" />
     <Property Name="WorkingDirectory" Value="F:\BitBucket\cuda-ray-tracer\projects\CUDA-Engine" />
 </Model>

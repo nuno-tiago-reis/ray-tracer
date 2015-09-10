@@ -30,11 +30,8 @@ static size_t radixSortTemporaryStoreBytes = 0;
 // Ray testing Constant
 __constant__ __device__ static const float epsilon = 0.01f;
 
-// Ray indexing Constants
-__constant__ __device__ static const float bit_mask_1_4_f = 15.0f;
-//__constant__ __device__ static const float bit_mask_1_5_f = 31.0f;
-__constant__ __device__ static const float half_bit_mask_1_4_f = 7.0f;
-//__constant__ __device__ static const float half_bit_mask_1_5_f = 15.0f;
+// Intersection Constant
+__constant__ __device__ static const float coneHeight = 65536.0f;
 
 // OpenGL Diffuse and Specular Textures
 texture<float4, cudaTextureType2D, cudaReadModeElementType> diffuseTexture;
@@ -55,6 +52,9 @@ texture<int1, 1, cudaReadModeElementType> triangleMaterialIDsTexture;
 // CUDA Material Textures
 texture<float4, 1, cudaReadModeElementType> materialDiffusePropertiesTexture;
 texture<float4, 1, cudaReadModeElementType> materialSpecularPropertiesTexture;
+
+// CUDA Bounding Box Textures
+texture<float4, 1, cudaReadModeElementType> boundingBoxesTexture;
 
 // CUDA Light Textures
 texture<float4, 1, cudaReadModeElementType> lightPositionsTexture;
@@ -181,14 +181,25 @@ __device__ static inline unsigned int CreateRefractionRayIndex(float3 origin, fl
 
 	unsigned int index = 0;
 
+	/*// Clamp the Origin to the 0-15 range
+	index = clamp((unsigned int)(origin.z + 64.0f), (unsigned int)0, (unsigned int)128);
+	index = (index << 7) | clamp((unsigned int)(origin.y + 64.0f), (unsigned int)0, (unsigned int)128);
+	index = (index << 7) | clamp((unsigned int)(origin.x + 64.0f), (unsigned int)0, (unsigned int)128);
+
+	// Convert the Direction to Spherical Coordinates (atan2 => [-HALF_PI, HALF_PI], acos => [0.0f, PI])
+	index = (index << 7) | clamp((unsigned int)((atan2(direction.x, direction.x) + HALF_PI) * 5.0f), (unsigned int)0, (unsigned int)30);
+	index = (index << 5) | clamp((unsigned int)(acos(direction.z) * 5.0f), (unsigned int)0, (unsigned int)30);*/
+
+	float distance = length(origin);
+
 	// Clamp the Origin to the 0-15 range
-	index = (unsigned int)clamp(origin.z + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
-	index = (index << 4) | (unsigned int)clamp(origin.y + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
-	index = (index << 4) | (unsigned int)clamp(origin.x + half_bit_mask_1_4_f, 0.0f, bit_mask_1_4_f);
-	
-	// Convert the Direction to Spherical Coordinates
-	index = (index << 4) | (unsigned int)clamp((atan(direction.y / direction.x) + HALF_PI) * RADIANS_TO_DEGREES * 2.0f, 0.0f, 360.0f);
-	index = (index << 9) | (unsigned int)clamp(acos(direction.z) * RADIANS_TO_DEGREES, 0.0f, 180.0f);
+	index = clamp((unsigned int)distance, (unsigned int)0, (unsigned int)128);
+	index = (index << 7) | clamp((unsigned int)((atan2(origin.x, origin.x) + HALF_PI) * 20.0f), (unsigned int)0, (unsigned int)128);
+	index = (index << 7) | clamp((unsigned int)(acos(origin.z/distance) * 20.0f), (unsigned int)0, (unsigned int)128);
+
+	// Convert the Direction to Spherical Coordinates (atan2 => [-HALF_PI, HALF_PI], acos => [0.0f, PI])
+	index = (index << 7) | clamp((unsigned int)((atan2(direction.x, direction.x) + HALF_PI) * 5.0f), (unsigned int)0, (unsigned int)30);
+	index = (index << 5) | clamp((unsigned int)(acos(direction.z) * 5.0f), (unsigned int)0, (unsigned int)30);
 
 	index++;
 
@@ -209,6 +220,137 @@ __device__ static inline bool SphereNodeIntersection(const float4 &sphere, const
 	float3 sphereToTriangleProjection = dot(sphereToTriangle, coneDirection) * coneDirection;
 
 	return (length(sphereToTriangleProjection) * tangent + (sphere.w + triangle.w) / cosine) >= length((triangleCenter - sphereCenter) - sphereToTriangleProjection);
+}
+
+// Axis Aligned Bounding Box - Node Intersection Code
+__device__ static inline bool LineNodeIntersection(const float4 &sphere, const float4 &cone, const float3 &origin, const float3 &direction) {
+
+	bool intersect(Cone cone, Vector3D dir, Vector3D P)
+
+	// Beware, indigest formulaes !
+	float tangent = tan(cone.w);
+
+	// double sqTA = tan(cone.alpha) * tan(cone.alpha);
+	float sqTA = tangent * tangent;
+
+	// double A = dir.X * dir.X + dir.Y * dir.Y - dir.Z * dir.Z * sqTA;
+	float a = direction.x * direction.x + direction.y * direction.y - direction.z * direction.z * sqTA;
+	// double B = 2 * P.X * dir.X +2 * P.Y * dir.Y - 2 * (cone.H - P.Z) * dir.Z * sqTA;
+	float b = origin.x * direction.x * 2.0f + origin.y * direction.y * 2.0f - (coneHeight - origin.z) * direction.z * 2.0f * sqTA;
+	// double C = P.X * P.X + P.Y * P.Y - (cone.H - P.Z) * (cone.H - P.Z) * sqTA;
+	float c = origin.x * origin.x + origin.y * origin.y - (coneHeight - origin.z) * (coneHeight - origin.z) * sqTA;
+
+    // Now, we solve the polynom At² + Bt + C = 0
+    //double delta = B * B - 4 * A * C;
+	float delta = b * b - 4 * a * c;
+
+	// No intersection between the cone and the line
+	if(delta < 0.0f)
+		return false; 
+
+	// Solve for A
+	if(a != 0) {
+
+		// Check the two solutions (there might be only one, but that does not change a lot of things)
+
+		//double t1 = (-B + sqrt(delta)) / (2 * A);
+		float t1 = (-b + sqrt(delta)) / (2 * a);
+		//double z1 = P.Z + t1 * dir.Z;
+		float z1 = origin.z + t1 * direction.z;
+
+		//bool t1_intersect = (t1 >= 0 && t1 <= 1 && z1 >= 0 && z1 <= cone.H);
+		bool t1_intersect = (t1 >= 0.0f && t1 <= 1.0f && z1 >= 0.0f && z1 <= coneHeight);
+
+		//double t2 = (-B - sqrt(delta)) / (2 * A);
+		float t2 = (-b - sqrt(delta)) / (2 * a);
+		//double z2 = P.Z + t2 * dir.Z;
+		float z2 = origin.Z + t2 * direction.z;
+		//bool t2_intersect = (t2 >= 0 && t2 <= 1 && z2 >= 0 && z2 <= cone.H);
+		bool t2_intersect = (t2 >= 0.0f && t2 <= 1.0f && z2 >= 0.0f && z2 <= coneHeight);
+
+		return (t1_intersect || t2_intersect);
+	}
+
+	// Solve for B
+	if(b != 0.0f) {
+
+		//double t = -C / B;
+		double t = -c / b;
+
+		//double z = P.Z + t * dir.Z;
+		double z = origin.z + t * direction.z;
+
+		return t >= 0.0f && t <= 1.0f && z >= 0.0f && z <= coneHeight;
+	}
+	
+	// Solve for C
+	return c == 0.0f;
+}
+
+__device__ static inline bool PlaneNodeIntersection(const float4 &sphere, const float4 &cone, const float3 &point, const float3 &u, const float3 &v) {
+
+	bool intersection = LineNodeIntersection(sphere, cone, point, u) ||
+						LineNodeIntersection(sphere, cone, point + v, u) ||
+						LineNodeIntersection(sphere, cone, point, v) ||
+						LineNodeIntersection(sphere, cone, point + u, v) ||;
+
+	if(intersection == false) {
+
+		// It is possible that either the part of the plan lies
+		// entirely in the cone, or the inverse. We need to check.
+
+		// Vector3D center = P + (u + v) / 2;
+		float3 center = point + (u + v) / 2;
+
+		// Is the face inside the cone (<=> center is inside the cone) ?
+		if(center.z >= 0.0f && center.z <= coneHeight) {
+
+			// double r = (H - center.Z) * tan(cone.alpha);
+			double r = (coneHeight - center.Z) * tan(cone.W);
+
+			if(center.x * center.x + center.y * center.y <= r)
+				return true;
+		}
+
+		// Is the cone inside the face (this one is more tricky) ?
+		// It can be resolved by finding whether the axis of the cone crosses the face.
+		// First, find the plane coefficient (descartes equation)
+
+		// Vector3D n = rect.u.crossProduct(rect.v);
+		float3 normal = cross(u,v);
+		
+		// double d = -(rect.P.X * n.X + rect.P.Y * n.Y + rect.P.Z * n.Z);
+		double d = -(point.x * normal.x + point.y * normal.y + point.z * normal.z);
+
+	// Now, being in the face (ie, coordinates in (u, v) are between 0 and 1)
+	// can be verified through scalar product
+	if(normal.z != 0) {
+		
+		// Vector3D M(0, 0, -d/n.Z);
+		// Vector3D MP = M - rect.P;
+		float3 mp = make_float3(0.0f, 0.0f, -d/normal.z) - point;
+
+		if(dot(mp, u) >= 0 || dot(mp, u) <= 1 || dot(mp, v) >= 0 || dot(mp, v) <= 1)
+			return true;
+	}
+
+	return intersection;
+}
+
+__device__ static inline bool AxisAlignedBoundingBoxNodeIntersection(const float4 &sphere, const float4 &cone, const float4 &boundingBoxMaximum, const float4 &boundingBoxMinimum) {
+
+	float3 x = make_float3(1.0f, 0.0f, 0.0f) * abs(boundingBoxMaximum.x - boundingBoxMinimum.x);
+	float3 y = make_float3(0.0f, 1.0f, 0.0f) * abs(boundingBoxMaximum.y - boundingBoxMinimum.y);
+	float3 z = make_float3(0.0f, 0.0f, 1.0f) * abs(boundingBoxMaximum.z - boundingBoxMinimum.z);
+
+	return true;
+
+	return	PlaneNodeIntersection(sphere, cone, boundingBoxMinimum, x, z) ||
+			PlaneNodeIntersection(sphere, cone, boundingBoxMinimum, x, y) ||
+			PlaneNodeIntersection(sphere, cone, boundingBoxMinimum, y, z) ||
+			PlaneNodeIntersection(sphere, cone, boundingBoxMaximum,-x,-z) ||
+			PlaneNodeIntersection(sphere, cone, boundingBoxMaximum,-x,-y) ||
+			PlaneNodeIntersection(sphere, cone, boundingBoxMaximum,-y,-z);
 }
 
 // Ray - Triangle Intersection Code
@@ -451,6 +593,44 @@ __global__ void UpdateVertex(
 
 	// Store the updated Vertex Normal.
 	triangleNormalsArray[x] = make_float4(normalize(make_float3(updatedNormal[0], updatedNormal[1], updatedNormal[2])), 0.0f);
+}
+
+__global__ void UpdateBoundingBox(
+							// Input Array containing the updated Model Matrices.
+							float* modelMatricesArray,
+							// Auxiliary Variable containing the Vertex Total.
+							unsigned int vertexTotal,
+							// Output Array containing the updated Bounding Boxes.
+							float4* boundingBoxArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= vertexTotal)
+		return;
+
+	// Matrices ID
+	unsigned int matrixID = x / 2;
+
+	// Model Matrix - Multiply each Vertex Position by it.
+	float modelMatrix[16];
+
+	for(int i=0; i<16; i++)
+		modelMatrix[i] = modelMatricesArray[matrixID * 16 + i];
+	
+	float4 vertex = tex1Dfetch(boundingBoxesTexture, x);
+
+	float updatedVertex[4];
+
+	for(int i=0; i<3; i++) {
+
+		updatedVertex[i] = 0.0f;
+		updatedVertex[i] += modelMatrix[i * 4 + 0] * vertex.x;
+		updatedVertex[i] += modelMatrix[i * 4 + 1] * vertex.y;
+		updatedVertex[i] += modelMatrix[i * 4 + 2] * vertex.z;
+	}
+	
+	// Store the updated Vertex Position.
+	boundingBoxArray[x] = make_float4(updatedVertex[0], updatedVertex[1], updatedVertex[2], vertex.w);
 }
 
 __global__ void PreparePixels(	
@@ -1053,11 +1233,15 @@ __global__ void CreateHierarchyLevelN(
 	hierarchyArray[(nodeWriteOffset + x) * 2 + 1] = cone;
 }
 
-__global__ void CreateHierarchyLevel0Hits(	
+__global__ void CalculateBoundingBoxIntersections(
 							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
-							// Input Array containing the Updated Triangle Positions.
-							float4* trianglePositionsArray,
+							// Output Array containing the updated Bounding Boxes.
+							float4* boundingBoxArray,
+							// Input Array containing the updated Normal Matrices.
+							float* normalMatricesArray,
+							// Auxiliary Variable containing the Bounding Box Total.
+							const unsigned int boundingBoxTotal,
 							// Auxiliary Variable containing the Triangle Total.
 							const unsigned int triangleTotal,
 							// Auxiliary Variable containing the Triangle Offset.
@@ -1067,38 +1251,77 @@ __global__ void CreateHierarchyLevel0Hits(
 							// Auxiliary Variable containing the Node Read Total.
 							const unsigned int nodeReadTotal,
 							// Output Array containing the Inclusive Scan Output.
+							unsigned int* headFlagsArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	unsigned int nodeID = x / boundingBoxTotal;
+	unsigned int boundingBoxID = x % boundingBoxTotal;
+
+	if(nodeID >= nodeReadTotal || boundingBoxID >= boundingBoxTotal)
+		return;
+
+	float4 sphere = hierarchyArray[(nodeOffset + nodeID) * 2];
+	float4 cone = hierarchyArray[(nodeOffset + nodeID) * 2 + 1];
+
+	float4 boundingBoxMaximum = tex1Dfetch(boundingBoxesTexture, boundingBoxID * 2);
+	float4 boundingBoxMinimum = tex1Dfetch(boundingBoxesTexture, boundingBoxID * 2 + 1);
+
+	// Normal Matrix - Multiply each Vertex Position by it.
+	float normalMatrix[16];
+
+	for(int i=0; i<16; i++)
+		normalMatrix[i] = normalMatricesArray[boundingBoxID * 16 + i];
+
+	float updatedCone[3];
+
+	for(int i=0; i<3; i++) {
+
+		updatedCone[i] = 0.0f;
+		updatedCone[i] += normalMatrix[i * 4 + 0] * cone.x;
+		updatedCone[i] += normalMatrix[i * 4 + 1] * cone.y;
+		updatedCone[i] += normalMatrix[i * 4 + 2] * cone.z;
+	}
+
+	// Calculate the Intersection and store the result
+	headFlagsArray[nodeID * triangleTotal + (unsigned int)boundingBoxMaximum.w] = 
+		((AxisAlignedBoundingBoxNodeIntersection(sphere, cone, boundingBoxMaximum, boundingBoxMinimum) == true) ? 
+		((unsigned int)boundingBoxMinimum.w  - (unsigned int)boundingBoxMaximum.w + 1) : 0);
+
+	headFlagsArray[nodeID * triangleTotal + (unsigned int)boundingBoxMaximum.w] = ((unsigned int)boundingBoxMinimum.w  - (unsigned int)boundingBoxMaximum.w + 1);
+}
+
+__global__ void CreateHierarchyLevel0Hits(
+							// Input Array containing the Ray Hierarchy.
+							float4* hierarchyArray,
+							// Auxiliary Variable containing the Triangle Total.
+							const unsigned int triangleTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
+							// Auxiliary Variable containing the Node Read Total.
+							const unsigned int nodeReadTotal,
+							// Output Array containing the Inclusive Scan Output.
+							unsigned int* scanArray,
+							// Output Array containing the Head Flags Output.
 							unsigned int* headFlagsArray, 
 							// Output Arrays containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
-							uint2* trimmedHierarchyHitsArray) {
+							unsigned int* hierarchyHitsArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	unsigned int nodeID = x / triangleTotal;
 	unsigned int triangleID = x % triangleTotal;
 
-	if(nodeID >= nodeReadTotal || triangleID >= triangleTotal)
+	if(nodeID >= nodeReadTotal)
 		return;
-
-	float4 sphere = hierarchyArray[(nodeOffset + nodeID) * 2];
-	float4 cone = hierarchyArray[(nodeOffset + nodeID) * 2 + 1];
-
-	float4 triangle = CreateTriangleBoundingSphere(
-			make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3]), 
-			make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 1]), 
-			make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 2]));
 	
-	// Calculate Intersection		
-	if(SphereNodeIntersection(sphere, cone, triangle, cos(cone.w), tan(cone.w)) == true) {
-		
-		headFlagsArray[x] = 0;
-		hierarchyHitsArray[x] = make_uint2(nodeID, (triangleOffset + triangleID));
-	}
-	else {
+	// Load the Final Triangle ID
+	unsigned int finalTriangleID = scanArray[x]; // - nodeID * triangleTotal;
+	// Load the Final Triangle Offset
+	unsigned int finalTriangleOffset = (nodeID > 0) ? scanArray[nodeID * triangleTotal - 1] : 0;
 
-		headFlagsArray[x] = 1;
-		hierarchyHitsArray[x] = make_uint2(0,0);
-	}
+	hierarchyHitsArray[x] = ((nodeID << 16) & 0xFFFF0000) + ((triangleID - triangleOffset) & 0x0000FFFF);
+	headFlagsArray[x] = (triangleID >= triangleOffset && triangleID < triangleTotal && triangleID < (finalTriangleID - finalTriangleOffset)) ? 0 : 1;
 }
 
 __global__ void CreateHierarchyLevelNHits(	
@@ -1108,6 +1331,8 @@ __global__ void CreateHierarchyLevelNHits(
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Triangle Total.
 							const unsigned int triangleTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variable containing the Hit Total.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Node Offset.
@@ -1117,55 +1342,52 @@ __global__ void CreateHierarchyLevelNHits(
 							// Output Array containing the Inclusive Scan Output.
 							unsigned int* headFlagsArray, 
 							// Output Arrays containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
-							uint2* trimmedHierarchyHitsArray) {
+							unsigned int* hierarchyHitsArray,
+							unsigned int* trimmedHierarchyHitsArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
 	if(x >= hitTotal)
 		return;
 
-	uint2 hit = trimmedHierarchyHitsArray[x];
+	unsigned int hit = trimmedHierarchyHitsArray[x];
 
-	float4 sphere;
-	float4 cone;
+	unsigned int nodeID = (hit & 0xFFFF0000) >> 16;
+	unsigned int triangleID = hit & 0x0000FFFF;
 
 	float4 triangle = CreateTriangleBoundingSphere(
-		make_float3(trianglePositionsArray[hit.y * 3]), 
-		make_float3(trianglePositionsArray[hit.y * 3 + 1]), 
-		make_float3(trianglePositionsArray[hit.y * 3 + 2]));
+		make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3]), 
+		make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 1]), 
+		make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 2]));
 
 	for(unsigned int i=0; i<HIERARCHY_SUBDIVISION; i++) {
 
-		if((hit.x * HIERARCHY_SUBDIVISION + i) < nodeWriteTotal) {
+		if((nodeID * HIERARCHY_SUBDIVISION + i) < nodeWriteTotal) {
 
-			sphere = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2];
-			cone = hierarchyArray[(nodeOffset + hit.x * HIERARCHY_SUBDIVISION + i) * 2 + 1];
+			float4 sphere = hierarchyArray[(nodeOffset + nodeID * HIERARCHY_SUBDIVISION + i) * 2];
+			float4 cone = hierarchyArray[(nodeOffset + nodeID * HIERARCHY_SUBDIVISION + i) * 2 + 1];
 	
-			// Calculate Intersection		
-			if(SphereNodeIntersection(sphere, cone, triangle, cos(cone.w), tan(cone.w)) == true) {
-		
-				headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 0;
-				hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_uint2(hit.x * HIERARCHY_SUBDIVISION + i, hit.y);
+			// Calculate the Intersection and store the result
+			headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = (SphereNodeIntersection(sphere, cone, triangle, cos(cone.w), tan(cone.w)) == true) ? 0 : 1;
+			hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] =  (((nodeID * HIERARCHY_SUBDIVISION + i) << 16) & 0xFFFF0000) + (triangleID & 0x0000FFFF);
 
-				continue;
-			}
+			continue;
 		}
 
 		headFlagsArray[x * HIERARCHY_SUBDIVISION + i] = 1;
-		hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = make_uint2(0, 0);
+		hierarchyHitsArray[x * HIERARCHY_SUBDIVISION + i] = (((nodeID * HIERARCHY_SUBDIVISION + i) << 16) & 0xFFFF0000) + (triangleID & 0x0000FFFF);
 	}
 }
 
 __global__ void CreateTrimmedHierarchyHits(	
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Inclusive Scan Output.
 							const unsigned int* scanArray, 
 							// Auxiliary Variable containing the Hit Total.
 							const unsigned int hitTotal,
 							// Output Array containing the Trimmed Ray Hierarchy Hits.
-							uint2* trimmedHierarchyHitsArray) {
+							unsigned int* trimmedHierarchyHitsArray) {
 
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -1198,13 +1420,15 @@ __global__ void CalculateShadowRayIntersections(
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
@@ -1221,34 +1445,36 @@ __global__ void CalculateShadowRayIntersections(
 	if(x >= hitTotal)
 		return;
 
-	// Store the Hierarchy Hit
-	uint2 hierarchyHit = hierarchyHitsArray[x];
+	// Load the Hierarchy Hit
+	unsigned int hit = hierarchyHitsArray[x];
 
-	// Store the Triangles Vertices and Edges
-	float3 vertex0 = make_float3(trianglePositionsArray[hierarchyHit.y * 3]);
-	float3 edge1 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 1]) - vertex0;
-	float3 edge2 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 2]) - vertex0;
+	unsigned int nodeID = (hit & 0xFFFF0000) >> 16;
+	unsigned int triangleID = (hit & 0x0000FFFF);
+
+	// Load the Triangles Vertices and Edges
+	float3 vertex0 = make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3]);
+	float3 edge1 = make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 1]) - vertex0;
+	float3 edge2 = make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 2]) - vertex0;
 
 	for(unsigned int i=0; i<HIERARCHY_SUBDIVISION; i++) {
 
 		// Check if the Extrapolated Ray exists.
-		if(hierarchyHit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
+		if(nodeID * HIERARCHY_SUBDIVISION + i >= rayTotal)
 			return;
 
 		// Fetch the Ray Index
-		unsigned int rayIndex = sortedRayIndexValuesArray[hierarchyHit.x * HIERARCHY_SUBDIVISION + i];
+		unsigned int rayIndex = sortedRayIndexValuesArray[nodeID * HIERARCHY_SUBDIVISION + i];
 
 		// Fetch the Ray
 		float3 rayOrigin = rayArray[rayIndex * 2];
 		float3 rayDirection = rayArray[rayIndex * 2 + 1];
 
+		// Calculate the Interesection Time
 		float intersectionDistance = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, edge1, edge2);
 
-		// Calculate the Interesection Time
-
-			// Calculate the Lights Distance to the Fragment
-			if(intersectionDistance > epsilon && intersectionDistance < length(rayOrigin - make_float3(tex2D(fragmentPositionTexture, rayIndex % windowWidth, rayIndex / windowWidth))) - epsilon * 2.0f)
-				shadowFlagsArray[rayIndex] = INT_MAX;
+		// Calculate the Lights Distance to the Fragment
+		if(intersectionDistance > epsilon && intersectionDistance < length(rayOrigin - make_float3(tex2D(fragmentPositionTexture, rayIndex % windowWidth, rayIndex / windowWidth))) - epsilon * 2.0f)
+			shadowFlagsArray[rayIndex] = INT_MAX;
 	}
 }
 
@@ -1321,13 +1547,15 @@ __global__ void CalculateReflectionRayIntersections(
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
@@ -1344,22 +1572,25 @@ __global__ void CalculateReflectionRayIntersections(
 	if(x >= hitTotal)
 		return;
 
-	// Store the Hierarchy Hit
-	uint2 hierarchyHit = hierarchyHitsArray[x];
+	// Load the Hierarchy Hit
+	unsigned int hit = hierarchyHitsArray[x];
 
-	// Store the Triangles Vertices and Edges
-	float3 vertex0 = make_float3(trianglePositionsArray[hierarchyHit.y * 3]);
-	float3 edge1 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 1]) - vertex0;
-	float3 edge2 = make_float3(trianglePositionsArray[hierarchyHit.y * 3 + 2]) - vertex0;;
+	unsigned int nodeID = (hit & 0xFFFF0000) >> 16;
+	unsigned int triangleID = (hit & 0x0000FFFF);
+
+	// Load the Triangles Vertices and Edges
+	float3 vertex0 = make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3]);
+	float3 edge1 = make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 1]) - vertex0;
+	float3 edge2 = make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 2]) - vertex0;
 
 	for(unsigned int i=0; i<HIERARCHY_SUBDIVISION; i++) {
 
 		// Check if the Extrapolated Ray exists.
-		if(hierarchyHit.x * HIERARCHY_SUBDIVISION + i >= rayTotal)
+		if(nodeID * HIERARCHY_SUBDIVISION + i >= rayTotal)
 			return;
 
 		// Fetch the Ray Index
-		unsigned int rayIndex = sortedRayIndexValuesArray[hierarchyHit.x * HIERARCHY_SUBDIVISION + i];
+		unsigned int rayIndex = sortedRayIndexValuesArray[nodeID * HIERARCHY_SUBDIVISION + i];
 
 		// Fetch the Ray
 		float3 rayOrigin = rayArray[rayIndex * 2];
@@ -1370,7 +1601,7 @@ __global__ void CalculateReflectionRayIntersections(
 		// Calculate the Intersection Time
 		if(intersectionDistance > epsilon) {
 
-			unsigned int newTime = ((unsigned int)(intersectionDistance * 10.0f + 1.0f) << 20) + hierarchyHit.y;
+			unsigned int newTime = ((unsigned int)(intersectionDistance * 10.0f + 1.0f) << 20) + (triangleOffset + triangleID);
 			unsigned int oldTime = atomicMin((unsigned int*)&intersectionTimeArray[rayIndex], newTime);
 		}
 	}
@@ -1491,6 +1722,28 @@ extern "C" {
 			modelMatricesArray, normalMatricesArray, 
 			vertexTotal,
 			trianglePositionsArray, triangleNormalsArray);
+	}
+
+	
+	void BoundingBoxUpdateWrapper(
+							// Input Array containing the updated Model Matrices.
+							float* modelMatricesArray,
+							// Auxiliary Variable containing the Bounding Box Total.
+							unsigned int boundingBoxTotal,
+							// Output Array containing the updated Bounding Boxes.
+							float4* boundingBoxArray) {
+
+		unsigned int vertexTotal = boundingBoxTotal * 2;
+
+		// Grid based on the Triangle Count
+		dim3 multiplicationBlock(1024);
+		dim3 multiplicationGrid(boundingBoxTotal / multiplicationBlock.x + 1);
+		
+		// Model Matrix Multiplication
+		UpdateBoundingBox<<<multiplicationGrid, multiplicationBlock>>>(
+			modelMatricesArray, 
+			vertexTotal,
+			boundingBoxArray);
 	}
 
 	void MemoryPreparationWrapper(
@@ -1850,6 +2103,172 @@ extern "C" {
 			}
 	}
 
+	void HierarchyTraversalWarmUpWrapper(	
+							// Input Array containing the Ray Hierarchy.
+							float4* hierarchyArray,
+							// Output Array containing the updated Bounding Boxes.
+							float4* boundingBoxArray,
+							// Input Array containing the updated Normal Matrices.
+							float* normalMatricesArray,
+							// Auxiliary Variable containing the Bounding Box Total.
+							const unsigned int boundingBoxTotal,
+							// Auxiliary Variable containing the Ray Total.
+							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Total.
+							const unsigned int triangleTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
+							// Auxiliary Array containing the Hierarchy Hits Flags.
+							unsigned int* headFlagsArray,
+							// Auxiliary Array containing the Inclusive Scan Output.
+							unsigned int* scanArray, 
+							// Output Arrays containing the Ray Hierarchy Hits.
+							unsigned int* hierarchyHitsArray,
+							unsigned int* trimmedHierarchyHitsArray,
+							// Output Variable containing the Number of Hits.
+							unsigned int* hierarchyHitTotal,
+							// Output Variable containing the Hierarchy Hit Memory Size.
+							unsigned int *hierarchyHitMemoryTotal) {
+	
+		unsigned int hierarchyNodeOffset = 0;
+		unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+
+		for(unsigned int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
+
+			hierarchyNodeOffset = hierarchyNodeTotal + hierarchyNodeOffset;
+			hierarchyNodeTotal = hierarchyNodeTotal / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+		}
+
+		unsigned int hitMaximum = hierarchyNodeTotal * triangleTotal;
+
+		// Grid based on the Hierarchy Hit Count
+		dim3 hitMaximumBlock(1024);
+		dim3 hitMaximumGrid(hitMaximum/hitMaximumBlock.x + 1);
+
+		#ifdef BLOCK_GRID_DEBUG 
+			cout << "[PrepareArray] Grid = " << grid.x << endl;
+		#endif
+
+		// Prepare the Array
+		PrepareArray<<<hitMaximumGrid, hitMaximumBlock>>>(0, hitMaximum, headFlagsArray);
+
+		// Grid based on the Hierarchy Node * Bounding Box Count
+		dim3 boundingBoxBlock(1024);
+		dim3 boundingBoxGrid((hierarchyNodeTotal * boundingBoxTotal)/boundingBoxBlock.x + 1);
+				
+		#ifdef BLOCK_GRID_DEBUG
+			cout << "[CreateHierarchyLevel0Hits] Block = " << boundingBoxBlock.x << " Threads " << "Grid = " << boundingBoxGrid.x << " Blocks" << endl;
+		#endif
+
+		CalculateBoundingBoxIntersections<<<boundingBoxGrid, boundingBoxBlock>>>(
+			hierarchyArray, 
+			boundingBoxArray,
+			normalMatricesArray,
+			boundingBoxTotal,
+			triangleTotal,
+			triangleOffset,
+			hierarchyNodeOffset, 
+			hierarchyNodeTotal, 
+			headFlagsArray);
+
+		/*unsigned int* duplicateHeadFlags = new unsigned int[hierarchyNodeTotal * triangleTotal];
+
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&duplicateHeadFlags[0], headFlagsArray, hierarchyNodeTotal * triangleTotal * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+		for(int i=0; i<hierarchyNodeTotal; i++) {
+		
+			printf("Node [%d] :: ", i);
+		
+			for(int j=0; j<triangleTotal; j++) {
+
+				printf("\t%u", duplicateHeadFlags[i * triangleTotal + j]);
+			}
+			printf("\n");
+		}*/
+		;
+
+		// Create the Population Scan Array
+		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+
+		#ifdef BLOCK_GRID_DEBUG
+			cout << "[CreateHierarchyLevel0Hits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
+		#endif
+
+		/*Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&duplicateHeadFlags[0], scanArray, hierarchyNodeTotal * triangleTotal * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+		for(int i=0; i<hierarchyNodeTotal; i++) {
+		
+			printf("Node [%d] :: ", i);
+		
+			for(int j=0; j<triangleTotal; j++) {
+
+				printf("\t%u", duplicateHeadFlags[i * triangleTotal + j]);
+			}
+			printf("\n");
+		}*/
+
+		CreateHierarchyLevel0Hits<<<hitMaximumGrid ,hitMaximumBlock>>>(
+			hierarchyArray,
+			triangleTotal,
+			triangleOffset,
+			hierarchyNodeTotal,
+			scanArray,
+			headFlagsArray, 
+			hierarchyHitsArray);
+
+		/*unsigned int* duplicateHierarchyHits = new unsigned int[hierarchyNodeTotal * triangleTotal];
+
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&duplicateHierarchyHits[0], hierarchyHitsArray, hierarchyNodeTotal * triangleTotal * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+		for(int i=0; i<hierarchyNodeTotal; i++) {
+		
+			printf("Node [%d] :: ", i);
+		
+			for(int j=0; j<triangleTotal; j++) {
+
+				unsigned int hit = duplicateHierarchyHits[i * triangleTotal + j];
+
+				unsigned int nodeID = (hit & 0xFFFF0000) >> 16;
+				unsigned int triangleID = (hit & 0x0000FFFF);
+
+				printf("\t%03u#%03u", nodeID, triangleID);
+			}
+			printf("\n");
+		}
+		exit(0);*/
+		;
+
+		// Create the Trim Scan Array
+		Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+
+		#ifdef BLOCK_GRID_DEBUG
+			cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
+		#endif
+
+		CreateTrimmedHierarchyHits<<<hitMaximumGrid, hitMaximumBlock>>>(
+			hierarchyHitsArray,
+			scanArray,
+			hitMaximum,
+			trimmedHierarchyHitsArray);
+
+		Utility::checkCUDAError("CreateTrimmedHierarchyHits::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("CreateTrimmedHierarchyHits::cudaGetLastError()", cudaGetLastError());
+
+		// Calculate the Hits Missed for this Level
+		int missedHitTotal;
+		// Check the Hit Total (last position of the scan array) 
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+
+		// Calculate the Hit Total for this Level
+		*hierarchyHitTotal = hitMaximum - missedHitTotal;
+
+		/*cout << "["<< 0 << "]" << " Hit Maximum = " << hitMaximum << endl;
+		cout << "["<< 0 << "]" << " Missed Hit Total = " << missedHitTotal << endl;
+		cout << "["<< 0 << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
+
+		exit(0);*/
+	}
+
 	void HierarchyTraversalWrapper(	
 							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
@@ -1866,19 +2285,16 @@ extern "C" {
 							// Auxiliary Array containing the Inclusive Scan Output.
 							unsigned int* scanArray, 
 							// Output Arrays containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
-							uint2* trimmedHierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
+							unsigned int* trimmedHierarchyHitsArray,
 							// Output Variable containing the Number of Hits.
 							unsigned int* hierarchyHitTotal,
 							// Output Variable containing the Hierarchy Hit Memory Size.
-							unsigned int *hierarchyHitMemoryTotal) {
+							unsigned int* hierarchyHitMemoryTotal) {
 
 		// Calculate the Nodes Offset and Total
 		unsigned int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
 		unsigned int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
-
-		unsigned int hitTotal = 0;
-		unsigned int hitMaximum = 0;
 		
 		hierarchyNodeOffset[0] = 0;
 		hierarchyNodeTotal[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
@@ -1889,105 +2305,61 @@ extern "C" {
 			hierarchyNodeTotal[i] = hierarchyNodeTotal[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 		}
 
-		//cout << "::HierarchyTraversalWrapper::" << endl;
+		#ifdef TRAVERSAL_DEBUG
+			cout << "::HierarchyTraversalWrapper::" << endl;
+		#endif
 
 		// Create the Hierarchy Hit Arrays
 		for(int hierarchyLevel=HIERARCHY_MAXIMUM_DEPTH-1; hierarchyLevel>=0; hierarchyLevel--) {
 
-			// Calculate the Hierarchy Hits
-			if(hierarchyLevel == HIERARCHY_MAXIMUM_DEPTH-1) {
-			
-				// Calculate the Hit Maximum for this Level
-				hitMaximum = hierarchyNodeTotal[hierarchyLevel] * triangleTotal;
+			if((*hierarchyHitTotal) == 0)
+				return;
 
-				//cout << "Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
+			// Calculate the Hit Maximum for this Level
+			unsigned int hitMaximum = *hierarchyHitTotal * HIERARCHY_SUBDIVISION;
+			unsigned int hitTotal = *hierarchyHitTotal;
 
-				// Grid based on the Hierarchy Node Count
-				dim3 baseLevelBlock(1024);
-				dim3 baseLevelGrid(hitMaximum/baseLevelBlock.x + 1);
-				
-				#ifdef BLOCK_GRID_DEBUG
-					cout << "[CreateHierarchyLevel0Hits] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
-				#endif
+			cout << "[Entry "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
+			cout << "[Entry "<< hierarchyLevel << "] Hit Total = " << hitTotal << endl;
 
-				CreateHierarchyLevel0Hits<<<baseLevelGrid, baseLevelBlock>>>(
-					hierarchyArray, 
-					trianglePositionsArray,
-					triangleTotal,
-					triangleOffset,
-					hierarchyNodeOffset[hierarchyLevel], 
-					hierarchyNodeTotal[hierarchyLevel], 
-					headFlagsArray, 
-					hierarchyHitsArray, trimmedHierarchyHitsArray);
-
-				Utility::checkCUDAError("CreateHierarchyLevel0Hits::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-				Utility::checkCUDAError("CreateHierarchyLevel0Hits::cudaGetLastError()", cudaGetLastError());
-			}
-			else {
-
-				// Calculate the Hit Maximum for this Level
-				hitMaximum = hitTotal * HIERARCHY_SUBDIVISION;
-
-				//cout << "Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
-
-				// If there's only a 10% margin, increase the storage size.
-				if((float)hitMaximum/(float)(*hierarchyHitMemoryTotal) > 0.90f) {
-
-					cout << "[Callback] Attemping Memory Increase" << endl;
-
-					*hierarchyHitMemoryTotal = (unsigned int)(*hierarchyHitMemoryTotal*1.20f);
-
-					// Update the CUDA Hierarchy Hit Arrays
-					Utility::checkCUDAError("cudaFree()", cudaFree((void *)hierarchyHitsArray));
-					Utility::checkCUDAError("cudaFree()", cudaFree((void *)trimmedHierarchyHitsArray));
-
-					Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&hierarchyHitsArray, *hierarchyHitMemoryTotal * sizeof(uint2)));
-					Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&trimmedHierarchyHitsArray, *hierarchyHitMemoryTotal * sizeof(uint2)));
-
-					// Update the CUDA Head Flags and Scan Arrays
-					Utility::checkCUDAError("cudaFree()", cudaFree((void *)headFlagsArray));
-					Utility::checkCUDAError("cudaFree()", cudaFree((void *)scanArray));
-
-					Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&headFlagsArray, *hierarchyHitMemoryTotal * sizeof(unsigned int)));
-					Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&scanArray, *hierarchyHitMemoryTotal  * sizeof(unsigned int)));
-
-					cout << "[Callback] Memory Increase Successfull" << endl << endl;
-				}
-
-				// Grid based on the Hierarchy Node Count
-				dim3 baseLevelBlock(1024);
-				dim3 baseLevelGrid(hitTotal/baseLevelBlock.x + 1);
-				
-				#ifdef BLOCK_GRID_DEBUG
-					cout << "[CreateHierarchyLevelNHits] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
-				#endif
-				
-				CreateHierarchyLevelNHits<<<baseLevelGrid, baseLevelBlock>>>(
-					hierarchyArray,
-					trianglePositionsArray,
-					triangleTotal,
-					hitTotal,
-					hierarchyNodeOffset[hierarchyLevel],
-					hierarchyNodeTotal[hierarchyLevel],
-					headFlagsArray,
-					hierarchyHitsArray, trimmedHierarchyHitsArray);
-
-				Utility::checkCUDAError("CreateHierarchyLevelNHits::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-				Utility::checkCUDAError("CreateHierarchyLevelNHits::cudaGetLastError()", cudaGetLastError());
-			}
-
-			// Create the Trim Scan Array
-			Utility::checkCUDAError("cub::DeviceScan::InclusiveSum2()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
-
-			// Grid based on the Hierarchy Hit Count
-			dim3 baseHitBlock(1024);
-			dim3 baseHitGrid(hitMaximum / baseHitBlock.x + 1);
-				
-			#ifdef BLOCK_GRID_DEBUG
-				cout << "[TrimHierarchyLevelNHits] Block = " << baseHitBlock.x << " Threads " << "Grid = " << baseHitGrid.x << " Blocks" << endl;
+			#ifdef TRAVERSAL_DEBUG
+				cout << "["<< hierarchyLevel << "]" << " Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
 			#endif
 
-			CreateTrimmedHierarchyHits<<<baseHitGrid, baseHitBlock>>>(
+			// Grid based on the Hierarchy Hit Total
+			dim3 hitTotalBlock(1024);
+			dim3 hitTotalGrid(hitTotal/hitTotalBlock.x + 1);
+				
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[CreateHierarchyLevelNHits] Block = " << hitTotalBlock.x << " Threads " << "Grid = " << hitTotalGrid.x << " Blocks" << endl;
+			#endif
+				
+			CreateHierarchyLevelNHits<<<hitTotalGrid, hitTotalBlock>>>(
+				hierarchyArray,
+				trianglePositionsArray,
+				triangleTotal,
+				triangleOffset,
+				hitTotal,
+				hierarchyNodeOffset[hierarchyLevel],
+				hierarchyNodeTotal[hierarchyLevel],
+				headFlagsArray,
+				hierarchyHitsArray, trimmedHierarchyHitsArray);
+			
+			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaGetLastError()", cudaGetLastError());
+
+			// Create the Trim Scan Array
+			Utility::checkCUDAError("cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+
+			// Grid based on the Hierarchy Hit Count
+			dim3 hitMaximumBlock(1024);
+			dim3 hitMaximumGrid(hitMaximum / hitMaximumBlock.x + 1);
+				
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
+			#endif
+
+			CreateTrimmedHierarchyHits<<<hitMaximumGrid, hitMaximumBlock>>>(
 				hierarchyHitsArray,
 				scanArray,
 				hitMaximum,
@@ -1999,28 +2371,23 @@ extern "C" {
 			Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
 			
 			// Calculate the Hit Total for this Level
-			hitTotal = hitMaximum - missedHitTotal;
+			*hierarchyHitTotal = hitMaximum - missedHitTotal;
+
+			cout << "[Exit "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
+			cout << "[Exit "<< hierarchyLevel << "] Missed Hit Total = " << missedHitTotal << endl;
+			cout << "[Exit "<< hierarchyLevel << "] Connected Hit Total : " << *hierarchyHitTotal << endl;
 			
-			cout << "["<< hierarchyLevel << "]" << " Hit Maximum = " << hitMaximum << endl;
-			cout << "["<< hierarchyLevel << "]" << " Missed Hit Total = " << missedHitTotal << endl;
-			cout << "["<< hierarchyLevel << "]" << " Connected Hit Total : " << hitTotal << endl;
-			cout << "["<< hierarchyLevel << "]" << " Node Total : " << hierarchyNodeTotal[hierarchyLevel] << " (Offset: " << hierarchyNodeOffset[hierarchyLevel] * 2 << ")" << endl;
-
-			/*cout << "["<< hierarchyLevel << "]" << " hierarchyHitMemoryTotal = " << *hierarchyHitMemoryTotal << endl;
-			cout << "["<< hierarchyLevel << "]" << " hierarchyNodeTotal[hierarchyLevel] = " << hierarchyNodeTotal[hierarchyLevel] << endl;
-			cout << "["<< hierarchyLevel << "]" << " triangleTotal = " << triangleTotal << endl; 
-			cout << "["<< hierarchyLevel << "]" << " hierarchyNodeTotal[hierarchyLevel] * triangleTotal = " << hierarchyNodeTotal[hierarchyLevel] * triangleTotal << endl;
-
-			Utility::checkCUDAError("CreateHierarchyLevel0Hits::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			Utility::checkCUDAError("CreateHierarchyLevel0Hits::cudaGetLastError()", cudaGetLastError());*/
-
-			*hierarchyHitTotal = hitTotal;
-
-			if(hitTotal == 0)
-				return;
+			#ifdef TRAVERSAL_DEBUG
+				cout << "["<< hierarchyLevel << "]" << " Hit Maximum = " << hitMaximum << endl;
+				cout << "["<< hierarchyLevel << "]" << " Missed Hit Total = " << missedHitTotal << endl;
+				cout << "["<< hierarchyLevel << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
+				cout << "["<< hierarchyLevel << "]" << " Node Total : " << hierarchyNodeTotal[hierarchyLevel] << " (Offset: " << hierarchyNodeOffset[hierarchyLevel] * 2 << ")" << endl;
+			#endif
 		}
-
-		cout << "Ray Total: " << rayTotal << endl;
+		
+		#ifdef TRAVERSAL_DEBUG
+			cout << "Ray Total: " << rayTotal << endl;
+		#endif
 	}
 
 	void ShadowRayPreparationWrapper(
@@ -2048,13 +2415,15 @@ extern "C" {
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
@@ -2082,6 +2451,7 @@ extern "C" {
 			trianglePositionsArray,
 			hitTotal,
 			rayTotal,
+			triangleOffset,
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
@@ -2138,13 +2508,15 @@ extern "C" {
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the Ray Hierarchy Hits.
-							uint2* hierarchyHitsArray,
+							unsigned int* hierarchyHitsArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Auxiliary Variable containing the Number of Hits.
 							const unsigned int hitTotal,
 							// Auxiliary Variable containing the Number of Rays.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Auxiliary Variable containing the Number of Lights.
@@ -2172,6 +2544,7 @@ extern "C" {
 			trianglePositionsArray,
 			hitTotal,
 			rayTotal,
+			triangleOffset,
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
@@ -2338,6 +2711,19 @@ extern "C" {
 
 		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
 		cudaBindTexture(0, materialSpecularPropertiesTexture, cudaDevicePointer, channelDescriptor, size);
+	}
+
+	// CUDA Bounxing Box Texture Binding Functions
+	void bindBoundingBoxes(float *cudaDevicePointer, unsigned int boundingBoxTotal) {
+
+		materialDiffusePropertiesTexture.normalized = false;                      // access with normalized texture coordinates
+		materialDiffusePropertiesTexture.filterMode = cudaFilterModePoint;        // Point mode, so no 
+		materialDiffusePropertiesTexture.addressMode[0] = cudaAddressModeWrap;    // wrap texture coordinates
+
+		size_t size = sizeof(float4) * boundingBoxTotal * 2;
+
+		cudaChannelFormatDesc channelDescriptor = cudaCreateChannelDesc<float4>();
+		cudaBindTexture(0, boundingBoxesTexture, cudaDevicePointer, channelDescriptor, size);
 	}
 
 	// CUDA Light Texture Binding Functions

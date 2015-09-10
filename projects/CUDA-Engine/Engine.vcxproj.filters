@@ -152,6 +152,9 @@
     <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Vertex">
       <UniqueIdentifier>{2485c980-01da-4885-8f83-3e9bddeeb870}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Bounding Box">
+      <UniqueIdentifier>{9bd3ba1c-ef10-4b0c-a1ce-5550b8ecadd4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\SceneManager.cpp">
@@ -267,6 +270,9 @@
     </ClCompile>
     <ClCompile Include="source\Vertex.cpp">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Vertex</Filter>
+    </ClCompile>
+    <ClCompile Include="source\BoundingBox.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Box</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -392,6 +398,9 @@
     </ClInclude>
     <ClInclude Include="source\Vertex.h">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Vertex</Filter>
+    </ClInclude>
+    <ClInclude Include="source\BoundingBox.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Box</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

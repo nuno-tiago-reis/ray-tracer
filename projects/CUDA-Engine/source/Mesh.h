@@ -7,21 +7,22 @@
 	#include <crtdbg.h>
 #endif
 
-/* OpenGL definitions */
+// OpenGL definitions
 #include "GL/glew.h"
 #include "GL/freeglut.h"
-/* OpenGL Error check */
+// OpenGL Error check
 #include "Utility.h"
 
-/* C++ Includes */
+// C++ Includes
+#include <map>
 #include <string>
 
-/* Vertex */
+// Vertex
 #include "Vertex.h"
-/* Material */
-#include "Material.h"
+// Bounding Box
+#include "BoundingBox.h"
 
-/* Mesh Reader */
+// Mesh Reader
 #include "OBJ_Reader.h"
 
 using namespace std;
@@ -32,25 +33,32 @@ class Mesh {
 
 	protected:
 
-		/* Meshs Name */
+		// Meshs Name
 		string name;
 
-		/* Meshes Vertex Attributes */
+		// Meshs Bounding Box
+		BoundingBox* boundingBox;
+
+		// Meshes Vertex Attributes
 		map<int, Vertex*> vertexMap;
 
 	public:
 		
-		/* Constructors & Destructors */
+		// Constructors & Destructors
 		Mesh(string name, string meshFilename);
 		~Mesh();
 
-		/* Getters */
+		// Getters
 		string getName();
 
-		/* Setters */
+		BoundingBox* getBoundingBox();
+
+		// Setters
 		void setName(string name);
 
-		/* Vertex Map Methods */
+		void setBoundingBox(BoundingBox* BoundingBox);
+
+		// Vertex Map Methods
 		int getVertexCount();
 
 		void addVertex(Vertex* vertex);
@@ -58,7 +66,7 @@ class Mesh {
 
 		map<int, Vertex*> getVertexMap();
 
-		/* Debug Methods */
+		// Debug Methods
 		void dump();
 };
 
