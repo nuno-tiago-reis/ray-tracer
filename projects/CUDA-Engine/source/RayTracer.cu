@@ -1381,7 +1381,7 @@ __global__ void ColorPrimaryShadowRay(
 		return;
 
 	// Fragment Color
-	float3 fragmentColor = make_float3(0.0f);
+	float3 fragmentColor = make_float3(0.0f, 0.0f, 0.0f);
 
 	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
@@ -1398,8 +1398,13 @@ __global__ void ColorPrimaryShadowRay(
 			// Check if the Light is Blocked
 			if(shadowFlagsArray[x + y * windowWidth] != INT_MAX) {
 
-				// Light Direction and Distance
-				float3 lightDirection = normalize(make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition);
+				// Light Direction
+				float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition;
+				// Light Distance
+				float lightDistance = length(lightDirection);
+
+				// Normalize the Light Direction
+				lightDirection = normalize(lightDirection);
 
 				// Blinn-Phong approximation Halfway Vector
 				float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
@@ -1408,11 +1413,16 @@ __global__ void ColorPrimaryShadowRay(
 				float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
 				// Light Intensity (x = diffuse, y = specular)
 				float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+				// Light Attenuation
+				float attenuation = 1.0f / (1.0f + 0.5f + lightDistance * 0.005f + lightDistance * lightDistance * 0.00005f);
 
+				float diffuseFactor = clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f);
 				// Diffuse Component
-				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f) * lightIntensity.x;
+				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
+
+				float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
 				// Specular Component
-				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f) * lightIntensity.y;
+				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
 			}
 		}
 	
@@ -1553,31 +1563,40 @@ __global__ void ColorReflectionRay(
 			(areaPCA / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 1]) + 
 			(1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 2]);
 
+		float4 fragmentDiffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+		float4 fragmentSpecularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+
 		for(unsigned int l = 0; l < lightTotal; l++) {
 
 			// Light Direction
-			float3 lightDirection = normalize(make_float3(tex1Dfetch(lightPositionsTexture, l)) - position);
+			float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - position;
+			// Light Distance
+			float lightDistance = length(lightDirection);
+
+			// Normalize the Light Direction
+			lightDirection = normalize(lightDirection);
 
 			// Blinn-Phong approximation Halfway Vector
-			float3 halfwayVector = normalize(lightDirection - rayDirection);
+			float3 halfwayVector = normalize(lightDirection - normalize(position - cameraPosition));
 
 			// Light Color
-			float3 lightColor =  make_float3(tex1Dfetch(lightColorsTexture, l));
+			float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
 			// Light Intensity (x = diffuse, y = specular)
 			float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+			// Light Attenuation
+			float attenuation = 1.0f / (1.0f + 0.5f + lightDistance * 0.005f + lightDistance * lightDistance * 0.00005f);
 
+			float diffuseFactor = clamp(max(dot(lightDirection, normal), 0.0f), 0.0f, 1.0f);
 			// Diffuse Component
-			fragmentColor += 
-				make_float3(tex1Dfetch(materialDiffusePropertiesTexture, materialID.x)) * lightColor * 
-				clamp(dot(lightDirection, normal), 0.0f, 1.0f) * lightIntensity.x;
+			fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
 
+			float specularFactor = clamp(powf(max(dot(halfwayVector, normal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
 			// Specular Component
-			fragmentColor += 
-				make_float3(tex1Dfetch(materialSpecularPropertiesTexture, materialID.x)) * lightColor * 
-				clamp(powf(max(dot(halfwayVector, normal), 0.0f), tex1Dfetch(materialSpecularPropertiesTexture, materialID.x).w), 0.0f, 1.0f) * lightIntensity.y;
+			fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
 		}
 
-		pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+		pixelBufferObject[x + y * windowWidth] +=
+			RgbToInt(fragmentColor.x * fragmentSpecularColor.w, fragmentColor.y * fragmentSpecularColor.w, fragmentColor.z * fragmentSpecularColor.w);
 	}
 }
 
