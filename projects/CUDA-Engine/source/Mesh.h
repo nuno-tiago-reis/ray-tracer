@@ -19,8 +19,8 @@
 
 // Vertex
 #include "Vertex.h"
-// Bounding Box
-#include "BoundingBox.h"
+// Bounding Sphere
+#include "BoundingSphere.h"
 
 // Mesh Reader
 #include "OBJ_Reader.h"
@@ -28,6 +28,7 @@
 using namespace std;
 
 class Material;
+class BoundingSphere;
 
 class Mesh {
 
@@ -36,8 +37,8 @@ class Mesh {
 		// Meshs Name
 		string name;
 
-		// Meshs Bounding Box
-		BoundingBox* boundingBox;
+		// Meshs Bounding Sphere
+		BoundingSphere* boundingSphere;
 
 		// Meshes Vertex Attributes
 		map<int, Vertex*> vertexMap;
@@ -51,12 +52,12 @@ class Mesh {
 		// Getters
 		string getName();
 
-		BoundingBox* getBoundingBox();
+		BoundingSphere* getBoundingSphere();
 
 		// Setters
 		void setName(string name);
 
-		void setBoundingBox(BoundingBox* BoundingBox);
+		void setBoundingSphere(BoundingSphere* boundingSphere);
 
 		// Vertex Map Methods
 		int getVertexCount();

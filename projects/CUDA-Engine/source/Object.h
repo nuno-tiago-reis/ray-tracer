@@ -22,7 +22,6 @@
 #include "Mesh.h"
 #include "Material.h"
 #include "Transform.h"
-#include "BoundingBox.h"
 
 /* Generic Shader */
 #include "ShaderProgram.h"

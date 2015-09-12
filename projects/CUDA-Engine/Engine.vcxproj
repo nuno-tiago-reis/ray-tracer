@@ -12,7 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\BlinnPhongShader.cpp" />
-    <ClCompile Include="source\BoundingBox.cpp" />
+    <ClCompile Include="source\BoundingSphere.cpp" />
     <ClCompile Include="source\PixelBuffer.cpp" />
     <ClCompile Include="source\BumpMappingShader.cpp" />
     <ClCompile Include="source\Camera.cpp" />
@@ -53,7 +53,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\BlinnPhongShader.h" />
-    <ClInclude Include="source\BoundingBox.h" />
+    <ClInclude Include="source\BoundingSphere.h" />
+    <ClInclude Include="source\Miniball.hpp" />
     <ClInclude Include="source\PixelBuffer.h" />
     <ClInclude Include="source\BumpMappingShader.h" />
     <ClInclude Include="source\FireShader.h" />

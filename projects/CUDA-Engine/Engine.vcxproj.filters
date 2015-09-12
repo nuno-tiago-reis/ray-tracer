@@ -152,8 +152,11 @@
     <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Vertex">
       <UniqueIdentifier>{2485c980-01da-4885-8f83-3e9bddeeb870}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Bounding Box">
+    <Filter Include="Source Files\Library\Scene\Scene Manager\Objects\Bounding Volume">
       <UniqueIdentifier>{9bd3ba1c-ef10-4b0c-a1ce-5550b8ecadd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Utility\Miniball">
+      <UniqueIdentifier>{90587ac0-542d-4d5c-b080-bc6a9ce29909}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -271,8 +274,8 @@
     <ClCompile Include="source\Vertex.cpp">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Vertex</Filter>
     </ClCompile>
-    <ClCompile Include="source\BoundingBox.cpp">
-      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Box</Filter>
+    <ClCompile Include="source\BoundingSphere.cpp">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Volume</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -399,8 +402,11 @@
     <ClInclude Include="source\Vertex.h">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Vertex</Filter>
     </ClInclude>
-    <ClInclude Include="source\BoundingBox.h">
-      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Box</Filter>
+    <ClInclude Include="source\BoundingSphere.h">
+      <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Volume</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Miniball.hpp">
+      <Filter>Source Files\Library\Utility\Miniball</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

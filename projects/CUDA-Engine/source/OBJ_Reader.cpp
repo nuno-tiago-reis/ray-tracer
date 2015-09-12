@@ -81,10 +81,6 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 	VertexStructure *bufferVertices = new VertexStructure[faceNumber * 3];
 	GLint *bufferVerticesID = new GLint[faceNumber * 3];
 
-	// Bounding Box Variables
-	float xMaximum = FLT_MIN, yMaximum = FLT_MIN, zMaximum = FLT_MIN;
-	float xMinimum = FLT_MAX, yMinimum = FLT_MAX, zMinimum = FLT_MAX;
-
 	// Index Trackers
 	int currentFace = 0;
 	int currentVertex = 0;
@@ -107,20 +103,6 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 			vertexArray[currentVertex].x = x;
 			vertexArray[currentVertex].y = y;
 			vertexArray[currentVertex].z = z;
-
-			if(x > xMaximum)
-				xMaximum = x;
-			if(y > yMaximum)
-				yMaximum = y;
-			if(z > zMaximum)
-				zMaximum = z;
-
-			if(x < xMinimum)
-				xMinimum = x;
-			if(y < yMinimum)
-				yMinimum = y;
-			if(z < zMinimum)
-				zMinimum = z;
 
 			currentVertex++;
 		}
@@ -267,17 +249,16 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 		mesh->addVertex(vertex);
 	}
 
-	/* Create the Bounding Box */
-	BoundingBox* boundingBox = new BoundingBox();
+	// Create the Bounding Sphere
+	BoundingSphere* boundingSphere = new BoundingSphere();
+	// Initialize the Bounding Sphere
+	boundingSphere->calculateMiniball(mesh);
+	// Set the Bounding Sphere
+	mesh->setBoundingSphere(boundingSphere);
 
-	boundingBox->setMaximum(Vector(xMaximum, yMaximum, zMaximum, 1.0f));
-	boundingBox->setMinimum(Vector(xMinimum, yMinimum, zMinimum, 1.0f));
-	
-	mesh->setBoundingBox(boundingBox);
-
-	/* Cleanup */
+	// Cleanup
 	delete[] vertexArray;
-	delete[] normalArray;	
+	delete[] normalArray;
 	delete[] textureCoordinateArray;
 
 	delete[] sTangentArray;

@@ -7,28 +7,28 @@
 	#include <crtdbg.h>
 #endif
 
-/* OpenGL definitions */
+// OpenGL definitions
 #include "GL/glew.h"
 #include "GL/freeglut.h"
 
-/* OpenGL Error check */
+// OpenGL Error check
 #include "Utility.h"
 
-/* C++ Includes */
+// C++ Includes
 #include <fstream>
 #include <sstream>
 
 #include <string>
 #include <vector>
 
-/* Mesh */
+// Mesh 
 #include "Mesh.h"
-/* Material */
+// Material
 #include "Material.h"
-/* Bounding Box */
-#include "BoundingBox.h"
+// Bounding Sphere
+#include "BoundingSphere.h"
 
-/* Constants */
+// Constants
 #define LOCATION "models/"
 
 #define X 0

@@ -16,9 +16,9 @@ string Mesh::getName() {
 	return this->name;
 }
 
-BoundingBox* Mesh::getBoundingBox() {
+BoundingSphere* Mesh::getBoundingSphere() {
 
-	return this->boundingBox;
+	return this->boundingSphere;
 }
 
 void Mesh::setName(string name) {
@@ -26,9 +26,9 @@ void Mesh::setName(string name) {
 	this->name = name;
 }
 
-void Mesh::setBoundingBox(BoundingBox* boundingBox) {
+void Mesh::setBoundingSphere(BoundingSphere* boundingSphere) {
 
-	this->boundingBox = boundingBox;
+	this->boundingSphere = boundingSphere;
 }
 
 int Mesh::getVertexCount() {
