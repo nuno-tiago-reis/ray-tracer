@@ -1133,8 +1133,6 @@ void display() {
 		// Cast the Reflection and Refraction Ray Batches
 		if(i == 1) {
 
-			continue;
-
 			bool result = true;
 
 			// Calculate the Reflection Rays based on the Rasterizer Input for the first Iteration.
@@ -1849,7 +1847,7 @@ void init(int argc, char* argv[]) {
 		Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "cube.obj");
 
 		// Create the Objects Material
-		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "cube.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "sphere/silver.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 
 		// Create the Objects Transform
 		Transform* tableSurfaceTransform = new Transform(TABLE_SURFACE);

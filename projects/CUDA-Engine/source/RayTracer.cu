@@ -86,7 +86,7 @@ __device__ static inline unsigned int IFloatFlip(unsigned int f) {
 }
 
 // Converts 8-bit integer to floating point rgb color
-__device__ static inline  float3 IntToRgb(int color) {
+__device__ static inline float3 IntToRgb(int color) {
 
 	float red	= color & 255;
 	float green	= (color >> 8) & 255;
@@ -612,24 +612,31 @@ __global__ void Debug(
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 
-	unsigned int threadID = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
-	if(threadID >= rayTotal)
+	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	float4 fragmentColor = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+	float3 fragmentColor = make_float3(0.0f, 0.0f, 0.0f);
 
-	unsigned int rayID = rayValuesArray[threadID];
+	for(int l=0; l<4; l++) {
 
-	unsigned int x = rayID % windowWidth;
-	unsigned int y = rayID / (windowWidth * LIGHT_SOURCE_MAXIMUM);
-	//unsigned int l = (rayID / windowWidth) % LIGHT_SOURCE_MAXIMUM;
+		// Ray ID
+		unsigned int rayID = x + (windowWidth * l) + y * (windowWidth * LIGHT_SOURCE_MAXIMUM);
 
-	// Load the Ray
-	//float3 rayOrigin = rayArray[rayID * 2];
-	//float3 rayDirection = rayArray[rayID * 2 + 1];
+		// Load the Ray
+		float3 rayOrigin = rayArray[rayID * 2];
+		float3 rayDirection = rayArray[rayID * 2 + 1];
 
-	atomicAdd(&pixelBufferObject[x + y * windowWidth], RgbToInt(0.33f * 255.0f, 0.33f * 255.0f, 0.33f * 255.0f));
+		fragmentColor += rayDirection;
+
+		if(l > 0 && length(rayDirection) != 0.0f)
+			printf("fuck failed\n");
+
+	}
+
+	unsigned int color = atomicAdd(&pixelBufferObject[x + y * windowWidth], RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f));
 }
 
 __global__ void CreateShadowRays(
@@ -711,11 +718,11 @@ __global__ void CreateReflectionRays(
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	unsigned int rayIndex = x + y * windowWidth;
+	unsigned int rayIndex = x + y * windowWidth * LIGHT_SOURCE_MAXIMUM;
 
 	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
-	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));		
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
 	if(length(fragmentPosition) != 0.0f) {
 		
@@ -762,7 +769,7 @@ __global__ void CreateRefractionRays(
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	unsigned int rayIndex = x + y * windowWidth;
+	unsigned int rayIndex = x + y * windowWidth * LIGHT_SOURCE_MAXIMUM;
 
 	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
 	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
@@ -1436,16 +1443,11 @@ __global__ void ColorPrimaryShadowRay(
 				float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition;
 				// Light Distance
 				float lightDistance = length(lightDirection);
-
 				// Normalize the Light Direction
 				lightDirection = normalize(lightDirection);
 
-				// Blinn-Phong approximation Halfway Vector
-				float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
-
 				// Light Color
 				float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
-				
 				// Light Intensity (x = diffuse, y = specular)
 				float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
 				// Light Attenuation
@@ -1455,13 +1457,15 @@ __global__ void ColorPrimaryShadowRay(
 				float diffuseFactor = clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f);
 
 				if(diffuseFactor > 0.0f) {
+
+					// Blinn-Phong approximation Halfway Vector
+					float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
 					
 					// Calculate the Specular Factor
 					float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
 
 					// Calculate the Shadow Factor
 					float shadowFactor = 0.0f;
-
 					for(int i=0; i<16; i++) {
 
 						if((intersectionRecord & (0x00000003 << (i * 2))) == 0)
@@ -1483,29 +1487,6 @@ __global__ void ColorPrimaryShadowRay(
 	}
 
 	pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
-}
-
-__global__ void AntiAliasing(	
-							// Auxiliary Variables containing the Screen Dimensions.
-							const unsigned int windowWidth, const unsigned int windowHeight,
-							// Intput Array containing the Screen Buffer.
-							unsigned int *primaryPixelBufferObject,
-							// Output Array containing the Screen Buffer.
-							unsigned int *secondaryPixelBufferObject) {
-
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-
-	if(x+1 >= windowWidth || y+1 >= windowHeight || x < 1 || y < 1)
-		return;
-
-	float3 pixel = make_float3(0.0f);
-
-	for(int i=-1; i<2; i++)
-		for(int j=-1; j<2; j++)
-			pixel += IntToRgb(primaryPixelBufferObject[x + (y + i) * windowWidth + i]) * 1.0f/9.0f;
-
-	secondaryPixelBufferObject[x + y * windowWidth] = RgbToInt(pixel.x, pixel.y, pixel.z);
 }
 
 __global__ void CalculateReflectionRayIntersections(
@@ -1608,11 +1589,11 @@ __global__ void ColorReflectionRay(
 		int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, intersectionTriangle * 3);
 
 		// Fragment Position and Normal - Sent from the OpenGL Rasterizer
-		float3 position = make_float3(tex2D(fragmentPositionTexture, x,y));
-		float3 normal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
+		float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+		float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
 		// Calculate the Reflection Ray
-		float3 rayDirection = reflect(normalize(position-cameraPosition), normal);
+		float3 rayDirection = reflect(normalize(fragmentPosition-cameraPosition), fragmentNormal);
 
 		// Store the Triangles Vertices and Edges
 		float3 vertex0 = make_float3(trianglePositionsArray[intersectionTriangle * 3]);
@@ -1620,17 +1601,17 @@ __global__ void ColorReflectionRay(
 		float3 vertex2 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 2]);
 
 		// Calculate the Intersection Time
-		float intersectionTime = RayTriangleIntersection(Ray(position + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
+		float intersectionTime = RayTriangleIntersection(Ray(fragmentPosition + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
 
 		// Calculate the Hit Point
-		position = position + rayDirection * (epsilon + intersectionTime);
+		fragmentPosition = fragmentPosition + rayDirection * (epsilon + intersectionTime);
 
 		// Normal calculation using Barycentric Interpolation
 		float areaABC = length(cross(vertex1 - vertex0, vertex2 - vertex0));
-		float areaPBC = length(cross(vertex1 - position, vertex2 - position));
-		float areaPCA = length(cross(vertex0 - position, vertex2 - position));
+		float areaPBC = length(cross(vertex1 - fragmentPosition, vertex2 - fragmentPosition));
+		float areaPCA = length(cross(vertex0 - fragmentPosition, vertex2 - fragmentPosition));
 
-		normal = 
+		fragmentNormal = 
 			(areaPBC / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3]) + 
 			(areaPCA / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 1]) + 
 			(1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 2]);
@@ -1641,36 +1622,65 @@ __global__ void ColorReflectionRay(
 		for(unsigned int l = 0; l < lightTotal; l++) {
 
 			// Light Direction
-			float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - position;
+			float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition;
 			// Light Distance
 			float lightDistance = length(lightDirection);
-
 			// Normalize the Light Direction
 			lightDirection = normalize(lightDirection);
-
-			// Blinn-Phong approximation Halfway Vector
-			float3 halfwayVector = normalize(lightDirection - normalize(position - cameraPosition));
 
 			// Light Color
 			float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
 			// Light Intensity (x = diffuse, y = specular)
 			float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
 			// Light Attenuation
-			float attenuation = 1.0f / (1.0f + 0.5f + lightDistance * 0.005f + lightDistance * lightDistance * 0.00005f);
+			float attenuation = 1.0f / (0.75f + lightDistance * 0.0005f + lightDistance * lightDistance * 0.00005f);
+			
+			// Calculate the Diffuse Factor
+			float diffuseFactor = clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f);
 
-			float diffuseFactor = clamp(max(dot(lightDirection, normal), 0.0f), 0.0f, 1.0f);
-			// Diffuse Component
-			fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
+			if(diffuseFactor > 0.0f) {
 
-			float specularFactor = clamp(powf(max(dot(halfwayVector, normal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
-			// Specular Component
-			fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
+				// Blinn-Phong approximation Halfway Vector
+				float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
+					
+				// Calculate the Specular Factor
+				float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
+
+				// Diffuse Component
+				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
+				// Specular Component
+				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
+			}
 		}
 
 		pixelBufferObject[x + y * windowWidth] +=
 			RgbToInt(fragmentColor.x * fragmentSpecularColor.w, fragmentColor.y * fragmentSpecularColor.w, fragmentColor.z * fragmentSpecularColor.w);
 	}
 }
+
+__global__ void AntiAliasing(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Intput Array containing the Screen Buffer.
+							unsigned int *primaryPixelBufferObject,
+							// Output Array containing the Screen Buffer.
+							unsigned int *secondaryPixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+	if(x+1 >= windowWidth || y+1 >= windowHeight || x < 1 || y < 1)
+		return;
+
+	float3 pixel = make_float3(0.0f);
+
+	for(int i=-1; i<2; i++)
+		for(int j=-1; j<2; j++)
+			pixel += IntToRgb(primaryPixelBufferObject[x + (y + i) * windowWidth + i]) * 1.0f/9.0f;
+
+	secondaryPixelBufferObject[x + y * windowWidth] = RgbToInt(pixel.x, pixel.y, pixel.z);
+}
+
 
 extern "C" {
 
@@ -1818,8 +1828,8 @@ extern "C" {
 		Debug2<<<grid2, block2>>>(windowWidth, windowHeight, pixelBufferObject);
 
 		// Grid based on the Screen Dimensions.
-		dim3 block(1024);
-		dim3 grid(rayTotal/block.x + 1);
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block2.x + 1, windowHeight/block2.y +1);
 
 		//Debug<<<grid, block>>>(rayArray, sortedRayIndexKeysArray, sortedRayIndexValuesArray, boundingSphereArray, rayTotal, windowWidth, windowHeight, cameraPosition, cameraDirection, cameraUp, cameraRight, pixelBufferObject);
 	}
@@ -2442,14 +2452,14 @@ extern "C" {
 
 		// Grid based on the Screen Dimensions.
 		dim3 block(1024);
-		dim3 grid(windowWidth*windowHeight / block.x + 1);
+		dim3 grid(windowWidth*windowHeight*LIGHT_SOURCE_MAXIMUM/ block.x + 1);
 
 		#ifdef BLOCK_GRID_DEBUG 
 			cout << "[PrepareArray] Grid = " << grid.x << endl;
 		#endif
 
 		// Prepare the Array
-		PrepareArray<<<grid, block>>>(UINT_MAX, windowWidth * windowHeight, intersectionTimeArray);
+		PrepareArray<<<grid, block>>>(UINT_MAX, windowWidth * windowHeight *LIGHT_SOURCE_MAXIMUM, intersectionTimeArray);
 	}
 
 	void ReflectionRayIntersectionWrapper(

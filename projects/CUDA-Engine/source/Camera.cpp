@@ -16,7 +16,7 @@ Camera::Camera(string name) {
 
 	this->zoom = 0.75f;
 	this->longitude = 180.0f;
-	this->latitude = 89.99f;
+	this->latitude = 44.99f;
 
 	loadView();
 	loadOrthogonalProjection();
