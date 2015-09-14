@@ -84,7 +84,7 @@ void main() {
 
 	// Ray Tracing
 	FragmentRayOrigin = ModelMatrix * VertexPosition;
-	FragmentRayNormal = vec4(inverse(transpose(mat3(ModelMatrix))) * vec3(VertexNormal), 1.0f);
+	FragmentRayNormal = vec4(inverse(transpose(mat3(ModelMatrix))) * vec3(VertexNormal), 0.0f);
 
 	// Vertex Position to Clip Space
 	gl_Position = ProjectionMatrix * ViewMatrix * ModelMatrix * VertexPosition;

@@ -29,6 +29,7 @@
 //#define SYNCHRONIZE_DEBUG
 //#define BOUNDING_SPHERE_DEBUG
 //#define TRIANGLE_DIVISION_DEBUG
+//#define ANTI_ALIASING
 
 // Object
 #include "Object.h"
@@ -247,8 +248,8 @@ extern "C" {
 	void ShadowRayCreationWrapper(
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
-							// Auxiliary Variables containing the Light Index.
-							const unsigned int lightIndex,
+							// Auxiliary Variable containing the Light Total.
+							const unsigned int lightTotal,
 							// Output Array containing the Unsorted Rays.
 							float3* rayArray,
 							// Output Array containing the Ray Head Flags.
@@ -278,6 +279,8 @@ extern "C" {
 							unsigned int* rayIndexValuesArray,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Auxiliary Variable containing the Light Total.
+							const unsigned int lightTotal,
 							// Auxiliary Array containing the Ray Head Flags.
 							unsigned int* headFlagsArray, 
 							// Auxiliary Array containing the Inclusive Scan Output.
@@ -350,6 +353,10 @@ extern "C" {
 							unsigned int* sortedRayIndexValuesArray,
 							// Auxiliary Variable containing the Ray Total.
 							const unsigned int rayTotal,
+							// Auxiliary Variable containing the Initial Sphere Radius.
+							const float initialRadius,
+							// Auxiliary Variable containing the Initial Cone Spread.
+							const float initialSpread,
 							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray);
 
@@ -409,6 +416,8 @@ extern "C" {
 	void ShadowRayPreparationWrapper(
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const unsigned int lightTotal,
 							// Output Array containing the Shadow Ray Flags.
 							unsigned int* shadowFlagsArray);
 	
@@ -431,14 +440,10 @@ extern "C" {
 							const unsigned int triangleOffset,
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
-							// Auxiliary Variable containing the Number of Lights.
-							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
 							const float3 cameraPosition,
 							// Output Array containing the Shadow Ray Flags.
-							unsigned int* shadowFlagsArray,
-							// Output Array containing the Screen Buffer.
-							unsigned int *pixelBufferObject);
+							unsigned int* shadowFlagsArray);
 	
 	// Implementation of 'ShadowRayColoringWrapper'ShadowRayColoringWrapper is in the "RayTracer.cu" file
 	void ShadowRayColoringWrapper(
@@ -484,9 +489,7 @@ extern "C" {
 							// Auxiliary Variables containing the Camera Position.
 							const float3 cameraPosition,
 							// Auxiliary Array containing the Intersection Times.
-							unsigned int* intersectionTimeArray,
-							// Output Array containing the Screen Buffer.
-							unsigned int *pixelBufferObject);
+							unsigned int* intersectionTimeArray);
 	
 	// Implementation of 'ReflectionRayColoringWrapper' is in the "RayTracer.cu" file
 	void ReflectionRayColoringWrapper(
@@ -504,6 +507,15 @@ extern "C" {
 							unsigned int* intersectionTimeArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
+	
+	// Implementation of 'AntiAliasingWrapper' is in the "RayTracer.cu" file
+	void AntiAliasingWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Output Array containing the Primary Screen Buffer.
+							unsigned int *primaryPixelBufferObject,
+							// Output Array containing the Secondary Screen Buffer.
+							unsigned int *secondaryPixelBufferObject);
 
 	// Implementation of bindRenderTextureArray is in the "RayTracer.cu" file
 	void bindDiffuseTextureArray(cudaArray *diffuseTextureArray);
@@ -593,7 +605,7 @@ bool createShadowRays(bool rasterizer, float3 cameraPosition) {
 		// Create the Rays and Index them [DONE]
 		ShadowRayCreationWrapper(
 			windowWidth, windowHeight, 
-			0, 
+			LIGHT_SOURCE_MAXIMUM,
 			cudaRayArrayDP, 
 			cudaHeadFlagsArrayDP, 
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
@@ -617,6 +629,7 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 		// Prepare the Shadow Flags Array
 		ShadowRayPreparationWrapper(
 			windowWidth,  windowHeight,
+			LIGHT_SOURCE_MAXIMUM,
 			cudaSecondaryRayIndexKeysArrayDP);
 
 		#ifdef SYNCHRONIZE_DEBUG
@@ -683,10 +696,8 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 				rayTotal,
 				triangleOffset,
 				windowWidth, windowHeight,
-				lightTotal,
 				cameraPosition,
-				cudaSecondaryRayIndexKeysArrayDP,
-				pixelBufferObject);
+				cudaSecondaryRayIndexKeysArrayDP);
 
 			#ifdef SYNCHRONIZE_DEBUG
 				Utility::checkCUDAError("ShadowRayIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -700,7 +711,11 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 			lightTotal,
 			cameraPosition,
 			cudaSecondaryRayIndexKeysArrayDP,
-			pixelBufferObject);
+			#ifdef ANTI_ALIASING
+				cudaSecondaryRayIndexValuesArrayDP);
+			#else
+				pixelBufferObject);
+			#endif
 
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -813,8 +828,7 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 				windowWidth, windowHeight,
 				lightTotal,
 				cameraPosition,
-				cudaSecondaryRayIndexKeysArrayDP,
-				pixelBufferObject);
+				cudaSecondaryRayIndexKeysArrayDP);
 		
 			#ifdef SYNCHRONIZE_DEBUG
 				Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -830,7 +844,11 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 			lightTotal,
 			cameraPosition,
 			cudaSecondaryRayIndexKeysArrayDP,
-			pixelBufferObject);
+			#ifdef ANTI_ALIASING
+				cudaSecondaryRayIndexValuesArrayDP);
+			#else
+				pixelBufferObject);
+			#endif
 
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -844,17 +862,18 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 }
 
 // [Ray-Tracing] Processes a Batch of Rays previously created.
-bool castRays() {
+bool castRays(bool shadows) {
 
 	// Trim the Ray Indices [DONE]
 	RayTrimmingWrapper(
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP, 
 		windowWidth, windowHeight, 
+		LIGHT_SOURCE_MAXIMUM,
 		cudaHeadFlagsArrayDP, 
 		cudaScanArrayDP, 
 		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
 		&rayTotal);
-		
+
 	#ifdef SYNCHRONIZE_DEBUG
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
@@ -909,6 +928,8 @@ bool castRays() {
 		cudaRayArrayDP,
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
 		rayTotal,
+		(shadows == true) ? SHADOW_RAY_RADIUS : 0.0f,
+		(shadows == true) ? SHADOW_RAY_SPREAD : 0.0f,
 		cudaHierarchyArrayDP);
 		
 	#ifdef SYNCHRONIZE_DEBUG
@@ -1096,18 +1117,6 @@ void display() {
 		// Cast the Shadow Ray Batch
 		if(i == 0) {
 
-			/*ScreenPreparationWrapper(
-				cudaRayArrayDP, 
-				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-				cudaUpdatedBoundingSpheresDP,
-				boundingSphereTotal,
-				windowWidth, windowHeight, 
-				make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]),
-				make_float3(cameraDirection[VX], cameraDirection[VY], cameraDirection[VZ]),
-				make_float3(cameraUp[VX], cameraUp[VY], cameraUp[VZ]), 
-				make_float3(cameraRight[VX], cameraRight[VY], cameraRight[VZ]), 
-				pixelBufferObject);*/
-
 			bool result = true;
 			
 			// Calculate the Shadow Rays based on the Rasterizer Input for the first Iteration.
@@ -1115,7 +1124,7 @@ void display() {
 				result = createShadowRays(true, cameraEye);
 			// Cast the Generic Ray-Tracing Algorithm.
 			if(result == true)
-				result = castRays();
+				result = castRays(true);
 			// Calculate the Color based on the Rasterizer Input for the first Iteration.
 			if(result == true)
 				result = colorShadowRays(true, cameraEye, pixelBufferObject);
@@ -1124,6 +1133,8 @@ void display() {
 		// Cast the Reflection and Refraction Ray Batches
 		if(i == 1) {
 
+			continue;
+
 			bool result = true;
 
 			// Calculate the Reflection Rays based on the Rasterizer Input for the first Iteration.
@@ -1131,7 +1142,7 @@ void display() {
 				result = createReflectionRays(true, cameraEye);
 			// Cast the Generic Ray-Tracing Algorithm.
 			if(result == true)
-				result = castRays();
+				result = castRays(false);
 			// Calculate the Color.
 			if(result == true)
 				result = colorReflectionRays(true, cameraEye, pixelBufferObject);
@@ -1146,14 +1157,33 @@ void display() {
 		}
 	}
 
-	frameBuffer->unmapCudaResource();
-	pixelBuffer->unmapCudaResource();
+	/****************************************************************/
+	/*																*/
+	/*						Anti-Aliasing							*/
+	/*																*/
+	/****************************************************************/
+
+	#ifdef ANTI_ALIASING
+		// Run the Anti-Aliasing
+		AntiAliasingWrapper(
+			windowWidth, windowHeight,
+			cudaSecondaryRayIndexValuesArrayDP,
+			pixelBufferObject);
+	#endif
+
+	#ifdef SYNCHRONIZE_DEBUG
+		Utility::checkCUDAError("AntiAliasingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("AntiAliasingWrapper::cudaGetLastError()", cudaGetLastError());
+	#endif
 
 	/****************************************************************/
 	/*																*/
 	/*					OpenGL Colouring Core						*/
 	/*																*/
 	/****************************************************************/
+
+	frameBuffer->unmapCudaResource();
+	pixelBuffer->unmapCudaResource();
 
 	// Copy the Output to the Texture
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pixelBuffer->getHandler());
@@ -1202,6 +1232,8 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 
+	//exit(0);
+
 	//cout << "[Callback] Display Successfull" << endl;
 }
 
@@ -1235,7 +1267,7 @@ void reshape(int weight, int height) {
 	screenTexture->createTexture();
 
 	// Update the Array Size 
-	unsigned int rayMaximum = windowWidth * windowHeight;
+	unsigned int rayMaximum = windowWidth * windowHeight * LIGHT_SOURCE_MAXIMUM;
 
 	// Update the CUDA Hierarchy Array Size
 	unsigned int hierarchyMaximum = 0;
@@ -1255,7 +1287,7 @@ void reshape(int weight, int height) {
 	}
 
 	// Heuristic Modification
-	hierarchyNodeMaximum[0] = (unsigned int)(hierarchyNodeMaximum[0] * 0.20f);
+	hierarchyNodeMaximum[0] = (unsigned int)(hierarchyNodeMaximum[0] / 4);
 
 	// Store the Memory Total
 	hierarchyHitMemoryTotal = hierarchyNodeMaximum[0] * HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM;
@@ -1272,8 +1304,8 @@ void reshape(int weight, int height) {
 	Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaSecondaryHierarchyHitsArrayDP, hierarchyHitMemoryTotal * sizeof(unsigned int)));
 
 	allocated += hierarchyMaximum * sizeof(float4) * 2;
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
-	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
+	allocated += hierarchyHitMemoryTotal * triangleTotal * sizeof(unsigned int);
+	allocated += hierarchyHitMemoryTotal * triangleTotal * sizeof(unsigned int);
 
 	// Update the CUDA Ray Array
 	Utility::checkCUDAError("cudaFree()", cudaFree((void *)cudaRayArrayDP));
@@ -1333,7 +1365,7 @@ void reshape(int weight, int height) {
 
 	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
 	allocated += hierarchyNodeMaximum[0] * triangleTotal * sizeof(unsigned int);
-	
+
 	size_t free, total;
 	Utility::checkCUDAError("cudaGetMemInfo()", cudaMemGetInfo(&free, &total));
 
@@ -1648,19 +1680,56 @@ void initializeLights() {
 
 	positionalLight1->setIdentifier(LIGHT_SOURCE_1);
 
-	positionalLight1->setPosition(Vector(0.0f, 10.0f, 0.0f, 1.0f));
+	positionalLight1->setPosition(Vector(-2.5f, 2.5f,-2.5f, 1.0f));
 	positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
 
-	positionalLight1->setAmbientIntensity(0.25f);
-	positionalLight1->setDiffuseIntensity(1.5f);
-	positionalLight1->setSpecularIntensity(1.5f);
-
-	positionalLight1->setConstantAttenuation(0.0025f);
-	positionalLight1->setLinearAttenuation(0.00075f);
-	positionalLight1->setExponentialAttenuation(0.000075f);
+	positionalLight1->setDiffuseIntensity(0.5f);
+	positionalLight1->setSpecularIntensity(0.5f);
 	
 	lightMap[positionalLight1->getIdentifier()] = positionalLight1;
 	sceneManager->addLight(positionalLight1);
+
+	// Light Source 2
+	PositionalLight* positionalLight2 = new PositionalLight(POSITIONAL_LIGHT_2);
+
+	positionalLight2->setIdentifier(LIGHT_SOURCE_2);
+
+	positionalLight2->setPosition(Vector( 2.5f, 2.5f,-2.5f, 1.0f));
+	positionalLight2->setColor(Vector(0.0f, 0.0f, 0.75f, 1.0f));
+
+	positionalLight2->setDiffuseIntensity(0.5f);
+	positionalLight2->setSpecularIntensity(0.5f);
+	
+	lightMap[positionalLight2->getIdentifier()] = positionalLight2;
+	sceneManager->addLight(positionalLight2);
+
+	// Light Source 3
+	PositionalLight* positionalLight3 = new PositionalLight(POSITIONAL_LIGHT_3);
+
+	positionalLight3->setIdentifier(LIGHT_SOURCE_3);
+
+	positionalLight3->setPosition(Vector(-2.5f, 2.5f, 2.5f, 1.0f));
+	positionalLight3->setColor(Vector(0.0f, 0.75f, 0.0f, 1.0f));
+
+	positionalLight3->setDiffuseIntensity(0.5f);
+	positionalLight3->setSpecularIntensity(0.5f);
+	
+	lightMap[positionalLight3->getIdentifier()] = positionalLight3;
+	sceneManager->addLight(positionalLight3);
+
+	// Light Source 4
+	PositionalLight* positionalLight4 = new PositionalLight(POSITIONAL_LIGHT_4);
+
+	positionalLight4->setIdentifier(LIGHT_SOURCE_4);
+
+	positionalLight4->setPosition(Vector( 2.5f, 2.5f, 2.5f, 1.0f));
+	positionalLight4->setColor(Vector(0.75f, 0.0f, 0.0f, 1.0f));
+
+	positionalLight4->setDiffuseIntensity(0.5f);
+	positionalLight4->setSpecularIntensity(0.5f);
+	
+	lightMap[positionalLight4->getIdentifier()] = positionalLight4;
+	sceneManager->addLight(positionalLight4);
 
 	// Stores the Lights Information in the form of Arrays
 	vector<float4> lightPositionList;
@@ -1752,6 +1821,7 @@ void initializeCameras() {
 	cout << "[Initialization] Camera Initialization Successfull" << endl << endl;
 }
 
+// [Scene] Initializes the Scene
 void init(int argc, char* argv[]) {
 
 	// Initialize OpenGL
@@ -1820,9 +1890,9 @@ void init(int argc, char* argv[]) {
 	sphereMaterial[3] = new Material("Sphere Gold Material", "sphere/saphire.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 	sphereMaterial[4] = new Material("Sphere Gold Material", "sphere/emerald.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 
-	for(int i=0; i<2; i++) {
+	for(int i=0; i<1; i++) {
 
-		for(int j=0; j<2; j++) {
+		for(int j=0; j<1; j++) {
 
 			// Create the Objects Name
 			ostringstream stringStream;
@@ -1836,10 +1906,11 @@ void init(int argc, char* argv[]) {
 				// Create the Objects Transform
 				Transform* sphereTransform = new Transform(sphereName);
 
-				//sphereTransform->setPosition(Vector(i * 7.5f - 22.5f, 0.5f, j * 7.5f - 22.5f,1.0f));
-				sphereTransform->setPosition(Vector(i * 10.0f - 5.0f, 0.5f, j * 10.0f - 5.0f,1.0f));
+				sphereTransform->setPosition(Vector(0.0f, 0.0f, 0.0f, 1.0f));
+				//sphereTransform->setPosition(Vector(i * 10.0f - 5.0f, 0.5f, j * 10.0f - 5.0f,1.0f));
 				sphereTransform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
 				sphereTransform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
+				//sphereTransform->setScale(Vector(1.0f,1.0f,1.0f,1.0f));
 				
 				// Set the Objects Mesh
 				sphereObject->setMesh(sphereMesh);

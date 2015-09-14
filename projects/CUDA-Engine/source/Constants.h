@@ -13,11 +13,15 @@
 #define DEPTH 2
 
 // Ray Tracing Light Constants
-#define LIGHT_SOURCE_MAXIMUM 1
+#define LIGHT_SOURCE_MAXIMUM 4
+
+// Ray Tracing Shadow Constants
+#define SHADOW_RAY_RADIUS 0.5f
+#define SHADOW_RAY_SPREAD PI / 128.0f
 
 // Ray-Tracing Memory Constants
 #define HIERARCHY_TRIANGLE_MAXIMUM 10000
-#define HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM 20000
+#define HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM 5000
 
 // Ray-Tracing Hierarchy Depth Constants
 #define HIERARCHY_MAXIMUM_DEPTH 2
