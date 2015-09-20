@@ -26,11 +26,6 @@
 	#include <crtdbg.h>
 #endif
 
-//#define SYNCHRONIZE_DEBUG
-//#define BOUNDING_SPHERE_DEBUG
-//#define TRIANGLE_DIVISION_DEBUG
-//#define ANTI_ALIASING
-
 // Object
 #include "Object.h"
 
@@ -608,11 +603,15 @@ bool createShadowRays(bool rasterizer, float3 cameraPosition) {
 			LIGHT_SOURCE_MAXIMUM,
 			cudaRayArrayDP, 
 			cudaHeadFlagsArrayDP, 
-			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+			#ifdef IMPROVED_ALGORITHM
+				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+			#else
+				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP);
+			#endif
 	
 		#ifdef SYNCHRONIZE_DEBUG
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+			Utility::checkCUDAError("ShadowRayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ShadowRayCreationWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
 		return true;
@@ -630,7 +629,7 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 		ShadowRayPreparationWrapper(
 			windowWidth,  windowHeight,
 			LIGHT_SOURCE_MAXIMUM,
-			cudaSecondaryRayIndexKeysArrayDP);
+			cudaPrimaryChunkKeysArrayDP);
 
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -667,6 +666,11 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 				&hierarchyHitTotal,
 				&hierarchyHitMemoryTotal);
 
+			#ifdef SYNCHRONIZE_DEBUG
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaGetLastError()", cudaGetLastError());
+			#endif
+
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
 			HierarchyTraversalWrapper(
 				cudaHierarchyArrayDP,
@@ -697,22 +701,25 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 				triangleOffset,
 				windowWidth, windowHeight,
 				cameraPosition,
-				cudaSecondaryRayIndexKeysArrayDP);
+				cudaPrimaryChunkKeysArrayDP);
 
 			#ifdef SYNCHRONIZE_DEBUG
 				Utility::checkCUDAError("ShadowRayIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 				Utility::checkCUDAError("ShadowRayIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
 			#endif
 		}
-		
+
+		//cudaDeviceSynchronize();
+		//exit(0);
+
 		// Color the Scene according to the Shadow Rays
 		ShadowRayColoringWrapper(
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
-			cudaSecondaryRayIndexKeysArrayDP,
+			cudaPrimaryChunkKeysArrayDP,
 			#ifdef ANTI_ALIASING
-				cudaSecondaryRayIndexValuesArrayDP);
+				cudaPrimaryChunkValuesArrayDP);
 			#else
 				pixelBufferObject);
 			#endif
@@ -739,11 +746,15 @@ bool createReflectionRays(bool rasterizer, float3 cameraPosition) {
 			cameraPosition,
 			cudaRayArrayDP, 
 			cudaHeadFlagsArrayDP, 
-			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+			#ifdef IMPROVED_ALGORITHM
+				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+			#else
+				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP);
+			#endif
 	
 		#ifdef SYNCHRONIZE_DEBUG
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+			Utility::checkCUDAError("ReflectionRayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ReflectionRayCreationWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
 		return true;
@@ -760,7 +771,7 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 		// Prepare the Intersection Times Array
 		ReflectionRayPreparationWrapper(
 			windowWidth,  windowHeight,
-			cudaSecondaryRayIndexKeysArrayDP);
+			cudaPrimaryChunkKeysArrayDP);
 
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ShadowRayPreparationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -797,6 +808,11 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 				&hierarchyHitTotal,
 				&hierarchyHitMemoryTotal);
 
+			#ifdef SYNCHRONIZE_DEBUG
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaGetLastError()", cudaGetLastError());
+			#endif
+
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
 			HierarchyTraversalWrapper(
 				cudaHierarchyArrayDP,
@@ -828,11 +844,11 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 				windowWidth, windowHeight,
 				lightTotal,
 				cameraPosition,
-				cudaSecondaryRayIndexKeysArrayDP);
+				cudaPrimaryChunkKeysArrayDP);
 		
 			#ifdef SYNCHRONIZE_DEBUG
-				Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-				Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+				Utility::checkCUDAError("ReflectionRayIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+				Utility::checkCUDAError("ReflectionRayIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
 			#endif
 		}
 		
@@ -843,16 +859,16 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
-			cudaSecondaryRayIndexKeysArrayDP,
+			cudaPrimaryChunkKeysArrayDP,
 			#ifdef ANTI_ALIASING
-				cudaSecondaryRayIndexValuesArrayDP);
+				cudaPrimaryChunkValuesArrayDP);
 			#else
 				pixelBufferObject);
 			#endif
 
 		#ifdef SYNCHRONIZE_DEBUG
-			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
+			Utility::checkCUDAError("ReflectionRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("ReflectionRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
 		return true;
@@ -866,61 +882,71 @@ bool castRays(bool shadows) {
 
 	// Trim the Ray Indices [DONE]
 	RayTrimmingWrapper(
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP, 
+		#ifdef IMPROVED_ALGORITHM
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP, 
+		#else
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+		#endif
 		windowWidth, windowHeight, 
 		LIGHT_SOURCE_MAXIMUM,
 		cudaHeadFlagsArrayDP, 
 		cudaScanArrayDP, 
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+		#ifdef IMPROVED_ALGORITHM
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+		#else
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+		#endif
 		&rayTotal);
 
 	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
 	#endif
 
 	if(rayTotal == 0)
 		return false;
 
-	// Compress the Unsorted Ray Indices into Chunks [DONE]
-	RayCompressionWrapper(
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP, 
-		rayTotal,
-		cudaHeadFlagsArrayDP, 
-		cudaScanArrayDP, 
-		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP, 
-		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
-		&chunkTotal);
+	#ifdef IMPROVED_ALGORITHM
+		// Compress the Unsorted Ray Indices into Chunks [DONE]
+		RayCompressionWrapper(
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP, 
+			rayTotal,
+			cudaHeadFlagsArrayDP, 
+			cudaScanArrayDP, 
+			cudaChunkBasesArrayDP, cudaChunkSizesArrayDP, 
+			cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP,
+			&chunkTotal);
 		
-	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
-	#endif
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("RayCompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("RayCompressionWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 
-	// Sort the Chunks [DONE]
-	RaySortingWrapper(
-		cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP, 
-		chunkTotal,
-		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
+		// Sort the Chunks [DONE]
+		RaySortingWrapper(
+			cudaPrimaryChunkKeysArrayDP, cudaPrimaryChunkValuesArrayDP, 
+			chunkTotal,
+			cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP);
 		
-	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
-	#endif
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("RaySortingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("RaySortingWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 
-	// Decompress the Sorted Chunks into the Sorted Ray Indices [DONE]
-	RayDecompressionWrapper(
-		cudaChunkBasesArrayDP, cudaChunkSizesArrayDP,
-		cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP, 
-		cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		cudaHeadFlagsArrayDP,
-		cudaScanArrayDP, 
-		chunkTotal,
-		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-		
-	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		// Decompress the Sorted Chunks into the Sorted Ray Indices [DONE]
+		RayDecompressionWrapper(
+			cudaChunkBasesArrayDP, cudaChunkSizesArrayDP,
+			cudaSecondaryChunkKeysArrayDP, cudaSecondaryChunkValuesArrayDP, 
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+			cudaHeadFlagsArrayDP,
+			cudaScanArrayDP, 
+			chunkTotal,
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
+
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("RayDecompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("RayDecompressionWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
 	#endif
 
 	// Create the Ray Hierarchy
@@ -933,8 +959,8 @@ bool castRays(bool shadows) {
 		cudaHierarchyArrayDP);
 		
 	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("LocalIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
+		Utility::checkCUDAError("HierarchyCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("HierarchyCreationWrapper::cudaGetLastError()", cudaGetLastError());
 	#endif
 
 	return true;
@@ -1229,8 +1255,6 @@ void display() {
 
 	// Swap the Buffers
 	glutSwapBuffers();
-
-	//exit(0);
 
 	//cout << "[Callback] Display Successfull" << endl;
 }
@@ -1673,61 +1697,92 @@ void initializeLights() {
 	// Light Map
 	map<int, Light*> lightMap;
 
-	// Light Source 1
-	PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
+	#ifdef LIGHT_CUBE
+		// Light Source - White
+		PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
 
-	positionalLight1->setIdentifier(LIGHT_SOURCE_1);
+		positionalLight1->setIdentifier(LIGHT_SOURCE_1);
 
-	positionalLight1->setPosition(Vector(-2.5f, 2.5f,-2.5f, 1.0f));
-	positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
+		positionalLight1->setPosition(Vector(-2.5f, 2.5f,-2.5f, 1.0f));
+		positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
 
-	positionalLight1->setDiffuseIntensity(0.5f);
-	positionalLight1->setSpecularIntensity(0.5f);
+		positionalLight1->setDiffuseIntensity(0.5f);
+		positionalLight1->setSpecularIntensity(0.5f);
 	
-	lightMap[positionalLight1->getIdentifier()] = positionalLight1;
-	sceneManager->addLight(positionalLight1);
+		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
+		sceneManager->addLight(positionalLight1);
 
-	// Light Source 2
-	PositionalLight* positionalLight2 = new PositionalLight(POSITIONAL_LIGHT_2);
+		// Light Source - Blue
+		PositionalLight* positionalLight2 = new PositionalLight(POSITIONAL_LIGHT_2);
 
-	positionalLight2->setIdentifier(LIGHT_SOURCE_2);
+		positionalLight2->setIdentifier(LIGHT_SOURCE_2);
 
-	positionalLight2->setPosition(Vector( 2.5f, 2.5f,-2.5f, 1.0f));
-	positionalLight2->setColor(Vector(0.0f, 0.0f, 0.75f, 1.0f));
+		positionalLight2->setPosition(Vector( 2.5f, 2.5f,-2.5f, 1.0f));
+		positionalLight2->setColor(Vector(0.0f, 0.0f, 0.75f, 1.0f));
 
-	positionalLight2->setDiffuseIntensity(0.5f);
-	positionalLight2->setSpecularIntensity(0.5f);
+		positionalLight2->setDiffuseIntensity(0.5f);
+		positionalLight2->setSpecularIntensity(0.5f);
 	
-	lightMap[positionalLight2->getIdentifier()] = positionalLight2;
-	sceneManager->addLight(positionalLight2);
+		lightMap[positionalLight2->getIdentifier()] = positionalLight2;
+		sceneManager->addLight(positionalLight2);
 
-	// Light Source 3
-	PositionalLight* positionalLight3 = new PositionalLight(POSITIONAL_LIGHT_3);
+		// Light Source - Green
+		PositionalLight* positionalLight3 = new PositionalLight(POSITIONAL_LIGHT_3);
 
-	positionalLight3->setIdentifier(LIGHT_SOURCE_3);
+		positionalLight3->setIdentifier(LIGHT_SOURCE_3);
 
-	positionalLight3->setPosition(Vector(-2.5f, 2.5f, 2.5f, 1.0f));
-	positionalLight3->setColor(Vector(0.0f, 0.75f, 0.0f, 1.0f));
+		positionalLight3->setPosition(Vector(-2.5f, 2.5f, 2.5f, 1.0f));
+		positionalLight3->setColor(Vector(0.0f, 0.75f, 0.0f, 1.0f));
 
-	positionalLight3->setDiffuseIntensity(0.5f);
-	positionalLight3->setSpecularIntensity(0.5f);
+		positionalLight3->setDiffuseIntensity(0.5f);
+		positionalLight3->setSpecularIntensity(0.5f);
 	
-	lightMap[positionalLight3->getIdentifier()] = positionalLight3;
-	sceneManager->addLight(positionalLight3);
+		lightMap[positionalLight3->getIdentifier()] = positionalLight3;
+		sceneManager->addLight(positionalLight3);
 
-	// Light Source 4
-	PositionalLight* positionalLight4 = new PositionalLight(POSITIONAL_LIGHT_4);
+		// Light Source - Red
+		PositionalLight* positionalLight4 = new PositionalLight(POSITIONAL_LIGHT_4);
 
-	positionalLight4->setIdentifier(LIGHT_SOURCE_4);
+		positionalLight4->setIdentifier(LIGHT_SOURCE_4);
 
-	positionalLight4->setPosition(Vector( 2.5f, 2.5f, 2.5f, 1.0f));
-	positionalLight4->setColor(Vector(0.75f, 0.0f, 0.0f, 1.0f));
+		positionalLight4->setPosition(Vector( 2.5f, 2.5f, 2.5f, 1.0f));
+		positionalLight4->setColor(Vector(0.75f, 0.0f, 0.0f, 1.0f));
 
-	positionalLight4->setDiffuseIntensity(0.5f);
-	positionalLight4->setSpecularIntensity(0.5f);
+		positionalLight4->setDiffuseIntensity(0.5f);
+		positionalLight4->setSpecularIntensity(0.5f);
 	
-	lightMap[positionalLight4->getIdentifier()] = positionalLight4;
-	sceneManager->addLight(positionalLight4);
+		lightMap[positionalLight4->getIdentifier()] = positionalLight4;
+		sceneManager->addLight(positionalLight4);
+	#else
+		// Light Source - White
+		PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
+
+		positionalLight1->setIdentifier(LIGHT_SOURCE_1);
+
+		//positionalLight1->setPosition(Vector(0.0f, 5.0f,-5.0f, 1.0f));
+		positionalLight1->setPosition(Vector(0.0f, 5.0f, 0.0f, 1.0f));
+		positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
+
+		positionalLight1->setDiffuseIntensity(0.5f);
+		positionalLight1->setSpecularIntensity(0.5f);
+	
+		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
+		sceneManager->addLight(positionalLight1);
+
+		// Light Source - White
+		/*PositionalLight* positionalLight2 = new PositionalLight(POSITIONAL_LIGHT_2);
+
+		positionalLight2->setIdentifier(LIGHT_SOURCE_2);
+
+		positionalLight2->setPosition(Vector(0.0f, 5.0f, 5.0f, 1.0f));
+		positionalLight2->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
+
+		positionalLight2->setDiffuseIntensity(0.5f);
+		positionalLight2->setSpecularIntensity(0.5f);
+	
+		lightMap[positionalLight2->getIdentifier()] = positionalLight2;
+		sceneManager->addLight(positionalLight2);*/
+	#endif
 
 	// Stores the Lights Information in the form of Arrays
 	vector<float4> lightPositionList;
@@ -1888,9 +1943,9 @@ void init(int argc, char* argv[]) {
 	sphereMaterial[3] = new Material("Sphere Gold Material", "sphere/saphire.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 	sphereMaterial[4] = new Material("Sphere Gold Material", "sphere/emerald.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 
-	for(int i=0; i<1; i++) {
+	for(int i=0; i<5; i++) {
 
-		for(int j=0; j<1; j++) {
+		for(int j=0; j<5; j++) {
 
 			// Create the Objects Name
 			ostringstream stringStream;
@@ -1905,7 +1960,7 @@ void init(int argc, char* argv[]) {
 				Transform* sphereTransform = new Transform(sphereName);
 
 				sphereTransform->setPosition(Vector(0.0f, 0.0f, 0.0f, 1.0f));
-				//sphereTransform->setPosition(Vector(i * 10.0f - 5.0f, 0.5f, j * 10.0f - 5.0f,1.0f));
+				sphereTransform->setPosition(Vector(i * 12.5f - 25.0f, 0.5f, j * 12.5f - 25.0f,1.0f));
 				sphereTransform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
 				sphereTransform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
 				//sphereTransform->setScale(Vector(1.0f,1.0f,1.0f,1.0f));

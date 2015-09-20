@@ -43,7 +43,7 @@ void BoundingSphere::calculateMiniball(Mesh* mesh) {
 	Miniball miniball(dimension, pointList.begin(), pointList.end());
 
 	this->center = Vector(center[VX], center[VY], center[VZ], 1.0f);
-	this->radius = (miniball.squared_radius() * miniball.squared_radius()) * 1.1f;
+	this->radius = (miniball.squared_radius() * miniball.squared_radius()) * 1.0f;
 }
 
 Vector BoundingSphere::getCenter() {
