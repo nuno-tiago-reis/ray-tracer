@@ -30,43 +30,121 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 
 	cout << "[Initialization] LoadMesh(" << meshFilename << ");" << endl;
 
-	string line;
-
 	// Reading the Model .obj - First pass
 	int faceNumber = 0;
 	int vertexNumber = 0;
 	int normalNumber = 0;
 	int textureCoordinateNumber = 0;
 
-	// Open the Model File
-	ifstream modelFile(LOCATION + meshFilename);
+	// Check if we're opening a new Mesh
+	if(this->meshFilename.compare(meshFilename) != 0) {
 
-	while(getline(modelFile, line)) {
+		// Store the new Filename
+		this->meshFilename = meshFilename;
 
-		istringstream iss(line);
+		// Reset the Mesh Name
+		this->meshName = "Uninitialized";
+		// Reset the Mesh Line
+		this->meshLineNumber = 0;
+		// Reset the Mesh End of File Indicator
+		this->meshEndOfFile = false;
 
-		string start;
-		iss >> start;
-		
-		/* Add a Vertex */
-		if(start == "v")
+		// Reset the Vertex offset
+		this->offsetVertex = 0;
+		// Reset the Normal offset
+		this->offsetNormal = 0;
+		// Reset the Texture UV offset
+		this->offsetTextureCoordinate = 0;
+	}
+
+	// Open the new Stream
+	this->meshFileStream.open(LOCATION + this->meshFilename, ifstream::in);
+
+	// Line
+	string currentMeshLine;
+
+	// Mesh Name
+	string currentMeshName = "Uninitialized";
+	// Line Counter
+	int currentMeshLineNumber = 0;
+
+	while(true) {
+
+		currentMeshLineNumber++;
+
+		// Check if we're past the previous mesh
+		if(currentMeshLineNumber < this->meshLineNumber) {
+
+			meshFileStream.ignore(numeric_limits<streamsize>::max(), meshFileStream.widen('\n'));
+
+			continue;
+		}
+
+		// Open the Line and exit if EOF
+		if(!getline(meshFileStream, currentMeshLine))
+			break;
+
+		// Create the Line Stream
+		istringstream iss(currentMeshLine);
+
+		string meshLine0;
+		iss >> meshLine0;
+
+		// Check if there is an object
+		if(currentMeshLine.find("# Coordinates for object") != string::npos) {
+
+			if(currentMeshName.compare("Uninitialized") != 0)
+				break;
+
+			size_t position0 = currentMeshLine.find("'") + 1;
+			size_t positionN = currentMeshLine.find("'", position0);
+			
+			// Initialize the Mesh Name
+			currentMeshName = currentMeshLine.substr(position0, positionN - position0);
+		}
+
+		// Add a Vertex
+		if(meshLine0 == "v")
 			vertexNumber++;
-		/* Add a Vertex Normal */
-		else if(start == "vn")
+		// Add a Vertex Normal
+		else if(meshLine0 == "vn")
 			normalNumber++;
-		/* Add a Vertex Texture UV */
-		else if(start == "vt")
+		// Add a Vertex Texture UV
+		else if(meshLine0 == "vt")
 			textureCoordinateNumber++;
-		/* Add a Face (Triangle) */
-		else if(start == "f")
+		// Add a Face (Triangle)
+		else if(meshLine0 == "f")
 			faceNumber++;
+
+		// Check if there is a material
+		if(currentMeshLine.find("usemtl ") != string::npos) {
+
+			size_t position0 = currentMeshLine.find("usemtl ") + 7;
+			size_t positionN = currentMeshLine.find("\n", position0);
+
+			// Initialize the Material Name
+			this->materialName = currentMeshLine.substr(position0, positionN - position0);
+		}
+
+		iss.clear();
 	}
 
 	// Close the Model File
-	modelFile.close();
+	this->meshFileStream.close();
+
+	// Mesh is Over
+	if(currentMeshName.compare("Uninitialized") == 0 && this->meshLineNumber != 0) {
+	
+		this->meshEndOfFile = true;
+
+		return;
+	}
 
 	// Reading the Model .obj - Second pass
-	modelFile.open(LOCATION + meshFilename);
+	this->meshFileStream.open(LOCATION + this->meshFilename, ifstream::in);
+
+	// Store the Mesh Name
+	this->meshName = currentMeshName;
 
 	// Storage Structures
 	Coordinate3D *vertexArray = new Coordinate3D[vertexNumber];
@@ -77,9 +155,15 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 	Vector *sTangentArray = new Vector[vertexNumber];
 	Vector *tTangentArray = new Vector[vertexNumber];
 
+	for(int i=0; i<vertexNumber; i++) {
+	
+		sTangentArray[i] = Vector(0.0f);
+		tTangentArray[i] = Vector(0.0f);
+	}
+
 	// Final GPU-ready Structure
 	VertexStructure *bufferVertices = new VertexStructure[faceNumber * 3];
-	GLint *bufferVerticesID = new GLint[faceNumber * 3];
+	int *bufferVerticesID = new int[faceNumber * 3];
 
 	// Index Trackers
 	int currentFace = 0;
@@ -87,15 +171,48 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 	int currentNormal = 0;
 	int currentTextureCoordinate = 0;
 
-	while(getline(modelFile, line)) {
+	// Mesh Name
+	currentMeshName = "Uninitialized";
+	// Line Counter
+	currentMeshLineNumber = 0;
 
-		istringstream iss(line);
+	while(true) {
 
-		string start;
-		iss >> start;
+		currentMeshLineNumber++;
+
+		// Check if we're past the previous mesh
+		if(currentMeshLineNumber < this->meshLineNumber) {
+
+			meshFileStream.ignore(numeric_limits<streamsize>::max(), meshFileStream.widen('\n'));
+
+			continue;
+		}
+
+		// Open the Line and exit if EOF
+		if(!getline(meshFileStream, currentMeshLine))
+			break;
+
+		// Create the Line Stream
+		istringstream iss(currentMeshLine);
+
+		string meshLine0;
+		iss >> meshLine0;
+
+		// Check if there is an object
+		if(currentMeshLine.find("# Coordinates for object") != string::npos) {
+
+			if(currentMeshName.compare("Uninitialized") != 0)
+				break;
+
+			size_t position0 = currentMeshLine.find("'") + 1;
+			size_t positionN = currentMeshLine.find("'", position0);
+
+			// Initialize the Mesh Name
+			currentMeshName = currentMeshLine.substr(position0, positionN - position0);
+		}
 
 		// Add a Vertex
-		if(start == "v") {
+		if(meshLine0 == "v") {
 
 			float x,y,z;
 			iss >> x >> y >> z;
@@ -107,7 +224,7 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 			currentVertex++;
 		}
 		// Add a Vertex Normal
-		else if(start == "vn") {
+		else if(meshLine0 == "vn") {
 
 			float x,y,z;
 			iss >> x >> y >> z;
@@ -119,7 +236,7 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 			currentNormal++;
 		} 
 		// Add a Vertex Texture UV
-		else if(start == "vt") {
+		else if(meshLine0 == "vt") {
 
 			float u,v;
 			iss >> u >> v;
@@ -130,7 +247,7 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 			currentTextureCoordinate++;
 		}
 		// Add a Face (Triangle)
-		else if(start == "f") {
+		else if(meshLine0 == "f") {
 
 			string faceVertex[3];
 			iss >> faceVertex[0] >> faceVertex[1] >> faceVertex[2];
@@ -140,19 +257,19 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 				vector<int> index = split(faceVertex[i], '/');
 
 				// Vertex ID
-				bufferVerticesID[currentFace * 3 + i] = index[0]-1;
+				bufferVerticesID[currentFace * 3 + i] = index[0]-1-this->offsetVertex;
 
 				// Vertex Position
-				bufferVertices[currentFace * 3 + i].position[0] = vertexArray[index[0]-1].x;
-				bufferVertices[currentFace * 3 + i].position[1] = vertexArray[index[0]-1].y;
-				bufferVertices[currentFace * 3 + i].position[2] = vertexArray[index[0]-1].z;
+				bufferVertices[currentFace * 3 + i].position[0] = vertexArray[index[0]-1-this->offsetVertex].x;
+				bufferVertices[currentFace * 3 + i].position[1] = vertexArray[index[0]-1-this->offsetVertex].y;
+				bufferVertices[currentFace * 3 + i].position[2] = vertexArray[index[0]-1-this->offsetVertex].z;
 				bufferVertices[currentFace * 3 + i].position[3] = 1.0f;
 			
 				// Vertex Texture Coordinates
 				if(index.size() >= 2) {
 
-					bufferVertices[currentFace * 3 + i].textureUV[0] = textureCoordinateArray[index[1]-1].u;
-					bufferVertices[currentFace * 3 + i].textureUV[1] = textureCoordinateArray[index[1]-1].v;
+					bufferVertices[currentFace * 3 + i].textureUV[0] = textureCoordinateArray[index[1]-1-this->offsetTextureCoordinate].u;
+					bufferVertices[currentFace * 3 + i].textureUV[1] = textureCoordinateArray[index[1]-1-this->offsetTextureCoordinate].v;
 				} 
 				else {
 
@@ -163,9 +280,9 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 				// Vertex Normals
 				if(index.size() >= 3) {
 
-					bufferVertices[currentFace * 3 + i].normal[0] = normalArray[index[2]-1].x;
-					bufferVertices[currentFace * 3 + i].normal[1] = normalArray[index[2]-1].y;
-					bufferVertices[currentFace * 3 + i].normal[2] = normalArray[index[2]-1].z;
+					bufferVertices[currentFace * 3 + i].normal[0] = normalArray[index[2]-1-this->offsetNormal].x;
+					bufferVertices[currentFace * 3 + i].normal[1] = normalArray[index[2]-1-this->offsetNormal].y;
+					bufferVertices[currentFace * 3 + i].normal[2] = normalArray[index[2]-1-this->offsetNormal].z;
 					bufferVertices[currentFace * 3 + i].normal[3] = 0.0f;
 				}
 				else {
@@ -177,7 +294,7 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 				}
 			}
 
-			/* Create the Vertex-based Edges */
+			// Create the Vertex-based Edges
 			Coordinate3D xyz1;
 			xyz1.x = bufferVertices[currentFace * 3 + 1].position[0] - bufferVertices[currentFace * 3].position[0];
 			xyz1.y = bufferVertices[currentFace * 3 + 1].position[1] - bufferVertices[currentFace * 3].position[1];
@@ -188,7 +305,7 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 			xyz2.y = bufferVertices[currentFace * 3 + 2].position[1] - bufferVertices[currentFace * 3].position[1];
 			xyz2.z = bufferVertices[currentFace * 3 + 2].position[2] - bufferVertices[currentFace * 3].position[2];
 
-			/* Create the UV-based Edges */
+			// Create the UV-based Edges
 			Coordinate2D uv1;
 			uv1.u = bufferVertices[currentFace * 3 + 1].textureUV[0] - bufferVertices[currentFace * 3].textureUV[0];
 			uv1.v = bufferVertices[currentFace * 3 + 1].textureUV[1] - bufferVertices[currentFace * 3].textureUV[1];
@@ -202,8 +319,8 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 			Vector s((uv2.v * xyz1.x - uv1.v * xyz2.x) * r, (uv2.v * xyz1.y - uv1.v * xyz2.y) * r,(uv2.v * xyz1.z - uv1.v * xyz2.z) * r, 0.0f);
 			Vector t((uv1.u * xyz2.x - uv2.u * xyz1.x) * r, (uv1.u * xyz2.y - uv2.u * xyz1.y) * r,(uv1.u * xyz2.z - uv2.u * xyz1.z) * r, 0.0f);
 
-			/* Acumulate the new Tangents */
-			sTangentArray[bufferVerticesID[currentFace * 3]] += s;
+			// Acumulate the new Tangents
+			sTangentArray[bufferVerticesID[currentFace * 3]] += s; 
 			tTangentArray[bufferVerticesID[currentFace * 3]] += t;
 
 			sTangentArray[bufferVerticesID[currentFace * 3 + 1]] += s;
@@ -218,13 +335,30 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 		iss.clear();
 	}
 
-	/* Average the Tangents */
+	// Check if the Model File is Over
+	if(this->meshFileStream.eof() == true)
+		this->meshEndOfFile = true;
+
+	// Close the Model File
+	this->meshFileStream.close();
+
+	// Increment the Line Number for the next object
+	this->meshLineNumber = currentMeshLineNumber;
+
+	// Increment the Vertex offset for the next object
+	this->offsetVertex += vertexNumber;
+	// Increment the Normal offset for the next object
+	this->offsetNormal += normalNumber;
+	// Increment the Texture UV offset for the next object
+	this->offsetTextureCoordinate += textureCoordinateNumber;
+
+	// Average the Tangents
 	for(int i=0; i<faceNumber * 3; i++) {
 
 		Vector n = Vector(bufferVertices[i].normal);
 		Vector t1 = sTangentArray[bufferVerticesID[i]];
 		Vector t2 = tTangentArray[bufferVerticesID[i]];
-        
+
 		// Gram-Schmidt orthogonalize
 		Vector tangent = (t1 - n * Vector::dotProduct(n, t1));
 		tangent.normalize();
@@ -253,8 +387,11 @@ void OBJ_Reader::loadMesh(string meshFilename, Mesh* mesh) {
 	BoundingSphere* boundingSphere = new BoundingSphere();
 	// Initialize the Bounding Sphere
 	boundingSphere->calculateMiniball(mesh);
+
 	// Set the Bounding Sphere
 	mesh->setBoundingSphere(boundingSphere);
+	// Set the Name
+	mesh->setName(currentMeshName);
 
 	// Cleanup
 	delete[] vertexArray;
@@ -272,60 +409,98 @@ void OBJ_Reader::loadMaterial(string materialFilename, Material* material) {
 
 	cout << "[Initialization] LoadMaterial(" << materialFilename << ");" << endl;
 
-	string line;
-
 	// Load the Default Values
 	material->setAmbient(Vector(0.75f, 0.75f, 0.75f, 1.0f));
 	material->setDiffuse(Vector(0.75f, 0.75f, 0.75f, 1.0f));
 	material->setSpecular(Vector(0.75f, 0.75f, 0.75f, 1.0f));
 	material->setSpecularConstant(100.0f);
 
-	// Open the Material File
-	ifstream materialFile(LOCATION + materialFilename);
+	// Open the Material File Stream
+	ifstream materialFileStream(LOCATION + materialFilename, ifstream::in);
 
-	while(getline(materialFile, line)) {
+	// Line
+	string currentMaterialLine;
 
-		istringstream iss(line);
+	// Material
+	string currentMaterialName = "Uninitialized";
 
-		string start;
-		iss >> start;
+	while(true) {
 
-		// Reading Ambient Component
-		if(start == "Ka") {
+		// Open the Line and exit if EOF
+		if(!getline(materialFileStream, currentMaterialLine))
+			break;
 
-			float x,y,z;
-			iss >> x >> y >> z;
+		// Check if there is a material
+		if(currentMaterialLine.find("newmtl ") != string::npos) {
 
-			material->setAmbient(Vector(x, y, z, 1.0f));
+			size_t position0 = currentMaterialLine.find("newmtl ") + 7;
+			size_t positionN = currentMaterialLine.find("\n", position0);
+
+			// Initialize the Mesh Name
+			currentMaterialName = currentMaterialLine.substr(position0, positionN - position0);
 		}
-		// Reading Diffuse Component
-		else if(start == "Kd") {
+		
+		if(this->materialName.compare(currentMaterialName) == 0) {
 
-			float x,y,z;
-			iss >> x >> y >> z;
+			// Create the Line Stream
+			istringstream iss(currentMaterialLine);
 
-			material->setDiffuse(Vector(x, y, z, 1.0f));
-		}
-		// Reading Specular Component
-		else if(start == "Ks") {
+			string materialLine0;
+			iss >> materialLine0;
 
-			float x,y,z;
-			iss >> x >> y >> z;
+			// Reading Ambient Component
+			if(materialLine0 == "Ka") {
 
-			material->setSpecular(Vector(x, y, z, 1.0f));
-		}
-		// Reading Specular Constant
-		else if(start == "Ns") {
+				float ax, ay, az;
+				iss >> ax >> ay >> az;
 
-			float s;
-			iss >> s;
+				material->setAmbient(Vector(ax, ay, az, 1.0f));
+			}
+			// Reading Diffuse Component
+			else if(materialLine0 == "Kd") {
 
-			material->setSpecularConstant(s);
+				float dx, dy, dz;
+				iss >> dx >> dy >> dz;
+
+				material->setDiffuse(Vector(dx, dy, dz, 1.0f));
+			}
+			// Reading Specular Component
+			else if(materialLine0 == "Ks") {
+
+				float sx, sy, sz;
+				iss >> sx >> sy >> sz;
+
+				material->setSpecular(Vector(sx, sy, sz, 1.0f));
+			}
+			// Reading Specular Constant
+			else if(materialLine0 == "Ns") {
+
+				float specularConstnat;
+				iss >> specularConstnat;
+
+				material->setSpecularConstant(specularConstnat);
+			}
 		}
 	}
 
-	// Close the Material File
-	materialFile.close();
+	// Set the Name
+	material->setName(this->materialName);
+
+	// Close the Material File Stream
+	materialFileStream.close();
+}
+
+bool OBJ_Reader::canReadMesh(string meshFilename) {
+
+	if(this->meshFilename.compare(meshFilename) == 0)
+		return !meshEndOfFile;
+
+	return true;
+}
+
+bool OBJ_Reader::canReadMaterial(string materialFilename) {
+
+	return true;
 }
 
 vector<int> &split(const string &s, char delim, vector<int> &elems) {

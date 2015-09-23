@@ -222,18 +222,30 @@ __device__ static inline unsigned int CreateRefractionRayIndex(float3 origin, fl
 }
 
 // Ray - Sphere Intersection Code
-__device__ static inline bool RaySphereIntersection(const Ray &ray, const float4 &sphere) {
+__device__ float RaySphereIntersection(const Ray &ray, const float3 sphereCenter, const float sphereRadius) {
 
-	float3 sr = ray.origin - make_float3(sphere);
+	float3 sr = ray.origin - sphereCenter;
 
 	float b = dot(sr, ray.direction);
-	float c = dot(sr, sr) - (sphere.w * sphere.w);
+	float c = dot(sr, sr) - (sphereRadius * sphereRadius);
 	float d = b * b - c;
 
-	if(d > 0)
-		return true;
+	float time;
 
-	return false;
+	if(d > 0) {
+
+		float e = sqrt(d);
+		float t0 = -b-e;
+
+		if(t0 < 0)
+			time = -b+e;
+		else
+			time = min(-b-e,-b+e);
+
+		return time;
+	}
+
+	return -1.0f;
 }
 
 // Ray - Triangle Intersection Code
@@ -419,7 +431,8 @@ __device__ static inline float4 CreateHierarchySphere(const float4 &sphere1, con
 	if(sphereDistance + sphere1.w <= sphere2.w)
 		return sphere2;
 
-	float3 sphereCenter = sphereCenter1 + sphereDirection * sphereDistance * 0.5f;
+	//float3 sphereCenter = sphereCenter1 + sphereDirection * sphereDistance * 0.5f;
+	float3 sphereCenter = (sphereCenter1 + sphereCenter2) * 0.5f;
 	float sphereRadius = sphereDistance * 0.5f + max(sphere1.w , sphere2.w);
 
 	return make_float4(sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius);
@@ -594,8 +607,20 @@ __global__ void Debug2(
 
 	if(x >= windowWidth || y >= windowHeight)
 		return;
+	
+	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
+	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
+	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
-	pixelBufferObject[x + y * windowWidth] = RgbToInt(0.0f, 0.0f, 0.0f);
+	// Calculate the Shadow Rays Origin and Direction
+	//float3 shadowRayOrigin = make_float3(tex1Dfetch(lightPositionsTexture, 0));
+	//float3 shadowRayDirection = normalize(fragmentPosition - shadowRayOrigin);
+	//shadowRayDirection = (shadowRayDirection + make_float3(1.0f)) * 0.5f;
+
+	if(length(fragmentPosition) != 0.0f)
+		pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentNormal.x * 255.0f, fragmentNormal.y * 255.0f, fragmentNormal.z * 255.0f);
+	else
+		pixelBufferObject[x + y * windowWidth] = RgbToInt(0.0f, 0.0f, 0.0f);
 }
 
 __global__ void Debug(	
@@ -606,6 +631,8 @@ __global__ void Debug(
 							unsigned int* rayValuesArray,
 							// Input Array containing the updated Bounding Spheres.
 							float3* boundingSphereArray,
+							// Auxiliary Variable containing the Bounding Box Total.
+							const unsigned int boundingSphereTotal,
 							// Auxiliary Variable containing the Bounding Box Total.
 							const unsigned int rayTotal,
 							// Auxiliary Variables containing the Screen Dimensions.
@@ -627,25 +654,30 @@ __global__ void Debug(
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	float3 fragmentColor = make_float3(0.0f, 0.0f, 0.0f);
+	float3 fragmentColor = make_float3(1.0f, 0.5f, 0.0f);
 
-	for(int l=0; l<4; l++) {
+	// Ray Creation
+	float3 rayOrigin = cameraPosition;
+	float3 rayDirection = normalize(cameraDirection + cameraRight * ((float)x / (float)windowWidth - 0.5f) + cameraUp * ((float)y / (float)windowHeight - 0.5f));
 
-		// Ray ID
-		unsigned int rayID = x + (windowWidth * l) + y * (windowWidth * LIGHT_SOURCE_MAXIMUM);
+	float3 boundingSphereCenter;
+	float3 boundingSphereBounds;
 
-		// Load the Ray
-		float3 rayOrigin = rayArray[rayID * 2];
-		float3 rayDirection = rayArray[rayID * 2 + 1];
-
-		fragmentColor += rayDirection;
-
-		if(l > 0 && length(rayDirection) != 0.0f)
-			printf("fuck failed\n");
-
+	// Bounding Sphere Loading 
+	if((rayTotal % boundingSphereTotal) == 0) {
+		boundingSphereCenter = boundingSphereArray[((rayTotal+1) % boundingSphereTotal) * 2];
+		boundingSphereBounds = boundingSphereArray[((rayTotal+1) % boundingSphereTotal) * 2 + 1];
+	}
+	else {
+		boundingSphereCenter = boundingSphereArray[((rayTotal) % boundingSphereTotal) * 2];
+		boundingSphereBounds = boundingSphereArray[((rayTotal) % boundingSphereTotal) * 2 + 1];
 	}
 
-	unsigned int color = atomicAdd(&pixelBufferObject[x + y * windowWidth], RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f));
+	//printf("Center = %02.010f - %02.010f - %02.010f Radius = %02.010f\n", boundingSphereCenter.x, boundingSphereCenter.y, boundingSphereCenter.z, boundingSphereBounds.x);
+
+	//if(RaySphereIntersection(Ray(rayOrigin, rayDirection), make_float3(0.0f, 0.0f, 0.0f), 5.0f) > 0.0f)
+	if(RaySphereIntersection(Ray(rayOrigin, rayDirection), make_float3(boundingSphereCenter.x, boundingSphereCenter.y, boundingSphereCenter.z), boundingSphereBounds.x * 10.0f) > 0.0f)
+		pixelBufferObject[x + y * windowWidth] += RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
 }
 
 __global__ void CreateShadowRays(
@@ -1939,6 +1971,8 @@ extern "C" {
 							unsigned int* sortedRayIndexValuesArray,
 							// Input Array containing the updated Bounding Spheres.
 							float3* boundingSphereArray,
+							// Auxiliary Variable containing the Bounding Sphere Total.
+							const unsigned int boundingSphereTotal,
 							// Auxiliary Variable containing the Bounding Box Total.
 							const unsigned int rayTotal,
 							// Auxiliary Variables containing the Screen Dimensions.
@@ -1955,16 +1989,18 @@ extern "C" {
 							unsigned int *pixelBufferObject) {
 
 		// Grid based on the Screen Dimensions.
-		dim3 block2(32,32);
-		dim3 grid2(windowWidth/block2.x + 1, windowHeight/block2.y +1);
+		//dim3 block2(32,32);
+		//dim3 grid2(windowWidth/block2.x + 1, windowHeight/block2.y +1);
 
-		Debug2<<<grid2, block2>>>(windowWidth, windowHeight, pixelBufferObject);
+		//Debug2<<<grid2, block2>>>(windowWidth, windowHeight, pixelBufferObject);
 
 		// Grid based on the Screen Dimensions.
 		dim3 block(32,32);
-		dim3 grid(windowWidth/block2.x + 1, windowHeight/block2.y +1);
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y +1);
 
-		//Debug<<<grid, block>>>(rayArray, sortedRayIndexKeysArray, sortedRayIndexValuesArray, boundingSphereArray, rayTotal, windowWidth, windowHeight, cameraPosition, cameraDirection, cameraUp, cameraRight, pixelBufferObject);
+		cerr << "RT = " << rayTotal << endl;
+
+		Debug<<<grid, block>>>(rayArray, sortedRayIndexKeysArray, sortedRayIndexValuesArray, boundingSphereArray, boundingSphereTotal, rayTotal, windowWidth, windowHeight, cameraPosition, cameraDirection, cameraUp, cameraRight, pixelBufferObject);
 	}
 
 	void ShadowRayCreationWrapper(
@@ -2434,6 +2470,17 @@ extern "C" {
 		}*/
 		;
 		/*****************************************************/
+
+		if(hitTotal == 0) {
+
+			// Calculate the Hit Total for this Level
+			*hierarchyHitTotal = hitTotal;
+
+			return;
+		}
+
+		// Clean the Head Flags Array
+		PrepareArray<<<grid, block>>>(0, hitMaximum, headFlagsArray);
 
 		// Grid based on the Hierarchy Hit Count
 		dim3 hitTotalBlock(1024);

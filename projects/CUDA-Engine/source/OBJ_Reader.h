@@ -59,20 +59,47 @@ class OBJ_Reader {
 
 	private:
 
-		/* Singleton Instance */
+		// Singleton Instance
 		static OBJ_Reader *instance;
+
+		// Mesh Line Number
+		int meshLineNumber;
+		// Mesh Read Indicator
+		bool meshEndOfFile;
+
+		// Mesh Offset Vertex
+		int offsetVertex;
+		// Mesh Offset Normal
+		int offsetNormal;
+		// Mesh Offset Texture Coordinate
+		int offsetTextureCoordinate;
+
+		// Mesh Name
+		string meshName;
+		// Mesh File Name
+		string meshFilename;
+		// Mesh File Stream
+		ifstream meshFileStream;
+
+		// Material Name
+		string materialName;
 
 		OBJ_Reader();
 		~OBJ_Reader();
 
 	public:
 
-		/* Singleton Methods */
+		// Singleton Methods
 		static OBJ_Reader* getInstance();
 		static void destroyInstance();
 
+		// Loading Methods
 		void loadMesh(string meshFilename, Mesh* mesh);
 		void loadMaterial(string materialFilename, Material* material);
+
+		// Checking Methods
+		bool canReadMesh(string meshFilename);
+		bool canReadMaterial(string materialFilename);
 };
 
 #endif

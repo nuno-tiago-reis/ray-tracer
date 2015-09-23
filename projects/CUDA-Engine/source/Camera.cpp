@@ -25,18 +25,22 @@ Camera::Camera(string name) {
 Camera::~Camera() {
 }
 
-void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime) {
+void Camera::update(GLfloat elapsedTime) {
 
-	if(longitude == 0 && latitude == 0 && zoom == 0)
-		return;
+	// Update the Shader Uniforms 
+	loadView();
+	loadUniforms();
+}
 
-	/* Update the Zoom */
+void Camera::updateRotation(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime) {
+
+	// Update the Zoom 
 	this->zoom -= zoom * 0.05f;
 
 	if(this->zoom < 0.1f)
 		this->zoom = 0.1f;
 	
-	/* Update the Longitude */
+	// Update the Longitude 
 	this->longitude += longitude * elapsedTime * 5.0f;
 
 	if(this->longitude > 360.0f)
@@ -44,17 +48,19 @@ void Camera::update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsed
 	else if(this->longitude < -360.0f)
 		this->longitude += 360.0f;
 
-	/* Update the Latitude */
+	// Update the Latitude 
 	this->latitude += latitude * elapsedTime * 5.0f;
 
 	if(this->latitude > 360.0f)
 		this->latitude -= 360.0f;
 	else if(this->latitude < -360.0f) 
 		this->latitude += 360.0f;
+}
 
-	/* Update the Shader Uniforms */
-	loadView();
-	loadUniforms();
+void Camera::updateMovement(Vector movement, GLfloat elapsedTime) {
+
+	this->target += this->up * (movement[VY] * elapsedTime);
+	this->target += this->right * (movement[VZ] * elapsedTime);
 }
 
 void Camera::reshape(GLint width, GLint height) {
@@ -70,7 +76,7 @@ void Camera::loadUniforms() {
 
 	glBindBuffer(GL_UNIFORM_BUFFER, this->uniformBufferIndex);
 
-	/* Get the View and Projection Matrix */
+	// Get the View and Projection Matrix 
 	GLfloat viewMatrix[16];
 	this->viewMatrix.getValue(viewMatrix);
 
@@ -83,17 +89,12 @@ void Camera::loadUniforms() {
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void Camera::loadView() {
+void Camera::loadView() { 
 
-	this->eye[VX] = this->position[VX] + this->zoom * CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * cos(this->longitude * DEGREES_TO_RADIANS);
-	this->eye[VY] = this->position[VY] + this->zoom * CAMERA_RADIUS * cos((this->latitude - 90.0f) * DEGREES_TO_RADIANS);
-	this->eye[VZ] = this->position[VZ] + this->zoom * -CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * sin(this->longitude * DEGREES_TO_RADIANS);
+	this->eye[VX] = this->target[VX] + this->zoom * CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * cos(this->longitude * DEGREES_TO_RADIANS);
+	this->eye[VY] = this->target[VY] + this->zoom * CAMERA_RADIUS * cos((this->latitude - 90.0f) * DEGREES_TO_RADIANS);
+	this->eye[VZ] = this->target[VZ] + this->zoom * -CAMERA_RADIUS * sin((this->latitude - 90.0f) * DEGREES_TO_RADIANS) * sin(this->longitude * DEGREES_TO_RADIANS);
 	this->eye[VW] = 1.0f;
-
-	this->target[VX] = this->position[VX];
-	this->target[VY] = this->position[VY];
-	this->target[VZ] = this->position[VZ];
-	this->target[VW] = 1.0f;
 
 	this->up[VX] = 0.0f;
 	this->up[VY] = cos(this->latitude * DEGREES_TO_RADIANS);
@@ -217,11 +218,6 @@ GLfloat Camera::getLatitude() {
 	return this->latitude;
 }
 
-Vector Camera::getPosition() {
-
-	return this->position;
-}
-
 Vector Camera::getTarget() {
 
 	return this->target;
@@ -297,11 +293,6 @@ void Camera::setLatitude(GLfloat latitude) {
 	this->latitude = latitude;
 }
 
-void Camera::setPosition(Vector position) {
-
-	this->position = position;
-}
-
 void Camera::setTarget(Vector target) {
 
 	this->target = target;
@@ -331,36 +322,32 @@ void Camera::dump() {
 
 	cout << "<Camera Dump>" << endl;
 
-	/* Camera View Matrix */
+	// Camera View Matrix 
 	cout << "<Camera View Matrix> = " << endl;
 	this->viewMatrix.dump();
 
-	/* Camera View Matrix */
+	// Camera View Matrix 
 	cout << "<Camera Projection Matrix> = " << endl;
 	this->projectionMatrix.dump();
 
-	/* Camera Projection Mode (Perspective or Orthogonal)*/
+	// Camera Projection Mode (Perspective or Orthogonal)
 	if(this->projectionMode == ORTHOGONAL)
 		cout << "<Camera Projection Mode> = " << "ORTHOGONAL ;" << endl;
 	else
 		cout << "<Camera Projection Mode> = " << "PERSPECTIVE ;" << endl;
 
-	/* Viewport Width & Height */
+	// Viewport Width & Height 
 	cout << "<Camera Viewport Width> = " << this->width << " ;" << endl;
 	cout << "<Camera Viewport Height> = " << this->height << " ;" << endl;
 
-	/* Camera Zoom */
+	// Camera Zoom 
 	cout << "<Camera Zoom> = " << this->zoom << " ;" << endl;
 
-	/* Camera Spherical Coordinates */
+	// Camera Spherical Coordinates 
 	cout << "<Camera Longitude> = " << this->longitude << " ;" << endl;
 	cout << "<Camera Latitude> = " << this->latitude << " ;" << endl;
-
-	/* Camera Position */
-	cout << "<Camera Position> = ";
-	this->position.dump();
 	
-	/* Camera LookAt Vectors */
+	// Camera LookAt Vectors 
 	cout << "<Camera Eye> = "; 
 	this->eye.dump();
 	cout << "<Camera Target> = ";

@@ -7,53 +7,53 @@
 	#include <crtdbg.h>
 #endif
 
-/* FMODEX Sound Library */
+// FMODEX Sound Library 
 #include "fmod.h"
 #include "fmod.hpp"
 #include "fmod_errors.h"
 
 #define MAX_SOUND_CHANNELS 32
 
-/* OpenGL definitions */
+// OpenGL definitions 
 #include "GL/glew.h"
 #include "GL/glut.h"
-/* OpenGL Error Check */
+// OpenGL Error Check 
 #include "Utility.h"
 
-/* C++ Includes */
+// C++ Includes 
 #include <map>
 #include <iterator>
 
-/* Matrix - Ray Cast */
+// Matrix - Ray Cast 
 #include "Matrix.h"
 
-/* Light - Light Map */
+// Light - Light Map 
 #include "Light.h"
-/* Camera - Camera Map */
+// Camera - Camera Map 
 #include "Camera.h"
-/* Shader - Shader Map */
+// Shader - Shader Map 
 #include "ShaderProgram.h"
-/* Sound - Sound Map */
+// Sound - Sound Map 
 #include "Sound.h"
 
-/* SceneNode - SceneNode Map*/
+// SceneNode - SceneNode Map
 #include "SceneNode.h"
 
-/* Object - Object Map*/
+// Object - Object Map
 #include "Object.h"
 
-/* User Interaction Handlers */
+// User Interaction Handlers 
 #include "KeyboardHandler.h"
 #include "MouseHandler.h"
 
-/* Engine Names */
+// Engine Names 
 #include "Names.h"
 
 class SceneManager {
 
 	private:
 
-		/* Singleton Instance */
+		// Singleton Instance 
 		static SceneManager *instance;
 
 		int objectID;
@@ -61,38 +61,40 @@ class SceneManager {
 		int rotationAxis;
 		int currentObject;
 
-		/* FMOD Sound System */
+		// FMOD Sound System 
 		FMOD::System* fmodSystem;
 		FMOD::Channel* channel[MAX_SOUND_CHANNELS];
 		
-		/* Active Camera */
-		Camera* _activeCamera;
+		// Active Camera 
+		Camera* activeCamera;
 
-		/* Sound Map */
+		// Sound Map 
 		map<string,Sound*> soundMap;
-		/* Light Map  */
+		// Light Map  
 		map<string,Light*> lightMap;
-		/* Camera Map  */
+		// Camera Map  
 		map<string,Camera*> cameraMap;
 
-		/* Object Map  */
+		// Object Map  
 		map<string,Object*> objectMap;
-		/* Scene Graph Map  */
+		// Scene Graph Map  
 		map<string,SceneNode*> sceneNodeMap;
-		/* Shader Program Map  */
+		// Shader Program Map  
 		map<string,ShaderProgram*> shaderProgramMap;
 
-		/* Constructors & Destructors */
+		// Constructors & Destructors 
 		SceneManager();
 		~SceneManager();
 
 	public:
 
-		/* Singleton Methods */
+		int value;
+
+		// Singleton Methods 
 		static SceneManager* getInstance();
 		static void destroyInstance();
 
-		/* Scene Methods */
+		// Scene Methods 
 		void init();
 
 		void loadUniforms();
@@ -103,16 +105,16 @@ class SceneManager {
 
 		void reshape(GLint width, GLint height);
 
-		/* Scene Interaction Methods */
+		// Scene Interaction Methods 
 		void readKeyboard(GLfloat elapsedTime);
 		void readMouse(GLfloat elapsedTime);
 
 		void rayCast(GLint* mousePosition, GLfloat elapsedTime);
 
-		/* Object ID */
+		// Object ID 
 		int getObjectID();
 
-		/* Getters */
+		// Getters 
 		Camera* getActiveCamera();
 
 		map<string,Sound*> getSoundMap();
@@ -123,46 +125,46 @@ class SceneManager {
 		map<string,SceneNode*> getSceneNodeMap();
 		map<string,ShaderProgram*> getShaderProgramMap();
 
-		/* Setters */
+		// Setters 
 		void setActiveCamera(Camera* camera);
 
-		/* Sound Map Manipulation Methods */
+		// Sound Map Manipulation Methods 
 		void addSound(Sound* sound);
 		void removeSound(string soundName);
 
 		Sound* getSound(string soundName);
 
-		/* Light Map Manipulation Methods */
+		// Light Map Manipulation Methods 
 		void addLight(Light* light);
 		void removeLight(string lightName);
 
 		Light* getLight(string lightName);
 
-		/* Camera Map Manipulation Methods */
+		// Camera Map Manipulation Methods 
 		void addCamera(Camera* camera);
 		void removeCamera(string cameraName);
 
 		Camera* getCamera(string cameraName);
 
-		/* Shader Map Manipulation Methods */
+		// Shader Map Manipulation Methods 
 		void addShaderProgram(ShaderProgram* shaderProgram);
 		void removeShaderProgram(string shaderProgramName);
 
 		ShaderProgram* getShaderProgram(string shaderProgramName);
 
-		/* Object Map Manipulation Methods */
+		// Object Map Manipulation Methods 
 		void addObject(Object* graphicObject);
 		void removeObject(string graphicObjectName);
 
 		Object* getObject(string graphicObjectName);
 
-		/* Scene Node Map Manipulation Methods */
+		// Scene Node Map Manipulation Methods 
 		void addSceneNode(SceneNode* sceneNode);
 		void removeSceneNode(string sceneNodeName);
 
 		SceneNode* getSceneNode(string sceneNodeName);
 
-		/* Debug Methods */
+		// Debug Methods 
 		void dump();
 };
 

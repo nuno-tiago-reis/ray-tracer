@@ -7,17 +7,17 @@
 	#include <crtdbg.h>
 #endif
 
-/* OpenGL definitions */
+// OpenGL definitions 
 #include "GL/glew.h"
 #include "GL/glut.h"
 
-/* C++ Includes */
+// C++ Includes 
 #include <string>
 
-/* Math Library */
+// Math Library 
 #include "Matrix.h"
 
-/* Orthogonal Camera */
+// Orthogonal Camera 
 #define ORTHOGONAL_NAME "ORTHOGONAL"
 #define ORTHOGONAL 0
 
@@ -28,7 +28,7 @@
 #define ORTHO_FAR 30.0f
 #define ORTHO_NEAR 1.0f
 
-/* Perspective Camera */
+// Perspective Camera 
 #define PERSPECTIVE_NAME "PERSPECTIVE"
 #define PERSPECTIVE 1
 
@@ -36,64 +36,63 @@
 #define PERS_NEAR 1.0f
 #define PERS_FAR 250.0f
 
-/* Camera Radius */
+// Camera Radius 
 #define CAMERA_RADIUS 25.0f
 
 class Camera {
 
 	private:
 
-		/* Camera Name */
+		// Camera Name 
 		string name;
 
-		/* Scene View and Projection Matrix */
+		// Scene View and Projection Matrix 
 		Matrix viewMatrix;
 		Matrix projectionMatrix;
 
-		/* Scene Projection Mode (Perspective or Orthogonal) */
+		// Scene Projection Mode (Perspective or Orthogonal) 
 		GLint projectionMode;
 
-		/* Shader Buffer Index for View & Projection Matrix */
+		// Shader Buffer Index for View & Projection Matrix 
 		GLuint uniformBufferIndex;
 
-		/* Viewport Width & Height */
+		// Viewport Width & Height 
 		GLint width;
 		GLint height;
 
-		/* Camera Zoom */
+		// Camera Zoom 
 		GLfloat zoom;
 
-		/* Camera Spherical Coordinates */
+		// Camera Spherical Coordinates 
 		GLfloat longitude;
 		GLfloat latitude;
 
-		/* Camera Position */
-		Vector position;
-
-		/* Field of View */
+		// Field of View 
 		float fieldOfView;
 
-		/* Look At Vectors */
+		// Look At Vectors 
 		Vector target;
 		Vector eye;
 
-		/* Camera Plane Vectors */
+		// Camera Plane Vectors 
 		Vector up;
 		Vector right;
 		Vector direction;
 
 	public:
 
-		/* Constructors & Destructors */
+		// Constructors & Destructors 
 		Camera(string name);
 		~Camera();
 
-		/* Camera Methods */
-		void update(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime);
+		// Camera Update Methods
+		void update(GLfloat elapsedTime);
+		void updateRotation(GLint zoom, GLint longitude, GLint latitude, GLfloat elapsedTime);
+		void updateMovement(Vector movement, GLfloat elapsedTime);
 
 		void reshape(GLint width, GLint height);
 
-		/* View & Projection Methods */
+		// View & Projection Methods 
 		void loadUniforms();
 
 		void loadView();
@@ -104,7 +103,7 @@ class Camera {
 		void loadPerspectiveProjection();
 		void loadPerspectiveProjection(GLfloat angle, GLfloat aspectRatio, GLfloat nearZ, GLfloat farZ);
 
-		/* Getters */
+		// Getters 
 		string getName();
 		
 		Matrix getViewMatrix();
@@ -120,8 +119,6 @@ class Camera {
 		GLfloat getLongitude();
 		GLfloat getLatitude();
 
-		Vector getPosition();
-
 		Vector getTarget();
 		Vector getEye();
 		Vector getUp();
@@ -129,7 +126,7 @@ class Camera {
 		Vector getRight();
 		Vector getDirection();
 
-		/* Setters */
+		// Setters 
 		void setName(string name);
 		
 		void setViewMatrix(Matrix viewMatrix);
@@ -145,8 +142,6 @@ class Camera {
 		void setLongitude(GLfloat longitude);
 		void setLatitude(GLfloat latitude);
 
-		void setPosition(Vector position);
-
 		void setTarget(Vector target);
 		void setEye(Vector eye);
 
@@ -154,7 +149,7 @@ class Camera {
 		void setRight(Vector right);
 		void setDirection(Vector direction);
 
-		/* Debug Methods */
+		// Debug Methods 
 		void dump();
 };
 

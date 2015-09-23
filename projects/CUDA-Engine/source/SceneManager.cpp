@@ -4,12 +4,14 @@ SceneManager* SceneManager::instance = NULL;
 
 SceneManager::SceneManager() {
 
+	value = 0;
+
 	this->rotationAxis = 0;
 	this->currentObject = 0;
 
 	this->objectID = 0;
 
-	_activeCamera = NULL;
+	activeCamera = NULL;
 
 	/* FMOD Sound System Initialization */
 	FMOD::System_Create(&this->fmodSystem);
@@ -83,7 +85,7 @@ void SceneManager::init() {
 
 void SceneManager::loadUniforms() {
 
-	if(_activeCamera == NULL) {
+	if(activeCamera == NULL) {
 	
 		cerr << "Camera not initialized." << endl;
 		return;
@@ -101,7 +103,7 @@ void SceneManager::loadUniforms() {
 	for(cameraIterator = this->cameraMap.begin(); cameraIterator != this->cameraMap.end(); cameraIterator++)
 		cameraIterator->second->setUniformBufferIndex(this->shaderProgramMap.begin()->second->getUniformBufferIndex(MATRICES_UNIFORM));
 
-	_activeCamera->loadUniforms();
+	activeCamera->loadUniforms();
 }
 
 void SceneManager::draw() {
@@ -113,84 +115,18 @@ void SceneManager::draw() {
 }
 
 void SceneManager::update(GLfloat elapsedTime) {
-	
-	/* Scene Update */
+
+	// User Input Update
 	readMouse(elapsedTime);
 	readKeyboard(elapsedTime);
 
-	/*Object* activeTeapot;
+	// Camera Update
+	this->activeCamera->update(elapsedTime);
 
-	switch(this->currentObject) {
-	
-		case 0:	_activeCamera->setPosition(Vector(0.0f,0.0f,0.0f,1.0f));
-				_activeCamera->loadPerspectiveProjection();
-				_activeCamera->loadView();
-
-				_activeCamera->loadUniforms();
-
-				activeTeapot = this->objectMap[TABLE_SURFACE];
-				break;
-
-		case 1:	_activeCamera->setPosition(this->objectMap[BUMP_MAPPING_OBJECT]->getTransform()->getPosition());
-				_activeCamera->loadPerspectiveProjection();
-				_activeCamera->loadView();
-
-				_activeCamera->loadUniforms();
-
-				activeTeapot = this->objectMap[BUMP_MAPPING_OBJECT];
-				break;
-
-		case 2:	_activeCamera->setPosition(this->objectMap[SPHERE_MAPPING_OBJECT]->getTransform()->getPosition());
-				_activeCamera->loadPerspectiveProjection();
-				_activeCamera->loadView();
-
-				_activeCamera->loadUniforms();
-
-				activeTeapot = this->objectMap[SPHERE_MAPPING_OBJECT];
-				break;
-
-		case 3:	_activeCamera->setPosition(this->objectMap[CUBE_MAPPING_OBJECT]->getTransform()->getPosition());
-				_activeCamera->loadPerspectiveProjection();
-				_activeCamera->loadView();
-
-				_activeCamera->loadUniforms();
-
-				activeTeapot = this->objectMap[CUBE_MAPPING_OBJECT];
-				break;
-
-		case 4:	_activeCamera->setPosition(this->objectMap[BLINN_PHONG_OBJECT]->getTransform()->getPosition());
-				_activeCamera->loadPerspectiveProjection();
-				_activeCamera->loadView();
-
-				_activeCamera->loadUniforms();
-
-				activeTeapot = this->objectMap[BLINN_PHONG_OBJECT];
-				break;
-	}
-
-	Vector rotation;
-
-	switch(this->rotationAxis) {
-
-		case 1:	rotation = activeTeapot->getTransform()->getRotation();
-				rotation[VX] += 50.00f * elapsedTime;
-				activeTeapot->getTransform()->setRotation(rotation);
-				break;
-
-		case 2:	rotation = activeTeapot->getTransform()->getRotation();
-				rotation[VY] += 50.00f * elapsedTime;
-				activeTeapot->getTransform()->setRotation(rotation);
-				break;
-
-		case 3:	rotation = activeTeapot->getTransform()->getRotation();
-				rotation[VZ] += 50.00f * elapsedTime;
-				activeTeapot->getTransform()->setRotation(rotation);
-				break;
-	}*/
-
+	// Sound System Update
 	this->fmodSystem->update();
 
-	/* Update Scene Graph */
+	// Update Scene Graph
 	map<string,SceneNode*>::const_iterator sceneNodeIterator;
 	for(sceneNodeIterator = this->sceneNodeMap.begin(); sceneNodeIterator != this->sceneNodeMap.end(); sceneNodeIterator++)
 		sceneNodeIterator->second->update(elapsedTime);
@@ -213,52 +149,46 @@ void SceneManager::readKeyboard(GLfloat elapsedTime) {
 	if(!handler->isKeyboardEnabled())
 		return;	
 
+	// Disable the Keyboard while reading
 	handler->disableKeyboard();
 
-	/* Light Buttons */
-	if(handler->isSpecialKeyPressed(GLUT_KEY_UP) && handler->wasSpecialKeyPressed(GLUT_KEY_UP) == true) {
+	// Camera Movement
+	Vector movement;
 
-		Vector position = this->lightMap["Positional Light 1"]->getPosition();
+	if(handler->isSpecialKeyPressed(GLUT_KEY_UP) && handler->wasSpecialKeyPressed(GLUT_KEY_UP) == true)
+		movement[VY] += 25.0f * elapsedTime;
 
-		position[VY] += 5.0f * elapsedTime;
+	if(handler->isSpecialKeyPressed(GLUT_KEY_DOWN) && handler->wasSpecialKeyPressed(GLUT_KEY_DOWN) == true)
+		movement[VY] -= 25.0f * elapsedTime;
 
-		this->lightMap["Positional Light 1"]->setPosition(position);
-		this->lightMap["Positional Light 1"]->loadUniforms();
-	}
+	if(handler->isSpecialKeyPressed(GLUT_KEY_LEFT) && handler->wasSpecialKeyPressed(GLUT_KEY_LEFT) == true)
+		movement[VZ] -= 25.0f * elapsedTime;
 
-	if(handler->isSpecialKeyPressed(GLUT_KEY_DOWN) && handler->wasSpecialKeyPressed(GLUT_KEY_DOWN) == true) {
+	if(handler->isSpecialKeyPressed(GLUT_KEY_RIGHT) && handler->wasSpecialKeyPressed(GLUT_KEY_RIGHT) == true)
+		movement[VZ] += 25.0f * elapsedTime;
 
-		Vector position = this->lightMap["Positional Light 1"]->getPosition();
+	// Camera Movement Update
+	activeCamera->updateMovement(movement, elapsedTime);
 
-		position[VY] -= 5.0f * elapsedTime;
-
-		this->lightMap["Positional Light 1"]->setPosition(position);
-		this->lightMap["Positional Light 1"]->loadUniforms();
-	}
-
-	/*if(handler->isSpecialKeyPressed(GLUT_KEY_RIGHT) && handler->wasSpecialKeyPressed(GLUT_KEY_RIGHT) == true) {
-
-		Vector position = this->lightMap["Spot Light 2"]->getPosition();
-
-		position[VY] += 5.0f * elapsedTime;
-
-		this->lightMap["Spot Light 2"]->setPosition(position);
-		this->lightMap["Spot Light 2"]->loadUniforms();
-	}
-
-	if(handler->isSpecialKeyPressed(GLUT_KEY_LEFT) && handler->wasSpecialKeyPressed(GLUT_KEY_LEFT) == true) {
-
-		Vector position = this->lightMap["Spot Light 2"]->getPosition();
-
-		position[VY] -= 5.0f * elapsedTime;
-
-		this->lightMap["Spot Light 2"]->setPosition(position);
-		this->lightMap["Spot Light 2"]->loadUniforms();
-	}*/
-
+	// Exit
 	if(handler->wasKeyPressedThisFrame('q'))
 		exit(0);
+
+	// Dump
+	if(handler->wasKeyPressedThisFrame('d')) {
 	
+		cout << "Zoom = " << this->activeCamera->getZoom() << endl;
+		cout << "Latitude = " << this->activeCamera->getLatitude() << endl;
+		cout << "Longitude = " << this->activeCamera->getLongitude() << endl;
+		
+		cout << "Target = "; this->activeCamera->getTarget().dump();
+	}
+
+	// Debug
+	if(handler->wasKeyPressedThisFrame('w'))
+		value++;
+
+	// Enable the Keyboard after reading
 	handler->enableKeyboard();
 }
 
@@ -268,51 +198,41 @@ void SceneManager::readMouse(GLfloat elapsedTime) {
 
 	if(!handler->isMouseEnabled())
 		return;	
-
+	
+	// Disable the Mouse while reading
 	handler->disableMouse();
 
+	// Camera Rotation
 	GLint zoom = handler->getMouseWheelPosition();
 	GLint longitude = handler->getLongitude(GLUT_RIGHT_BUTTON);
 	GLint latitude = handler->getLatitude(GLUT_RIGHT_BUTTON);
+	
+	// Camera Rotation Update
+	activeCamera->updateRotation(zoom,longitude,latitude,elapsedTime);
 
-	_activeCamera->update(zoom,longitude,latitude,elapsedTime);
-
-	if(handler->isButtonPressed(GLUT_LEFT_BUTTON)) {
-
-		GLint* mousePosition = handler->getMouseClickPosition(GLUT_LEFT_BUTTON);
-
-		//rayCast(mousePosition,elapsedTime);
-
-		delete mousePosition;
-
-	}
-	else if(handler->wasButtonPressed(GLUT_LEFT_BUTTON)) {
-
-		//_malletPicked = false;
-	}
-
+	// Enable the Mouse after reading
 	handler->enableMouse();
 }
 
 void SceneManager::rayCast(GLint* mousePosition, GLfloat elapsedTime) {
 
-	/*Matrix invertedProjectionMatrix = _activeCamera->getProjectionMatrix();
+	/*Matrix invertedProjectionMatrix = activeCamera->getProjectionMatrix();
 	invertedProjectionMatrix.invert();
 	invertedProjectionMatrix.transpose();
 
-	Matrix invertedViewMatrix = _activeCamera->getViewMatrix();
+	Matrix invertedViewMatrix = activeCamera->getViewMatrix();
 	invertedViewMatrix.invert();
 	invertedViewMatrix.transpose();
 
 	Vector rayOrigin;
 	Vector rayTarget;
 
-	if(_activeCamera->getProjectionMode() == PERSPECTIVE) {
+	if(activeCamera->getProjectionMode() == PERSPECTIVE) {
 	
-		rayOrigin = _activeCamera->getEye();
+		rayOrigin = activeCamera->getEye();
 
-		rayTarget[VX] = 2.0f * mousePosition[0] / _activeCamera->getWidth() - 1.0f;
-		rayTarget[VY] = 1.0f - (2.0f * mousePosition[1]) / _activeCamera->getHeight();
+		rayTarget[VX] = 2.0f * mousePosition[0] / activeCamera->getWidth() - 1.0f;
+		rayTarget[VY] = 1.0f - (2.0f * mousePosition[1]) / activeCamera->getHeight();
 		rayTarget[VZ] = 1.0f;
 		rayTarget[VW] = 1.0f;
 
@@ -329,13 +249,13 @@ void SceneManager::rayCast(GLint* mousePosition, GLfloat elapsedTime) {
 	}
 	else {
 
-		rayOrigin[VX] = 2.0f * mousePosition[0] / _activeCamera->getWidth() - 1.0f;
-		rayOrigin[VY] = 1.0f - (2.0f * mousePosition[1]) / _activeCamera->getHeight();
+		rayOrigin[VX] = 2.0f * mousePosition[0] / activeCamera->getWidth() - 1.0f;
+		rayOrigin[VY] = 1.0f - (2.0f * mousePosition[1]) / activeCamera->getHeight();
 		rayOrigin[VZ] =-1.0f;
 		rayOrigin[VW] = 1.0f;
 
-		rayTarget[VX] = 2.0f * mousePosition[0] / _activeCamera->getWidth() - 1.0f;
-		rayTarget[VY] = 1.0f - (2.0f * mousePosition[1]) / _activeCamera->getHeight();
+		rayTarget[VX] = 2.0f * mousePosition[0] / activeCamera->getWidth() - 1.0f;
+		rayTarget[VY] = 1.0f - (2.0f * mousePosition[1]) / activeCamera->getHeight();
 		rayTarget[VZ] = 1.0f;
 		rayTarget[VW] = 1.0f;
 
@@ -399,12 +319,12 @@ int SceneManager::getObjectID() {
 
 void SceneManager::setActiveCamera(Camera* camera) {
 
-	_activeCamera = camera;
+	activeCamera = camera;
 }
 
 Camera* SceneManager::getActiveCamera() {
 
-	return _activeCamera;
+	return activeCamera;
 }
 
 map<string,Sound*> SceneManager::getSoundMap() {
@@ -551,7 +471,7 @@ void SceneManager::dump() {
 
 	/* Active Camera*/
 	cout << "<SceneManager Active Camera> = " << endl;
-	_activeCamera->dump();
+	activeCamera->dump();
 
 	/* Sound Map */
 	cout << "<SceneManager Sound List> = " << endl;

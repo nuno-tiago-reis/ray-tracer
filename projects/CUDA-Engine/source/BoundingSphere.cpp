@@ -42,8 +42,21 @@ void BoundingSphere::calculateMiniball(Mesh* mesh) {
 	// Create the Miniball
 	Miniball miniball(dimension, pointList.begin(), pointList.end());
 
-	this->center = Vector(center[VX], center[VY], center[VZ], 1.0f);
-	this->radius = (miniball.squared_radius() * miniball.squared_radius()) * 1.0f;
+	this->center = Vector(miniball.center()[0], miniball.center()[1], miniball.center()[2], 1.0f);
+	this->radius = (miniball.squared_radius() * miniball.squared_radius());
+
+	for(map<int, Vertex*>::iterator vertex = vertexMap.begin(); vertex != vertexMap.end(); vertex++) {
+
+		float distance = (this->center - vertex->second->getPosition()).magnitude();
+
+		if(distance > this->radius) {
+				
+			printf("[REVISED] Vertex = %02.020f %02.020f %02.020f\n", vertex->second->getPosition()[VX], vertex->second->getPosition()[VY], vertex->second->getPosition()[VZ]);
+			printf("[REVISED] Radius = %02.010f => %02.010f \n", this->radius, distance);
+
+			this->radius = distance;
+		}
+	}
 }
 
 Vector BoundingSphere::getCenter() {
