@@ -85,9 +85,11 @@ SceneManager* sceneManager = SceneManager::getInstance();
 
 // Object Map
 map<int, Object*> objectMap;
+// Light Map
+map<int, Light*> lightMap;
 
 // Scene ID
-int sceneID = 0;
+int sceneID = 2;
 
 // FrameBuffer Wrapper
 FrameBuffer *frameBuffer;
@@ -244,6 +246,12 @@ extern "C" {
 							const float3 cameraUp,
 							// Auxiliary Variables containing the Camera Position.
 							const float3 cameraRight,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject);
+
+	void ScreenCleaningWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
 
@@ -1090,9 +1098,9 @@ void display() {
 		Object* object = objectIterator->second;
 
 		// Translation Matrix/
-		Matrix translationMatrix;
-		translationMatrix.translate(object->getTransform()->getPosition());
-		translationMatrix.scale(object->getTransform()->getScale());
+		Matrix translationMatrix = object->getTransform()->getModelMatrix();
+		//translationMatrix.translate(object->getTransform()->getPosition());
+		//translationMatrix.scale(object->getTransform()->getScale());
 		translationMatrix.getValue(&modelMatrices[object->getID() * 16]);
 		
 		// Scale Matrix
@@ -1152,7 +1160,7 @@ void display() {
 		if(i == 0) {
 
 			bool result = true;
-			
+
 			// Calculate the Shadow Rays based on the Rasterizer Input for the first Iteration.
 			if(result == true)
 				result = createShadowRays(true, cameraEye);
@@ -1164,26 +1172,26 @@ void display() {
 				result = colorShadowRays(true, cameraEye, pixelBufferObject);
 
 			/*int value = sceneManager->value;
-
 			ScreenPreparationWrapper(
 				cudaRayArrayDP,
 				cudaPrimaryRayIndexKeysArrayDP, 
 				cudaPrimaryRayIndexValuesArrayDP,
 				cudaUpdatedBoundingSpheresDP,
 				boundingSphereTotal,
-				value,
+				6,
 				windowWidth, windowHeight,
 				cameraEye,
 				make_float3(cameraDirection[VX], cameraDirection[VY], cameraDirection[VZ]),
 				make_float3(cameraUp[VX], cameraUp[VY], cameraUp[VZ]),
 				make_float3(cameraRight[VX], cameraRight[VY], cameraRight[VZ]),
-				pixelBufferObject);*/
+				pixelBufferObject);
+			break;*/
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
-		if(i == 1) {
+		if(i == 1 && (sceneID == 1 || sceneID == 3)) {
 
-			/*bool result = true;
+			bool result = true;
 
 			// Calculate the Reflection Rays based on the Rasterizer Input for the first Iteration.
 			if(result == true)
@@ -1193,7 +1201,7 @@ void display() {
 				result = castRays(false);
 			// Calculate the Color.
 			if(result == true)
-				result = colorReflectionRays(true, cameraEye, pixelBufferObject);*/
+				result = colorReflectionRays(true, cameraEye, pixelBufferObject);
 		}
 	}
 
@@ -1406,8 +1414,6 @@ void reshape(int weight, int height) {
 
 	size_t free, total;
 	Utility::checkCUDAError("cudaGetMemInfo()", cudaMemGetInfo(&free, &total));
-
-	cout << endl;
 
 	printf("[Callback] Total Memory:\t\t%010u B\t%011.03f KB\t%08.03f MB\t%05.03f GB\n", 
 		total, total / 1024.0f, total / 1024.0f / 1024.0f, total / 1024.0f / 1024.0f / 1024.0f); 
@@ -1633,7 +1639,7 @@ void initializeCUDA() {
 
 // Initialize CUDA Memory with the necessary space for the Meshes 
 void initializeCUDAmemory() {
-		
+
 	// Create the FrameBuffer to output the Rendering result.
 	frameBuffer = new FrameBuffer(windowWidth, windowHeight);
 	frameBuffer->createFrameBuffer();
@@ -1650,7 +1656,7 @@ void initializeCUDAmemory() {
 // [Scene] Initializes the Scenes Shaders
 void initializeShaders() {
 
-	/* Create Blinn Phong Shader */
+	// Create Blinn Phong Shader 
 	BlinnPhongShader* blinnPhongShader = new BlinnPhongShader(BLINN_PHONG_SHADER);
 	blinnPhongShader->createShaderProgram();
 	blinnPhongShader->bindAttributes();
@@ -1659,7 +1665,7 @@ void initializeShaders() {
 
 	sceneManager->addShaderProgram(blinnPhongShader);
 
-	/* Create Bump Map Shader*/
+	// Create Bump Map Shader
 	BumpMappingShader* bumpMappingShader = new BumpMappingShader(BUMP_MAPPING_SHADER);
 	bumpMappingShader->createShaderProgram();
 	bumpMappingShader->bindAttributes();
@@ -1668,7 +1674,7 @@ void initializeShaders() {
 
 	sceneManager->addShaderProgram(bumpMappingShader);
 
-	/* Create Sphere Map Shader */
+	// Create Sphere Map Shader 
 	SphereMappingShader* sphereMappingShader = new SphereMappingShader(SPHERE_MAPPING_SHADER);
 	sphereMappingShader->createShaderProgram();
 	sphereMappingShader->bindAttributes();
@@ -1677,7 +1683,7 @@ void initializeShaders() {
 
 	sceneManager->addShaderProgram(sphereMappingShader);
 
-	/* Create Cube Map Shader */
+	// Create Cube Map Shader 
 	CubeMappingShader* cubeMappingShader = new CubeMappingShader(CUBE_MAPPING_SHADER);
 	cubeMappingShader->createShaderProgram();
 	cubeMappingShader->bindAttributes();
@@ -1686,7 +1692,7 @@ void initializeShaders() {
 
 	sceneManager->addShaderProgram(cubeMappingShader);
 
-	/* Create Real Wood Shader */
+	// Create Real Wood Shader 
 	WoodShader* woodShader = new WoodShader(WOOD_SHADER);
 	woodShader->createShaderProgram();
 	woodShader->bindAttributes();
@@ -1695,7 +1701,7 @@ void initializeShaders() {
 
 	sceneManager->addShaderProgram(woodShader);
 
-	/* Create Fire Shader */
+	// Create Fire Shader 
 	FireShader* fireShader = new FireShader(FIRE_SHADER);
 	fireShader->createShaderProgram();
 	fireShader->bindAttributes();
@@ -1704,72 +1710,12 @@ void initializeShaders() {
 
 	sceneManager->addShaderProgram(fireShader);
 
-	cout << "[Initialization] Shader Initialization Successfull" << endl << endl;
+	cout << "[Initialization] Shader Initialization Successfull" << endl;
 }
 
 // [Scene] Initializes the Scenes Lights
 void initializeLights() {
 
-	// Light Map
-	map<int, Light*> lightMap;
-
-	/*// Light Source - White
-	PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
-
-	positionalLight1->setIdentifier(LIGHT_SOURCE_1);
-
-	positionalLight1->setPosition(Vector(-2.5f, 2.5f,-2.5f, 1.0f));
-	positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
-
-	positionalLight1->setDiffuseIntensity(0.5f);
-	positionalLight1->setSpecularIntensity(0.5f);
-	
-	lightMap[positionalLight1->getIdentifier()] = positionalLight1;
-	sceneManager->addLight(positionalLight1);
-
-	// Light Source - Blue
-	PositionalLight* positionalLight2 = new PositionalLight(POSITIONAL_LIGHT_2);
-
-	positionalLight2->setIdentifier(LIGHT_SOURCE_2);
-
-	positionalLight2->setPosition(Vector( 2.5f, 2.5f,-2.5f, 1.0f));
-	positionalLight2->setColor(Vector(0.0f, 0.0f, 0.75f, 1.0f));
-
-	positionalLight2->setDiffuseIntensity(0.5f);
-	positionalLight2->setSpecularIntensity(0.5f);
-	
-	lightMap[positionalLight2->getIdentifier()] = positionalLight2;
-	sceneManager->addLight(positionalLight2);
-
-	// Light Source - Green
-	PositionalLight* positionalLight3 = new PositionalLight(POSITIONAL_LIGHT_3);
-
-	positionalLight3->setIdentifier(LIGHT_SOURCE_3);
-
-	positionalLight3->setPosition(Vector(-2.5f, 2.5f, 2.5f, 1.0f));
-	positionalLight3->setColor(Vector(0.0f, 0.75f, 0.0f, 1.0f));
-
-	positionalLight3->setDiffuseIntensity(0.5f);
-	positionalLight3->setSpecularIntensity(0.5f);
-	
-	lightMap[positionalLight3->getIdentifier()] = positionalLight3;
-	sceneManager->addLight(positionalLight3);
-
-	// Light Source - Red
-	PositionalLight* positionalLight4 = new PositionalLight(POSITIONAL_LIGHT_4);
-
-	positionalLight4->setIdentifier(LIGHT_SOURCE_4);
-
-	positionalLight4->setPosition(Vector( 2.5f, 2.5f, 2.5f, 1.0f));
-	positionalLight4->setColor(Vector(0.75f, 0.0f, 0.0f, 1.0f));
-
-	positionalLight4->setDiffuseIntensity(0.5f);
-	positionalLight4->setSpecularIntensity(0.5f);
-	
-	lightMap[positionalLight4->getIdentifier()] = positionalLight4;
-	sceneManager->addLight(positionalLight4);
-	*/
-	;
 	// Office
 	if(sceneID == 0) {
 
@@ -1787,13 +1733,53 @@ void initializeLights() {
 		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
 		sceneManager->addLight(positionalLight1);
 	}
-	// Street
-	else if(sceneID == 1) {
-	
-	}
 	// Kornell
-	else if(sceneID == 2) {
+	else if(sceneID == 1) {
+
+		// Light Source - White
+		PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
+
+		positionalLight1->setIdentifier(LIGHT_SOURCE_1);
+
+		positionalLight1->setPosition(Vector( 0.0f, 45.0f, 0.0f, 1.0f));
+		positionalLight1->setColor(Vector(0.8f, 0.8f, 0.8f, 1.0f));
+
+		positionalLight1->setDiffuseIntensity(0.75f);
+		positionalLight1->setSpecularIntensity(0.75f);
 	
+		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
+		sceneManager->addLight(positionalLight1);
+	}
+	// Street
+	else if(sceneID == 2) {
+
+		// Light Source - White
+		PositionalLight* positionalLight1 = new PositionalLight(POSITIONAL_LIGHT_1);
+
+		positionalLight1->setIdentifier(LIGHT_SOURCE_1);
+
+		positionalLight1->setPosition(Vector(0.0f, 25.0f, 0.0f, 1.0f));
+		positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
+
+		positionalLight1->setDiffuseIntensity(0.5f);
+		positionalLight1->setSpecularIntensity(0.5f);
+	
+		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
+		sceneManager->addLight(positionalLight1);
+
+		/*// Light Source - White
+		PositionalLight* positionalLight2 = new PositionalLight(POSITIONAL_LIGHT_2);
+
+		positionalLight2->setIdentifier(LIGHT_SOURCE_2);
+
+		positionalLight2->setPosition(Vector(-100.0f, 25.0f, 0.0f, 1.0f));
+		positionalLight2->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
+
+		positionalLight2->setDiffuseIntensity(0.75f);
+		positionalLight2->setSpecularIntensity(0.75f);
+	
+		lightMap[positionalLight2->getIdentifier()] = positionalLight1;
+		sceneManager->addLight(positionalLight2);*/
 	}
 	else {
 
@@ -1802,80 +1788,17 @@ void initializeLights() {
 
 		positionalLight1->setIdentifier(LIGHT_SOURCE_1);
 
-		//positionalLight1->setPosition(Vector(0.0f, 5.0f,-5.0f, 1.0f));
 		positionalLight1->setPosition(Vector(0.0f, 15.0f, 0.0f, 1.0f));
 		positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
 
-		positionalLight1->setDiffuseIntensity(0.5f);
-		positionalLight1->setSpecularIntensity(0.5f);
+		positionalLight1->setDiffuseIntensity(0.75f);
+		positionalLight1->setSpecularIntensity(0.75f);
 	
 		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
 		sceneManager->addLight(positionalLight1);
 	}
 
-	// Stores the Lights Information in the form of Arrays
-	vector<float4> lightPositionList;
-	vector<float4> lightColorList;
-	vector<float2> lightIntensityList;
-
-	for(map<int,Light*>::const_iterator lightIterator = lightMap.begin(); lightIterator != lightMap.end(); lightIterator++) {
-
-		Light* light = lightIterator->second;
-
-		// Position
-		Vector originalPosition = light->getPosition();
-		float4 position = { originalPosition[VX], originalPosition[VY], originalPosition[VZ], 1.0f};
-		lightPositionList.push_back(position);
-
-		// Color
-		Vector originalColor = light->getColor();
-		float4 color = { originalColor[VX], originalColor[VY], originalColor[VZ], originalColor[VW]};
-		lightColorList.push_back(color);
-
-		// Intensity
-		GLfloat originalDiffuseIntensity = light->getDiffuseIntensity();
-		GLfloat originalSpecularIntensity = light->getSpecularIntensity();
-
-		float2 intensity = { originalDiffuseIntensity, originalSpecularIntensity };
-		lightIntensityList.push_back(intensity);
-
-		lightTotal++;
-	}
-
-	// Total number of Lights 
-	cout << "[Initialization] Total number of lights: " << lightTotal << endl;
-
-	// Each light has a Position, Color and Intensity
-	size_t lightPositionListSize = lightPositionList.size() * sizeof(float4);
-	cout << "[Initialization] Light Positions Storage Size: " << lightPositionListSize << " (" << lightPositionList.size() << " float4s)" << endl;
-	size_t lightColorListSize = lightColorList.size() * sizeof(float4);
-	cout << "[Initialization] Light Color Storage Size: " << lightColorListSize << " (" << lightColorList.size() << " float4s)" << endl;
-	size_t lightIntensityListSize = lightIntensityList.size() * sizeof(float2);
-	cout << "[Initialization] Light Intensity Storage Size: " << lightIntensityListSize << " (" << lightIntensityList.size() << " float2s)" << endl;
-
-	// Allocate the required CUDA Memory for the Lights
-	if(lightTotal > 0) {
-
-		// Load the Light Positions
-		Utility::checkCUDAError("cudaMalloc()",	cudaMalloc((void **)&cudaLightPositionsDP, lightPositionListSize));
-		Utility::checkCUDAError("cudaMemcpy()",	cudaMemcpy(cudaLightPositionsDP, &lightPositionList[0], lightPositionListSize, cudaMemcpyHostToDevice));
-
-		bindLightPositions(cudaLightPositionsDP, lightTotal);
-
-		// Load the Light Colors
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightColorsDP, lightColorListSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightColorsDP, &lightColorList[0], lightColorListSize, cudaMemcpyHostToDevice));
-
-		bindLightColors(cudaLightColorsDP, lightTotal);
-
-		// Load the Light Intensities
-		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightIntensitiesDP, lightIntensityListSize));
-		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightIntensitiesDP, &lightIntensityList[0], lightIntensityListSize, cudaMemcpyHostToDevice));
-
-		bindLightIntensities(cudaLightIntensitiesDP, lightTotal);
-	}
-
-	cout << "[Initialization] Light Initialization Successfull" << endl << endl;
+	cout << "[Initialization] Light Initialization Successfull" << endl;
 }
 
 // [Scene] Initializes the Scenes Cameras
@@ -1913,18 +1836,40 @@ void initializeCameras() {
 		// Initialize the Target
 		camera->setTarget(Vector(-4.50f, 7.25f, 1.50f, 1.0f));
 	}
-	// Street
+	// Kornell
 	else if(sceneID == 1) {
 	
+		Camera* camera = sceneManager->getActiveCamera();
+		
+		// Initialize the Zoom
+		camera->setZoom(4.5f);
+
+		// Initialize the Latitude and the Longitude
+		camera->setLatitude(0.5f);
+		camera->setLongitude(225.0f);
+
+		// Initialize the Target
+		camera->setTarget(Vector(4.35f,-24.35f, 1.50f, 1.0f));
 	}
-	// Kornell
+	// Sponza
 	else if(sceneID == 2) {
-	
+
+		Camera* camera = sceneManager->getActiveCamera();
+
+		// Initialize the Zoom
+		camera->setZoom(2.15f);
+
+		// Initialize the Latitude and the Longitude
+		camera->setLatitude(12.0f);
+		camera->setLongitude(112.0f);
+
+		// Initialize the Target
+		camera->setTarget(Vector(-9.25f, 2.25f,-0.15f, 1.0f));
 	}
 	else {
 
 		Camera* camera = sceneManager->getActiveCamera();
-		
+
 		// Initialize the Zoom
 		camera->setZoom(5.5f);
 
@@ -1933,7 +1878,7 @@ void initializeCameras() {
 		camera->setLongitude(45.0f);
 	}
 
-	cout << "[Initialization] Camera Initialization Successfull" << endl << endl;
+	cout << "[Initialization] Camera Initialization Successfull" << endl;
 }
 
 // [Scene] Initializes the Scenes Objects
@@ -1942,46 +1887,9 @@ void initializeObjects() {
 	// Office
 	if(sceneID == 0) {
 
-		// Table Surface
-		Object* tableSurface = new Object(TABLE_SURFACE);
-
-			// Create the Objects Mesh
-			Mesh* tableSurfaceMesh = new Mesh(TABLE_SURFACE, "cube.obj");
-
-			// Create the Objects Material
-			Material* tableSurfaceMaterial = new Material(TABLE_SURFACE, "sphere/silver.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
-
-			// Create the Objects Transform
-			Transform* tableSurfaceTransform = new Transform(TABLE_SURFACE);
-			tableSurfaceTransform->setPosition(Vector(0.0f,-5.0f, 0.0f, 1.0f));
-			tableSurfaceTransform->setScale(Vector(75.0f, 0.5f, 75.0f, 1.0f));
-		
-			// Set the Objects Mesh
-			tableSurface->setMesh(tableSurfaceMesh);
-			// Set the Objects Material
-			tableSurface->setMaterial(tableSurfaceMaterial);
-			// Set the Objects Transform
-			tableSurface->setTransform(tableSurfaceTransform);
-
-			// Initialize the Object
-			tableSurface->createMesh();
-			tableSurface->setID(sceneManager->getObjectID());
-
-			// Add the Object to the Scene Manager
-			sceneManager->addObject(tableSurface);
-			// Add the Object to the Object Map (CUDA Loading)
-			objectMap[tableSurface->getID()] = tableSurface;
-
-			// Create the Objects Scene Node
-			SceneNode* tableSurfaceNode = new SceneNode(TABLE_SURFACE);
-			tableSurfaceNode->setObject(tableSurface);
-
-		// Add the Root Nodes to the Scene
-		sceneManager->addSceneNode(tableSurfaceNode);
-		//int i = 0;
 		while(OBJ_Reader::getInstance()->canReadMesh("office.obj") == true) {
 
-			// Cylinder
+			// Office Object
 			Object* officeObject = new Object("Office Object");
 
 				// Create the Objects Mesh
@@ -2021,13 +1929,167 @@ void initializeObjects() {
 			sceneManager->addSceneNode(officeObjectNode);
 		}
 	}
-	// Street
-	else if(sceneID == 1) {
-	
-	}
 	// Kornell
+	else if(sceneID == 1) {
+
+		Vector positionList[6];
+		Vector rotationList[6];
+		Vector scaleList[6];
+
+		// Top Face
+		positionList[0] = Vector(  0.0f, 50.0f,  0.0f, 1.0f);
+		rotationList[0] = Vector(  0.0f,  0.0f,  0.0f, 1.0f);
+		scaleList[0] = Vector(200.0f, 0.5f, 200.0f, 1.0f);
+		// Bottom Face
+		positionList[1] = Vector(  0.0f,-50.0f,  0.0f, 1.0f);
+		rotationList[1] = Vector(  0.0f,  0.0f,  0.0f, 1.0f);
+		scaleList[1] = Vector(200.0f, 0.5f, 200.0f, 1.0f);
+		// Left Face
+		positionList[2] = Vector(-100.0f,  0.0f,  0.0f, 1.0f);
+		rotationList[2] = Vector(   0.0f,  0.0f, 90.0f, 1.0f);
+		scaleList[2] = Vector(100.0f, 0.5f, 200.0f, 1.0f);
+		// Right Face
+		positionList[3] = Vector( 100.0f,  0.0f,  0.0f, 1.0f);
+		rotationList[3] = Vector(   0.0f,  0.0f, 90.0f, 1.0f);
+		scaleList[3] = Vector(100.0f, 0.5f, 200.0f, 1.0f);
+		// Front Face
+		positionList[4] = Vector(  0.0f,  0.0f, 100.0f, 1.0f);
+		rotationList[4] = Vector( 90.0f,  0.0f,   0.0f, 1.0f);
+		scaleList[4] = Vector(200.0f, 0.5f, 100.0f, 1.0f);
+		// Back Face
+		positionList[5] = Vector(  0.0f,  0.0f,-100.0f, 1.0f);
+		rotationList[5] = Vector( 90.0f,  0.0f,   0.0f, 1.0f);
+		scaleList[5] = Vector(200.0f, 0.5f, 100.0f, 1.0f);
+
+		// Create the Objects Mesh
+		Mesh* wallObjectMesh = new Mesh(TABLE_SURFACE, "cube.obj");
+
+		// Create the Objects Material
+		Material* wallObjectMaterial[6]; 
+
+		wallObjectMaterial[0] = new Material(TABLE_SURFACE, "silver.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		wallObjectMaterial[1] = new Material(TABLE_SURFACE, "silver.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		wallObjectMaterial[2] = new Material(TABLE_SURFACE, "gold.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		wallObjectMaterial[3] = new Material(TABLE_SURFACE, "ruby.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		wallObjectMaterial[4] = new Material(TABLE_SURFACE, "saphire.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		wallObjectMaterial[5] = new Material(TABLE_SURFACE, "emerald.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+
+		for(int i=0; i<6; i++) {
+
+			// Create the Objects Name
+			ostringstream stringStream;
+			stringStream << "Wall " << i;
+
+			// Table Surface
+			Object* wallObject = new Object(string(stringStream.str()));
+
+				// Create the Objects Transform
+				Transform* wallObjectTransform = new Transform(TABLE_SURFACE);
+				wallObjectTransform->setScale(scaleList[i]);
+				wallObjectTransform->setPosition(positionList[i]);
+				wallObjectTransform->setRotation(rotationList[i]);
+
+				// Set the Objects Mesh
+				wallObject->setMesh(wallObjectMesh);
+				// Set the Objects Material
+				wallObject->setMaterial(wallObjectMaterial[i]);
+				// Set the Objects Transform
+				wallObject->setTransform(wallObjectTransform);
+
+				// Initialize the Object
+				wallObject->createMesh();
+				wallObject->setID(sceneManager->getObjectID());
+
+				// Add the Object to the Scene Manager
+				sceneManager->addObject(wallObject);
+				// Add the Object to the Object Map (CUDA Loading)
+				objectMap[wallObject->getID()] = wallObject;
+
+				// Create the Objects Scene Node
+				SceneNode* wallObjectNode = new SceneNode(wallObject->getName());
+				wallObjectNode->setObject(wallObject);
+
+			// Add the Root Nodes to the Scene
+			sceneManager->addSceneNode(wallObjectNode);
+		}
+
+		Object* sphereObject = new Object("Sphere");
+
+			// Create the Spheres Mesh
+			Mesh* sphereMesh = new Mesh("Sphere Mesh", "sphere/sphere.obj");
+			// Create the Spheres Materials
+			Material* sphereMaterial = new Material("Sphere Gold Material", "sphere/gold.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+			// Create the Objects Transform
+			Transform* sphereTransform = new Transform("Sphere");
+			sphereTransform->setPosition(Vector(0.0f,-32.5, 0.0f, 1.0f));
+			sphereTransform->setScale(Vector(25.0f,25.0f,25.0f,1.0f));
+				
+			// Set the Objects Mesh
+			sphereObject->setMesh(sphereMesh);
+			// Set the Objects Material
+			sphereObject->setMaterial(sphereMaterial);
+			// Set the Objects Transform
+			sphereObject->setTransform(sphereTransform);
+
+			// Initialize the Object
+			sphereObject->createMesh();
+			sphereObject->setID(sceneManager->getObjectID());
+
+			// Add the Object to the Scene Manager
+			sceneManager->addObject(sphereObject);
+			// Add the Object to the Object Map (CUDA Loading)
+			objectMap[sphereObject->getID()] = sphereObject;
+
+			// Create the Objects Scene Node
+			SceneNode* sphereObjectNode = new SceneNode("Sphere");
+			sphereObjectNode->setObject(sphereObject);
+	
+		sceneManager->addSceneNode(sphereObjectNode);
+	}
+	// Sponza
 	else if(sceneID == 2) {
 	
+		while(OBJ_Reader::getInstance()->canReadMesh("sponza.obj") == true) {
+
+			// Office Object
+			Object* sponzaObject = new Object("Street Object");
+
+				// Create the Objects Mesh
+				Mesh* sponzaObjectMesh = new Mesh("Street Mesh", "sponza.obj");
+
+				// Create the Objects Material
+				Material* sponzaObjectMaterial = new Material("Street Material", "sponza.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+
+				// Create the Objects Transform
+				Transform* sponzaObjectTransform = new Transform(sponzaObject->getName());
+				sponzaObjectTransform->setPosition(Vector(0.0f, -25.0f, 0.0f, 1.0f));
+				sponzaObjectTransform->setScale(Vector(10.0f, 10.0f, 10.0f, 1.0f));
+		
+				// Set the Objects Name
+				sponzaObject->setName(sponzaObjectMesh->getName());
+				// Set the Objects Mesh
+				sponzaObject->setMesh(sponzaObjectMesh);
+				// Set the Objects Material
+				sponzaObject->setMaterial(sponzaObjectMaterial);
+				// Set the Objects Transform
+				sponzaObject->setTransform(sponzaObjectTransform);
+
+				// Initialize the Object
+				sponzaObject->createMesh();
+				sponzaObject->setID(sceneManager->getObjectID());
+
+				// Add the Object to the Scene Manager
+				sceneManager->addObject(sponzaObject);
+				// Add the Object to the Object Map (CUDA Loading)
+				objectMap[sponzaObject->getID()] = sponzaObject;
+
+				// Create the Objects Scene Node
+				SceneNode* sponzaObjectNode = new SceneNode(sponzaObject->getName());
+				sponzaObjectNode->setObject(sponzaObject);
+
+			// Add the Root Nodes to the Scene
+			sceneManager->addSceneNode(sponzaObjectNode);
+		}
 	}
 	else {
 
@@ -2095,7 +2157,6 @@ void initializeObjects() {
 					// Create the Objects Transform
 					Transform* sphereTransform = new Transform(sphereName);
 
-					sphereTransform->setPosition(Vector(0.0f, 0.0f, 0.0f, 1.0f));
 					sphereTransform->setPosition(Vector(i * 10.0f - 30.0f, 0.5f, j * 10.0f - 30.0f, 1.0f));
 					sphereTransform->setRotation(Vector(0.0f, 0.0f,0.0f,1.0f));
 					sphereTransform->setScale(Vector(2.5f,2.5f,2.5f,1.0f));
@@ -2158,6 +2219,12 @@ void init(int argc, char* argv[]) {
 	// Setup GLUT Callbacks 
 	initializeCallbacks();
 
+	/****************************************************************/
+	/*																*/
+	/*						Triangle Storage						*/
+	/*																*/
+	/****************************************************************/
+
 	// Stores the Triangles Information in the form of Arrays
 	vector<float4> trianglePositionList;
 	vector<float4> triangleNormalList;
@@ -2191,25 +2258,25 @@ void init(int argc, char* argv[]) {
 
 			// Position
 			Vector originalPosition = vertex->getPosition();
-			float4 position = { originalPosition[VX], originalPosition[VY], originalPosition[VZ], 1.0f};
+			float4 position = make_float4(originalPosition[VX], originalPosition[VY], originalPosition[VZ], 1.0f);
 			trianglePositionList.push_back(position);
 
 			// Normal
 			Vector originalNormal = vertex->getNormal();
-			float4 normal = { originalNormal[VX], originalNormal[VY], originalNormal[VZ], 0.0f};
+			float4 normal = make_float4(originalNormal[VX], originalNormal[VY], originalNormal[VZ], 0.0f);
 			triangleNormalList.push_back(normal);
 
 			// Texture Coordinates
 			Vector originalTextureCoordinates = vertex->getTextureCoordinates();
-			float2 textureCoordinates = { originalTextureCoordinates[VX], originalTextureCoordinates[VY] };
+			float2 textureCoordinates = make_float2(originalTextureCoordinates[VX], originalTextureCoordinates[VY]);
 			triangleTextureCoordinateList.push_back(textureCoordinates);
 
 			// Object ID
-			int1 objectID = { object->getID() };
+			int1 objectID = make_int1(object->getID());
 			triangleObjectIDList.push_back(objectID);
 
 			// Material ID
-			int1 materialID = { materialTotal };
+			int1 materialID = make_int1(materialTotal);
 			triangleMaterialIDList.push_back(materialID);
 		}
 
@@ -2221,8 +2288,8 @@ void init(int argc, char* argv[]) {
 		Vector originalSpecularProperty = material->getSpecular();
 		float originalSpecularConstant = material->getSpecularConstant();
 
-		float4 diffuseProperty = { originalDiffuseProperty[VX], originalDiffuseProperty[VY], originalDiffuseProperty[VZ], 1.0f };
-		float4 specularProperty = { originalSpecularProperty[VX], originalSpecularProperty[VY], originalSpecularProperty[VZ], originalSpecularConstant };
+		float4 diffuseProperty = make_float4(originalDiffuseProperty[VX], originalDiffuseProperty[VY], originalDiffuseProperty[VZ], 1.0f);
+		float4 specularProperty = make_float4(originalSpecularProperty[VX], originalSpecularProperty[VY], originalSpecularProperty[VZ], originalSpecularConstant);
 
 		materialDiffusePropertyList.push_back(diffuseProperty);
 		materialSpecularPropertyList.push_back(specularProperty);
@@ -2239,8 +2306,8 @@ void init(int argc, char* argv[]) {
 		Vector originalCenter = boundingSphere->getCenter();
 		float originalRadius = boundingSphere->getRadius();
 
-		float4 center = { originalCenter[VX], originalCenter[VY], originalCenter[VZ], 1.0f };
-		float4 radiusAndBounds = { originalRadius, (float)startingIndex, (float)finalIndex, 1.0f };
+		float4 center = make_float4(originalCenter[VX], originalCenter[VY], originalCenter[VZ], 1.0f);
+		float4 radiusAndBounds = make_float4(originalRadius, (float)startingIndex, (float)finalIndex, 1.0f);
 
 		boundingSphereList.push_back(center);
 		boundingSphereList.push_back(radiusAndBounds);
@@ -2371,11 +2438,83 @@ void init(int argc, char* argv[]) {
 		// Bounding Boxes Memory Allocation
 		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaUpdatedBoundingSpheresDP, boundingSphereTotal * sizeof(float3) * 2));
 	}
+
+	cout << endl;
+
+	/****************************************************************/
+	/*																*/
+	/*							Light Storage						*/
+	/*																*/
+	/****************************************************************/
+
+	// Stores the Lights Information in the form of Arrays
+	vector<float4> lightPositionList;
+	vector<float4> lightColorList;
+	vector<float2> lightIntensityList;
+
+	for(map<int,Light*>::const_iterator lightIterator = lightMap.begin(); lightIterator != lightMap.end(); lightIterator++) {
+		
+		Light* light = lightIterator->second;
+
+		// Position
+		Vector originalPosition = light->getPosition();
+		float4 position = make_float4(originalPosition[VX], originalPosition[VY], originalPosition[VZ], 1.0f);
+		lightPositionList.push_back(position);
+
+		// Color
+		Vector originalColor = light->getColor();
+		float4 color = make_float4(originalColor[VX], originalColor[VY], originalColor[VZ], originalColor[VW]);
+		lightColorList.push_back(color);
+
+		// Intensity
+		GLfloat originalDiffuseIntensity = light->getDiffuseIntensity();
+		GLfloat originalSpecularIntensity = light->getSpecularIntensity();
+
+		float2 intensity = make_float2(originalDiffuseIntensity, originalSpecularIntensity);
+		lightIntensityList.push_back(intensity);
+
+		lightTotal++;
+	}
+
+	// Total number of Lights 
+	cout << "[Initialization] Total number of lights: " << lightTotal << endl;
+
+	// Each light has a Position, Color and Intensity
+	size_t lightPositionListSize = lightPositionList.size() * sizeof(float4);
+	cout << "[Initialization] Light Positions Storage Size: " << lightPositionListSize << " (" << lightPositionList.size() << " float4s)" << endl;
+	size_t lightColorListSize = lightColorList.size() * sizeof(float4);
+	cout << "[Initialization] Light Color Storage Size: " << lightColorListSize << " (" << lightColorList.size() << " float4s)" << endl;
+	size_t lightIntensityListSize = lightIntensityList.size() * sizeof(float2);
+	cout << "[Initialization] Light Intensity Storage Size: " << lightIntensityListSize << " (" << lightIntensityList.size() << " float2s)" << endl;
+
+	// Allocate the required CUDA Memory for the Lights
+	if(lightTotal > 0) {
+
+		// Load the Light Positions
+		Utility::checkCUDAError("cudaMalloc()",	cudaMalloc((void **)&cudaLightPositionsDP, lightPositionListSize));
+		Utility::checkCUDAError("cudaMemcpy()",	cudaMemcpy(cudaLightPositionsDP, &lightPositionList[0], lightPositionListSize, cudaMemcpyHostToDevice));
+
+		bindLightPositions(cudaLightPositionsDP, lightTotal);
+
+		// Load the Light Colors
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightColorsDP, lightColorListSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightColorsDP, &lightColorList[0], lightColorListSize, cudaMemcpyHostToDevice));
+
+		bindLightColors(cudaLightColorsDP, lightTotal);
+
+		// Load the Light Intensities
+		Utility::checkCUDAError("cudaMalloc()", cudaMalloc((void **)&cudaLightIntensitiesDP, lightIntensityListSize));
+		Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(cudaLightIntensitiesDP, &lightIntensityList[0], lightIntensityListSize, cudaMemcpyHostToDevice));
+
+		bindLightIntensities(cudaLightIntensitiesDP, lightTotal);
+	}
+
+	cout << "[Initialization] Initialization Successfull" << endl << endl;
 }
 
 int main(int argc, char* argv[]) {
 
-	//freopen("error.txt","w",stderr);
+	freopen("error.txt","w",stderr);
 	freopen("output.txt","w",stdout);
 	
 	// Init the Animation

@@ -1,4 +1,5 @@
-newmtl blinn1SG
+newmtl cube
+
 illum 4
 Ns 153.00000
 Ka 0 0 0

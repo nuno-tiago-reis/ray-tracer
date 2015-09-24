@@ -1,0 +1,186 @@
+# Bounding box of geometry = (-2.286,-4.4e-005,-2.286) to (2.286,3.8862,2.286).
+
+newmtl default
+	Ns 32
+	d 1
+	illum 2
+	Kd 0.4 0.4 0.4
+	Ks 0.7 0.7 0.7
+	Ka 0.3 0.3 0.3
+
+newmtl surface
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.5095 0.5101 0.5116
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__10
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.3497 0.2 0.2006
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__11
+	Ns 91
+	d 1
+	illum 2
+	Kd 0.5963 0.2489 0.0999
+	Ks 0.005 0.005 0.005
+	Ka 0.3 0.3 0.3
+
+newmtl surface__12
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.6993 0.2 0
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__13
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.0999 0.1 0.1003
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__14
+	Ns 128
+	d 1
+	illum 2
+	Kd 0.0799 0.08 0.0803
+	Ks 0.7192 0.7201 0.7223
+	Ka 0.3 0.3 0.3
+
+newmtl surface__15
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.8992 0.4 0.1004
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__16
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.3995 0.3001 0.2007
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__17
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.0999 0.2 0.5016
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__18
+	Ns 128
+	d 0.1185
+	illum 2
+	Kd 0 0 0
+	Ks 0.08 0.0801 0.0804
+	Ka 0.3 0.3 0.3
+
+newmtl surface__19
+	Ns 128
+	d 1
+	illum 2
+	Kd 0.3916 0.392 0.3932
+	Ks 0.02 0.02 0.02
+	Ka 0.3 0.3 0.3
+
+newmtl surface__2
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.3297 0.22 0.2207
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__20
+	Ns 25
+	d 1
+	illum 2
+	Kd 0 0 0
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__21
+	Ns 128
+	d 1
+	illum 2
+	Kd 0.2849 0.19 0.1907
+	Ks 0.05 0.05 0.05
+	Ka 0.3 0.3 0.3
+
+newmtl surface__22
+	Ns 128
+	d 1
+	illum 2
+	Kd 0.8091 0.8101 0.8126
+	Ks 0.1 0.1 0.1
+	Ka 0.3 0.3 0.3
+
+newmtl surface__3
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.8291 0.8301 0.8326
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__4
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.5992 0.2501 0.1003
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__5
+	Ns 128
+	d 1
+	illum 2
+	Kd 0.0299 0.015 0.005
+	Ks 0.5694 0.285 0.0953
+	Ka 0.3 0.3 0.3
+
+newmtl surface__6
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.3996 0.4 0.4013
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__7
+	Ns 128
+	d 1
+	illum 2
+	Kd 0.5842 0.3601 0.4515
+	Ks 0.1 0.1 0.1
+	Ka 0.3 0.3 0.3
+
+newmtl surface__8
+	Ns 25
+	d 1
+	illum 2
+	Kd 0.1997 0.2 0.5017
+	Ks 0 0 0
+	Ka 0.3 0.3 0.3
+
+newmtl surface__9
+	Ns 91
+	d 1
+	illum 2
+	Kd 0.6643 0.6651 0.6671
+	Ks 0.05 0.05 0.05
+	Ka 0.3 0.3 0.3
+

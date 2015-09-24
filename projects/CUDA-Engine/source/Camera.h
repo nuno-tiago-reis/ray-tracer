@@ -34,7 +34,7 @@
 
 #define PERS_ANGLE 60.0f
 #define PERS_NEAR 1.0f
-#define PERS_FAR 250.0f
+#define PERS_FAR 500.0f
 
 // Camera Radius 
 #define CAMERA_RADIUS 25.0f

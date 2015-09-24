@@ -259,15 +259,17 @@ __device__ static inline float RayTriangleIntersection(const Ray &ray, const flo
 	
 	// First Test
 	float u = dot(tvec, pvec) * determinant;  
-	if (u < 0.0f || u > 1.0f)  
-		return -1.0f;  
+	if (u < 0.0f || u > 1.0f) 
+		return -1.0f;
+		//return length(tvec) * 1.5f;
 
 	// Second Test
 	float3 qvec = cross(tvec, edge1);  
 
 	float v = dot(ray.direction, qvec) * determinant;  
 	if (v < 0.0f || (u + v) > 1.0f)  
-		return -1.0f;  
+		return -1.0f;
+		//return length(tvec) * 1.5f;
 
 	return dot(edge2, qvec) * determinant;  
 }  
@@ -285,8 +287,7 @@ __device__ static inline bool SphereNodeIntersection(const float4 &sphere, const
 	float3 sphereToTriangle = triangleCenter - sphereCenter;
 	float3 sphereToTriangleProjection = dot(sphereToTriangle, coneDirection) * coneDirection;
 
-	//if(dot is negative return false? 
-
+	//if(dot is negative return false?
 	return (dot(sphereToTriangle, coneDirection) * tangent + (sphere.w + triangle.w) / cosine) >= length(sphereToTriangle - sphereToTriangleProjection);
 }
 
@@ -607,20 +608,8 @@ __global__ void Debug2(
 
 	if(x >= windowWidth || y >= windowHeight)
 		return;
-	
-	// Fragment Position and Normal - Sent from the OpenGL Rasterizer
-	float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
-	float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
 
-	// Calculate the Shadow Rays Origin and Direction
-	//float3 shadowRayOrigin = make_float3(tex1Dfetch(lightPositionsTexture, 0));
-	//float3 shadowRayDirection = normalize(fragmentPosition - shadowRayOrigin);
-	//shadowRayDirection = (shadowRayDirection + make_float3(1.0f)) * 0.5f;
-
-	if(length(fragmentPosition) != 0.0f)
-		pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentNormal.x * 255.0f, fragmentNormal.y * 255.0f, fragmentNormal.z * 255.0f);
-	else
-		pixelBufferObject[x + y * windowWidth] = RgbToInt(0.0f, 0.0f, 0.0f);
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(0.2f, 0.2f, 0.2f);
 }
 
 __global__ void Debug(	
@@ -654,7 +643,7 @@ __global__ void Debug(
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	float3 fragmentColor = make_float3(1.0f, 0.5f, 0.0f);
+	float3 fragmentColor = make_float3(tex2D(diffuseTexture, x,y));
 
 	// Ray Creation
 	float3 rayOrigin = cameraPosition;
@@ -664,20 +653,13 @@ __global__ void Debug(
 	float3 boundingSphereBounds;
 
 	// Bounding Sphere Loading 
-	if((rayTotal % boundingSphereTotal) == 0) {
-		boundingSphereCenter = boundingSphereArray[((rayTotal+1) % boundingSphereTotal) * 2];
-		boundingSphereBounds = boundingSphereArray[((rayTotal+1) % boundingSphereTotal) * 2 + 1];
-	}
-	else {
-		boundingSphereCenter = boundingSphereArray[((rayTotal) % boundingSphereTotal) * 2];
-		boundingSphereBounds = boundingSphereArray[((rayTotal) % boundingSphereTotal) * 2 + 1];
-	}
+	boundingSphereCenter = boundingSphereArray[((rayTotal) % boundingSphereTotal) * 2];
+	boundingSphereBounds = boundingSphereArray[((rayTotal) % boundingSphereTotal) * 2 + 1];
 
-	//printf("Center = %02.010f - %02.010f - %02.010f Radius = %02.010f\n", boundingSphereCenter.x, boundingSphereCenter.y, boundingSphereCenter.z, boundingSphereBounds.x);
-
-	//if(RaySphereIntersection(Ray(rayOrigin, rayDirection), make_float3(0.0f, 0.0f, 0.0f), 5.0f) > 0.0f)
 	if(RaySphereIntersection(Ray(rayOrigin, rayDirection), make_float3(boundingSphereCenter.x, boundingSphereCenter.y, boundingSphereCenter.z), boundingSphereBounds.x * 10.0f) > 0.0f)
-		pixelBufferObject[x + y * windowWidth] += RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
+		fragmentColor += make_float3(1.0f, 0.5f, 0.0f);
+
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
 }
 
 __global__ void CreateShadowRays(
@@ -1185,7 +1167,7 @@ __global__ void CalculateBoundingSpheresIntersections(
 	float3 radiusAndBounds = boundingSphereArray[boundingSphereID * 2 + 1];
 
 	// Calculate the Intersection and store the result
-	bool result = SphereNodeIntersection(sphere, cone, make_float4(center.x, center.y, center.z, radiusAndBounds.x), cos(cone.w), tan(cone.w));
+	bool result = true ; //SphereNodeIntersection(sphere, cone, make_float4(center.x, center.y, center.z, radiusAndBounds.x), cos(cone.w), tan(cone.w));
 
 	unsigned int lowerBound = triangleOffset;
 	unsigned int upperBound = triangleOffset + triangleTotal;
@@ -1222,6 +1204,19 @@ __global__ void CalculateBoundingSpheresIntersections(
 		else if(radiusAndBounds.y >= lowerBound && radiusAndBounds.y < upperBound && radiusAndBounds.z >= upperBound) {
 
 			atomicAdd(&headFlagsArray[nodeID * triangleTotal + (unsigned int)radiusAndBounds.y - lowerBound], 
+			// Interval minus the Overflow Interval eg: (9009 - 8950) + 1 - (9009 - (8000+1000) + 1) = 50
+			triangleTotal);
+
+			/*if(nodeID == 1 && triangleOffset == 10000)
+			printf("[Hits] Node ID: %u\tBounding Box ID: %u\t\tMinimum: %u\tMaximum: %u\tWritting: %u\tWritting to: %u\tLower Bound: %u\tUpper Bound: %u\tCovered Over\n", 
+				nodeID, boundingSphereID, (unsigned int)radiusAndBounds.y, (unsigned int)radiusAndBounds.z, 
+				(unsigned int)radiusAndBounds.z - (unsigned int)radiusAndBounds.y + 1 - ((unsigned int)radiusAndBounds.z - upperBound + 1), (unsigned int)radiusAndBounds.y - lowerBound, lowerBound, upperBound);*/
+		}
+
+		// Huge Mesh
+		else if(radiusAndBounds.y < lowerBound && radiusAndBounds.z > upperBound) {
+
+			atomicAdd(&headFlagsArray[nodeID * triangleTotal], 
 			// Interval minus the Overflow Interval eg: (9009 - 8950) + 1 - (9009 - (8000+1000) + 1) = 50
 			(unsigned int)radiusAndBounds.z - (unsigned int)radiusAndBounds.y + 1 - ((unsigned int)radiusAndBounds.z - upperBound + 1));
 
@@ -1963,6 +1958,19 @@ extern "C" {
 		cout << endl;
 	}
 
+	void ScreenCleaningWrapper(
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+		// Grid based on the Screen Dimensions.
+		dim3 block(32,32);
+		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y +1);
+
+		Debug2<<<grid, block>>>(windowWidth, windowHeight, pixelBufferObject);
+	}
+
 	void ScreenPreparationWrapper(
 							// Input Array containing the Unsorted Rays.
 							float3* rayArray, 
@@ -1997,8 +2005,6 @@ extern "C" {
 		// Grid based on the Screen Dimensions.
 		dim3 block(32,32);
 		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y +1);
-
-		cerr << "RT = " << rayTotal << endl;
 
 		Debug<<<grid, block>>>(rayArray, sortedRayIndexKeysArray, sortedRayIndexValuesArray, boundingSphereArray, boundingSphereTotal, rayTotal, windowWidth, windowHeight, cameraPosition, cameraDirection, cameraUp, cameraRight, pixelBufferObject);
 	}
@@ -2598,7 +2604,7 @@ extern "C" {
 				hierarchyHitsArray, trimmedHierarchyHitsArray);
 
 			// Create the Trim Scan Array
-			Utility::checkCUDAError("HierarchyTraversalWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+			Utility::checkCUDAError("HierarchyTraversalWrapper::cub::DeviceScan::InclusiveSum(22)", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
 
 			// Grid based on the Hierarchy Hit Count
 			dim3 hitMaximumBlock(1024);

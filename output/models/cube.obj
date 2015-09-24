@@ -1,7 +1,8 @@
-# This file uses centimeters as units for non-parametric coordinates.
+mtllib cube.mtl
 
-mtllib testcube.mtl
-g default
+g cube
+o cube
+
 v -0.500000 0.500000 -0.500000
 v -0.500000 -0.500000 -0.500000
 v -0.500000 -0.500000 0.500000
@@ -75,8 +76,7 @@ vn 0.000000 1.000000 0.000000
 vn 0.000000 1.000000 0.000000
 vn 0.000000 1.000000 0.000000
 s off
-g testcube:Mesh
-usemtl blinn1SG
+usemtl cube
 f 1/1/1 2/2/2 4/3/3
 f 5/4/4 8/5/5 6/6/6
 f 1/7/7 5/14/8 2/8/9

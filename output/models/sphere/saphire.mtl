@@ -1,6 +1,5 @@
-# Blender3D MTL File: 
-# Material Count: 1
-newmtl m1
+newmtl sphere
+
 Ns 63.75000
 Ka 0.00000000 0.10000000 0.06000000
 Kd 0.00000000 0.50980392 0.50196078

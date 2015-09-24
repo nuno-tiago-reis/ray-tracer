@@ -50,13 +50,15 @@ void BoundingSphere::calculateMiniball(Mesh* mesh) {
 		float distance = (this->center - vertex->second->getPosition()).magnitude();
 
 		if(distance > this->radius) {
-				
-			printf("[REVISED] Vertex = %02.020f %02.020f %02.020f\n", vertex->second->getPosition()[VX], vertex->second->getPosition()[VY], vertex->second->getPosition()[VZ]);
-			printf("[REVISED] Radius = %02.010f => %02.010f \n", this->radius, distance);
+
+			//printf("[REVISED] Vertex = %02.020f %02.020f %02.020f\n", vertex->second->getPosition()[VX], vertex->second->getPosition()[VY], vertex->second->getPosition()[VZ]);
+			//printf("[REVISED] Radius = %02.010f => %02.010f \n", this->radius, distance);
 
 			this->radius = distance;
 		}
 	}
+
+	this->radius = min(100000.0f, this->radius);
 }
 
 Vector BoundingSphere::getCenter() {
