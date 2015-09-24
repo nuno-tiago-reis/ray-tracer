@@ -10,7 +10,7 @@
 #define HEIGHT 512
 
 // Ray-Tracing Depth Constants
-#define DEPTH 2
+#define DEPTH 3
 
 // Ray Tracing Light Constants
 #define LIGHT_SOURCE_MAXIMUM 1

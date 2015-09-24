@@ -1167,7 +1167,7 @@ __global__ void CalculateBoundingSpheresIntersections(
 	float3 radiusAndBounds = boundingSphereArray[boundingSphereID * 2 + 1];
 
 	// Calculate the Intersection and store the result
-	bool result = true ; //SphereNodeIntersection(sphere, cone, make_float4(center.x, center.y, center.z, radiusAndBounds.x), cos(cone.w), tan(cone.w));
+	bool result = SphereNodeIntersection(sphere, cone, make_float4(center.x, center.y, center.z, radiusAndBounds.x), cos(cone.w), tan(cone.w));
 
 	unsigned int lowerBound = triangleOffset;
 	unsigned int upperBound = triangleOffset + triangleTotal;
@@ -1715,6 +1715,8 @@ __global__ void CalculateReflectionRayIntersections(
 }
 
 __global__ void ColorReflectionRay(
+							// Input Array containing the Unsorted Rays.
+							float3* rayArray,
 							// Input Array containing the Updated Triangle Positions.
 							float4* trianglePositionsArray,
 							// Input Array containing the Updated Triangle Normals.
@@ -1739,43 +1741,45 @@ __global__ void ColorReflectionRay(
 	// Fragment Color
 	float3 fragmentColor = make_float3(0.0f);
 
-	// Reflection Ray Intersection Time
+	// Reflection Ray Index
+	unsigned int rayIndex = x + y * windowWidth * LIGHT_SOURCE_MAXIMUM;
+
+	// Reflection Ray Intersection Triangle
 	unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[x + y * (windowWidth * LIGHT_SOURCE_MAXIMUM)];
 	unsigned int intersectionTriangle = intersectionRecord & 0x000FFFFF;
 
 	if(intersectionRecord != UINT_MAX) {
 
-		// Triangle Material Identifier
+		// Load the Triangles Material Identifier
 		int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, intersectionTriangle * 3);
-
-		// Fragment Position and Normal - Sent from the OpenGL Rasterizer
-		float3 fragmentPosition = make_float3(tex2D(fragmentPositionTexture, x,y));
-		float3 fragmentNormal = normalize(make_float3(tex2D(fragmentNormalTexture, x,y)));
-
-		// Calculate the Reflection Ray
-		float3 rayDirection = reflect(normalize(fragmentPosition-cameraPosition), fragmentNormal);
 
 		// Store the Triangles Vertices and Edges
 		float3 vertex0 = make_float3(trianglePositionsArray[intersectionTriangle * 3]);
 		float3 vertex1 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 1]);
 		float3 vertex2 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 2]);
 
+		// Calculate the Reflection Ray
+		float3 rayOrigin = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2];
+		float3 rayDirection = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2 + 1];
+
 		// Calculate the Intersection Time
-		float intersectionTime = RayTriangleIntersection(Ray(fragmentPosition + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
+		float intersectionTime = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
 
 		// Calculate the Hit Point
-		fragmentPosition = fragmentPosition + rayDirection * (epsilon + intersectionTime);
+		float3 fragmentPosition = rayOrigin + rayDirection * (epsilon + intersectionTime);
 
 		// Normal calculation using Barycentric Interpolation
 		float areaABC = length(cross(vertex1 - vertex0, vertex2 - vertex0));
 		float areaPBC = length(cross(vertex1 - fragmentPosition, vertex2 - fragmentPosition));
 		float areaPCA = length(cross(vertex0 - fragmentPosition, vertex2 - fragmentPosition));
-
-		fragmentNormal = 
+		
+		// Calculate the Hit Normal
+		float3 fragmentNormal = 
 			(areaPBC / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3]) + 
 			(areaPCA / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 1]) + 
 			(1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 2]);
-
+		
+		// Load the Triangles Material
 		float4 fragmentDiffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
 		float4 fragmentSpecularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
 
@@ -1807,14 +1811,149 @@ __global__ void ColorReflectionRay(
 				float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
 
 				// Diffuse Component
-				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;
+				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation * 0.75f;
 				// Specular Component
-				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;
+				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation * 0.75f;
 			}
 		}
 
 		pixelBufferObject[x + y * windowWidth] +=
 			RgbToInt(fragmentColor.x * fragmentSpecularColor.w, fragmentColor.y * fragmentSpecularColor.w, fragmentColor.z * fragmentSpecularColor.w);
+	}
+}
+
+__global__ void ColorAndCreateReflectionRay(
+							// Input Array containing the Unsorted Rays.
+							float3* rayArray,
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Input Array containing the Updated Triangle Normals.
+							float4* triangleNormalsArray,
+							// Auxiliary Variables containing the Screen Dimensions.
+							const unsigned int windowWidth, const unsigned int windowHeight,
+							// Auxiliary Variable containing the Number of Lights.
+							const unsigned int lightTotal,
+							// Auxiliary Variables containing the Camera Position.
+							const float3 cameraPosition,
+							// Auxiliary Array containing the Intersection Times.
+							unsigned int* intersectionTimeArray,
+							// Output Array containing the Ray Head Flags.
+							unsigned int* headFlagsArray, 
+							// Output Arrays containing the Unsorted Ray Indices.
+							unsigned int* rayIndexKeysArray, 
+							unsigned int* rayIndexValuesArray,
+							// Output Array containing the Screen Buffer.
+							unsigned int *pixelBufferObject) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
+
+	if(x >= windowWidth || y >= windowHeight)
+		return;
+
+	// Fragment Color
+	float3 fragmentColor = make_float3(0.0f);
+
+	// Reflection Ray Index
+	unsigned int rayIndex = x + y * windowWidth * LIGHT_SOURCE_MAXIMUM;
+
+	// Reflection Ray Intersection Triangle
+	unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[x + y * (windowWidth * LIGHT_SOURCE_MAXIMUM)];
+	unsigned int intersectionTriangle = intersectionRecord & 0x000FFFFF;
+
+	if(intersectionRecord != UINT_MAX) {
+
+		// Load the Triangles Material Identifier
+		int1 materialID = tex1Dfetch(triangleMaterialIDsTexture, intersectionTriangle * 3);
+
+		// Store the Triangles Vertices and Edges
+		float3 vertex0 = make_float3(trianglePositionsArray[intersectionTriangle * 3]);
+		float3 vertex1 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 1]);
+		float3 vertex2 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 2]);
+
+		// Calculate the Reflection Ray
+		float3 rayOrigin = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2];
+		float3 rayDirection = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2 + 1];
+
+		// Calculate the Intersection Time
+		float intersectionTime = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
+
+		// Calculate the Hit Point
+		float3 fragmentPosition = rayOrigin + rayDirection * (epsilon + intersectionTime);
+
+		// Normal calculation using Barycentric Interpolation
+		float areaABC = length(cross(vertex1 - vertex0, vertex2 - vertex0));
+		float areaPBC = length(cross(vertex1 - fragmentPosition, vertex2 - fragmentPosition));
+		float areaPCA = length(cross(vertex0 - fragmentPosition, vertex2 - fragmentPosition));
+		
+		// Calculate the Hit Normal
+		float3 fragmentNormal = 
+			(areaPBC / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3]) + 
+			(areaPCA / areaABC) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 1]) + 
+			(1.0f - (areaPBC / areaABC) - (areaPCA / areaABC)) * make_float3(triangleNormalsArray[intersectionTriangle * 3 + 2]);
+		
+		// Load the Triangles Material
+		float4 fragmentDiffuseColor = tex1Dfetch(materialDiffusePropertiesTexture, materialID.x);
+		float4 fragmentSpecularColor = tex1Dfetch(materialSpecularPropertiesTexture, materialID.x);
+
+		for(unsigned int l = 0; l < lightTotal; l++) {
+
+			// Light Direction
+			float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition;
+			// Light Distance
+			float lightDistance = length(lightDirection);
+			// Normalize the Light Direction
+			lightDirection = normalize(lightDirection);
+
+			// Light Color
+			float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
+			// Light Intensity (x = diffuse, y = specular)
+			float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+			// Light Attenuation
+			float attenuation = 1.0f / (0.75f + lightDistance * 0.0005f + lightDistance * lightDistance * 0.00005f);
+			
+			// Calculate the Diffuse Factor
+			float diffuseFactor = clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f);
+
+			if(diffuseFactor > 0.0f) {
+
+				// Blinn-Phong approximation Halfway Vector
+				float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
+					
+				// Calculate the Specular Factor
+				float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
+
+				// Diffuse Component
+				fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation * 0.75f;
+				// Specular Component7
+				fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation * 0.75f;
+			}
+		}
+
+		pixelBufferObject[x + y * windowWidth] +=
+			RgbToInt(fragmentColor.x * fragmentSpecularColor.w, fragmentColor.y * fragmentSpecularColor.w, fragmentColor.z * fragmentSpecularColor.w);
+
+		// Calculate the Reflection Rays Position and Direction
+		float3 reflectionRayOrigin = fragmentPosition;
+		float3 reflectionRayDirection = reflect(rayDirection, fragmentNormal);
+
+		// Store the Reflection Rays Origin
+		rayArray[rayIndex * 2] = reflectionRayOrigin;
+		// Store the Reflection Rays Direction
+		rayArray[rayIndex * 2 + 1] = reflectionRayDirection;
+
+		// Store the Reflection Rays Hash Key
+		rayIndexKeysArray[rayIndex] = CreateReflectionRayIndex(reflectionRayOrigin, reflectionRayDirection);
+		// Store the Reflection Rays Index Value
+		rayIndexValuesArray[rayIndex] = rayIndex;
+
+		// Store the Reflection Rays Flag (Trimming)
+		headFlagsArray[rayIndex] = 0;
+	}
+	else {
+
+		// Store the Reflection Rays Flag (Trimming)
+		headFlagsArray[rayIndex] = 1;
 	}
 }
 
@@ -2716,7 +2855,7 @@ extern "C" {
 							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
 							const float3 cameraPosition,
-							// Output Array containing the Shadow Ray Flags.
+							// Input Array containing the Shadow Ray Flags.
 							unsigned int* shadowFlagsArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
@@ -2810,23 +2949,55 @@ extern "C" {
 							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
 							const float3 cameraPosition,
+							// Auxiliary Variables indicating if its the last Iteration.
+							const bool createRays,
 							// Auxiliary Array containing the Intersection Times.
 							unsigned int* intersectionTimeArray,
+							// Output Array containing the Unsorted Rays.
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
+							unsigned int* headFlagsArray, 
+							// Output Arrays containing the Unsorted Ray Indices.
+							unsigned int* rayIndexKeysArray, 
+							unsigned int* rayIndexValuesArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 
-		// Grid based on the Screen Dimensions.
-		dim3 colouringBlock(32,32);
-		dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+		if(createRays == false) {
 
-		// Colour the Screen
-		ColorReflectionRay<<<colouringGrid, colouringBlock>>>(
-			trianglePositionsArray, triangleNormalsArray,
-			windowWidth, windowHeight,
-			lightTotal,
-			cameraPosition,
-			intersectionTimeArray,
-			pixelBufferObject);
+			// Grid based on the Screen Dimensions.
+			dim3 colouringBlock(32,32);
+			dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+
+			// Colour the Screen
+			ColorReflectionRay<<<colouringGrid, colouringBlock>>>(
+				rayArray,
+				trianglePositionsArray, triangleNormalsArray,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				intersectionTimeArray,
+				pixelBufferObject);
+		}
+		else {
+
+			// Grid based on the Screen Dimensions.
+			dim3 colouringBlock(32,32);
+			dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+
+			// Colour the Screen
+			ColorAndCreateReflectionRay<<<colouringGrid, colouringBlock>>>(
+				rayArray,
+				trianglePositionsArray, triangleNormalsArray,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				intersectionTimeArray,
+				headFlagsArray, 
+				rayIndexKeysArray, 
+				rayIndexValuesArray,
+				pixelBufferObject);
+		}
 	}
 
 	void AntiAliasingWrapper(

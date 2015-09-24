@@ -89,7 +89,7 @@ map<int, Object*> objectMap;
 map<int, Light*> lightMap;
 
 // Scene ID
-int sceneID = 2;
+int sceneID = 1;
 
 // FrameBuffer Wrapper
 FrameBuffer *frameBuffer;
@@ -514,8 +514,17 @@ extern "C" {
 							const unsigned int lightTotal,
 							// Auxiliary Variables containing the Camera Position.
 							const float3 cameraPosition,
+							// Auxiliary Variables indicating if its the last Iteration.
+							const bool createRays,
 							// Auxiliary Array containing the Intersection Times.
 							unsigned int* intersectionTimeArray,
+							// Output Array containing the Unsorted Rays.
+							float3* rayArray,
+							// Output Array containing the Ray Head Flags.
+							unsigned int* headFlagsArray, 
+							// Output Arrays containing the Unsorted Ray Indices.
+							unsigned int* rayIndexKeysArray, 
+							unsigned int* rayIndexValuesArray,
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject);
 	
@@ -777,7 +786,7 @@ bool createReflectionRays(bool rasterizer, float3 cameraPosition) {
 }
 
 // [Ray-Tracing] Colors a processed Batch of Reflection Rays.
-bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* pixelBufferObject) {
+bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition, unsigned int* pixelBufferObject) {
 	
 	if(rasterizer == true) {
 
@@ -872,7 +881,15 @@ bool colorReflectionRays(bool rasterizer, float3 cameraPosition, unsigned int* p
 			windowWidth, windowHeight,
 			lightTotal,
 			cameraPosition,
+			createRays,
 			cudaPrimaryChunkKeysArrayDP,
+			cudaRayArrayDP,
+			cudaHeadFlagsArrayDP,
+			#ifdef IMPROVED_ALGORITHM
+				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			#else
+				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+			#endif
 			#ifdef ANTI_ALIASING
 				cudaPrimaryChunkValuesArrayDP);
 			#else
@@ -1201,7 +1218,20 @@ void display() {
 				result = castRays(false);
 			// Calculate the Color.
 			if(result == true)
-				result = colorReflectionRays(true, cameraEye, pixelBufferObject);
+				result = colorReflectionRays(true, true, cameraEye, pixelBufferObject);
+		}
+
+		// Cast the Reflection and Refraction Ray Batches
+		if(i == 2 && (sceneID == 1 || sceneID == 3)) {
+
+			bool result = true;
+
+			// Cast the Generic Ray-Tracing Algorithm.
+			if(result == true)
+				result = castRays(false);
+			// Calculate the Color.
+			if(result == true)
+				result = colorReflectionRays(true, false, cameraEye, pixelBufferObject);
 		}
 	}
 
@@ -1860,8 +1890,8 @@ void initializeCameras() {
 		camera->setZoom(2.15f);
 
 		// Initialize the Latitude and the Longitude
-		camera->setLatitude(12.0f);
-		camera->setLongitude(112.0f);
+		camera->setLatitude(1.5f);
+		camera->setLongitude(197.0f);
 
 		// Initialize the Target
 		camera->setTarget(Vector(-9.25f, 2.25f,-0.15f, 1.0f));
@@ -2513,6 +2543,8 @@ void init(int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
+
+	// ADD SCENE SELECTOR HERE
 
 	freopen("error.txt","w",stderr);
 	freopen("output.txt","w",stdout);
