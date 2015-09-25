@@ -31,14 +31,24 @@
 // Mode Constants
 //#define ANTI_ALIASING
 //#define SOFT_SHADOWS
-#define IMPROVED_ALGORITHM
+//#define IMPROVED_ALGORITHM
 
 // Main Debug Constants
 //#define SYNCHRONIZE_DEBUG
 //#define BOUNDING_SPHERE_DEBUG
-//#define TRIANGLE_DIVISION_DEBUG
+#define TRIANGLE_DIVISION_DEBUG
 
 // Kernel Debug Constants 
 //#define CUB_STDERR
 //#define BLOCK_GRID_DEBUG
-//#define TRAVERSAL_DEBUG
+#define TRAVERSAL_DEBUG
+
+#ifndef CONSTANTS
+
+	#define CONSTANTS
+	// Scene ID
+	extern int sceneID;
+	// Scene Exitor
+	extern int sceneExitor;
+
+#endif

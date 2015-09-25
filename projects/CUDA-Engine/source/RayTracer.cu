@@ -13,6 +13,7 @@
 #include <vector_functions.h>
 
 // C++ Includes
+#include <fstream>
 #include <stdio.h>
 #include <map>
 // Utility Includes
@@ -56,6 +57,38 @@ texture<float4, 1, cudaReadModeElementType> boundingSpheresTexture;
 texture<float4, 1, cudaReadModeElementType> lightPositionsTexture;
 texture<float4, 1, cudaReadModeElementType> lightColorsTexture;
 texture<float2, 1, cudaReadModeElementType> lightIntensitiesTexture;
+
+// CUB Timer
+struct GpuTimer {
+
+	cudaEvent_t start;
+	cudaEvent_t stop;
+
+	GpuTimer() {
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+	}
+
+	~GpuTimer() {
+		cudaEventDestroy(start);
+		cudaEventDestroy(stop);
+	}
+
+	void Start() {
+		cudaEventRecord(start, 0);
+	}
+
+	void Stop() {
+		cudaEventRecord(stop, 0);
+	}
+
+	float ElapsedMillis() {
+		float elapsed;
+		cudaEventSynchronize(stop);
+		cudaEventElapsedTime(&elapsed, start, stop);
+		return elapsed;
+	}
+};
 
 // Ray structure
 struct Ray {
@@ -179,8 +212,9 @@ __device__ static inline unsigned int CreateReflectionRayIndex(float3 origin, fl
 	float distance = length(origin);
 
 	// Clamp the Origin to the 0-15 range
-	index = clamp((unsigned int)distance, (unsigned int)0, (unsigned int)128);
-	index = (index << 7) | clamp((unsigned int)((atan2(origin.x, origin.x) + HALF_PI) * 20.0f), (unsigned int)0, (unsigned int)128);
+	//index = clamp((unsigned int)distance, (unsigned int)0, (unsigned int)128);
+	//index = (index << 7) | clamp((unsigned int)((atan2(origin.x, origin.x) + HALF_PI) * 20.0f), (unsigned int)0, (unsigned int)128);
+	index = clamp((unsigned int)((atan2(origin.x, origin.x) + HALF_PI) * 20.0f), (unsigned int)0, (unsigned int)128);
 	index = (index << 7) | clamp((unsigned int)(acos(origin.z/distance) * 20.0f), (unsigned int)0, (unsigned int)128);
 
 	// Convert the Direction to Spherical Coordinates (atan2 => [-HALF_PI, HALF_PI], acos => [0.0f, PI])
@@ -1566,8 +1600,8 @@ __global__ void ColorPrimaryShadowRay(
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 
-	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;	
-	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;	
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
 
 	if(x >= windowWidth || y >= windowHeight)
 		return;
@@ -1980,7 +2014,6 @@ __global__ void AntiAliasing(
 	secondaryPixelBufferObject[x + y * windowWidth] = RgbToInt(pixel.x, pixel.y, pixel.z);
 }
 
-
 extern "C" {
 
 	void TriangleUpdateWrapper(
@@ -2169,8 +2202,38 @@ extern "C" {
 			cout << "[ShadowRayCreationWrapper] Block = " << block.x  << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
 		#endif
 
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		// Create the Shadow Rays
 		CreateShadowRays<<<grid, block>>>(windowWidth, windowHeight, lightTotal, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Shadow Ray Creation: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void ReflectionRayCreationWrapper(
@@ -2194,8 +2257,38 @@ extern "C" {
 			cout << "[ReflectionRayCreationWrapper] Block = " << block.x * block.y << " Threads " << "Grid = " << grid.x * grid.y << " Blocks" << endl;
 		#endif
 
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		// Create the Reflection Rays
 		CreateReflectionRays<<<grid, block>>>(windowWidth, windowHeight, cameraPosition, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Reflection Ray Creation: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void RayTrimmingWrapper(
@@ -2215,7 +2308,26 @@ extern "C" {
 							unsigned int* trimmedRayIndexValuesArray,
 							// Output Variable containing the Number of Rays.
 							unsigned int* rayTotal) {
-	
+
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		// Maximum Number of Rays being cast per Frame
 		unsigned int rayMaximum = windowWidth * windowHeight * lightTotal;
 
@@ -2238,6 +2350,17 @@ extern "C" {
 
 		// Calculate the Ray Total
 		*rayTotal = rayMaximum - *rayTotal;
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Ray Trimming: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void RayCompressionWrapper(
@@ -2258,6 +2381,25 @@ extern "C" {
 							unsigned int* chunkIndexValuesArray,
 							// Output Variable containing the Number of Chunks.
 							unsigned int* chunkTotal) {
+
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
 
 		// Grid based on the Ray Count
 		dim3 rayBlock(1024);
@@ -2289,6 +2431,17 @@ extern "C" {
 
 		// Create the Chunk Sizes
 		CreateChunkSizes<<<chunkGrid, chunkBlock>>>(chunkBasesArray, *chunkTotal, rayTotal, chunkSizesArray);
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Ray Compression: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void RaySortingWrapper(
@@ -2300,13 +2453,43 @@ extern "C" {
 							// Output Arrays containing the Sorted Ray Chunks [Keys = Hashes, Values = Indices]
 							unsigned int* sortedChunkIndexKeysArray, 
 							unsigned int* sortedChunkIndexValuesArray) {
-		
+
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		// Sort the Chunks
 		Utility::checkCUDAError("RaySortingWrapper::cub::DeviceRadixSort::SortPairs()", 
 			cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
 			chunkIndexKeysArray, sortedChunkIndexKeysArray,
 			chunkIndexValuesArray, sortedChunkIndexValuesArray, 
 			chunkTotal));
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Ray Sorting: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void RayDecompressionWrapper(
@@ -2329,6 +2512,25 @@ extern "C" {
 							// Output Arrays containing the Sorted Ray Indices [Keys = Hashes, Values = Indices]
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray) {
+
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
 
 		// Grid based on the Ray Chunk Count
 		dim3 chunkBlock(1024);
@@ -2357,6 +2559,17 @@ extern "C" {
 			skeletonArray, 
 			chunkTotal, 
 			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Ray Decompression: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void HierarchyCreationWrapper(
@@ -2373,11 +2586,30 @@ extern "C" {
 							const float initialSpread,
 							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray) {
-								
+
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		unsigned int hierarchyNodeWriteOffset = 0;
 		unsigned int hierarchyNodeReadOffset = 0;
 		unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-								
+
 		// Grid based on the Hierarchy Node Count
 		dim3 baseLevelBlock(1024);
 		dim3 baseLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
@@ -2417,6 +2649,17 @@ extern "C" {
 				hierarchyNodeReadOffset, 
 				hierarchyNodeTotal);
 		}
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Hierarchy Creation: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void HierarchyTraversalWarmUpWrapper(
@@ -2445,7 +2688,32 @@ extern "C" {
 							unsigned int* hierarchyHitTotal,
 							// Output Variable containing the Hierarchy Hit Memory Size.
 							unsigned int *hierarchyHitMemoryTotal) {
-	
+
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
+		ostringstream ss;
+		ss << "tests/traversal-warm-up-test-" << sceneID << ".txt";
+
+		ofstream fs;
+		fs.open(ss.str(), ofstream::out | ofstream::app);
+
 		// Create the Hierarchy Node Offses and Total
 		unsigned int hierarchyNodeOffset = 0;
 		unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
@@ -2460,11 +2728,11 @@ extern "C" {
 		unsigned int hitMaximum = hierarchyNodeTotal * triangleTotal;
 		unsigned int hitTotal = 0;
 
-		#ifdef IMPROVED_ALGORITHM
+		// Grid based on the Hit Maximum
+		dim3 block(1024);
+		dim3 grid(hitMaximum/block.x + 1);
 
-			// Grid based on the Hit Maximum
-			dim3 block(1024);
-			dim3 grid(hitMaximum/block.x + 1);
+		#ifdef IMPROVED_ALGORITHM
 		
 			#ifdef BLOCK_GRID_DEBUG 
 				cout << "[PrepareArray] Grid = " << grid.x << endl;
@@ -2533,9 +2801,12 @@ extern "C" {
 			hitTotal = hitMaximum - missedHitTotal;
 
 			#ifdef TRAVERSAL_DEBUG
-				cout << "[Bounding Volume Intersections]" << " Hit Maximum = " << hitMaximum << endl;
-				cout << "[Bounding Volume Intersections]" << " Missed Hit Total = " << missedHitTotal << endl;
-				cout << "[Bounding Volume Intersections]" << " Connected Hit Total : " << hitTotal << endl;
+				fs << "[Bounding Volume Intersections]" << " Hit Maximum = " << hitMaximum << endl;
+				fs << "[Bounding Volume Intersections]" << " Missed Hit Total = " << missedHitTotal << endl;
+				fs << "[Bounding Volume Intersections]" << " Connected Hit Total : " << hitTotal << endl;
+				//cout << "[Bounding Volume Intersections]" << " Hit Maximum = " << hitMaximum << endl;
+				//cout << "[Bounding Volume Intersections]" << " Missed Hit Total = " << missedHitTotal << endl;
+				//cout << "[Bounding Volume Intersections]" << " Connected Hit Total : " << hitTotal << endl;
 			#endif
 
 		#else
@@ -2546,75 +2817,6 @@ extern "C" {
 			// Calculate the Hit Total for this Level
 			hitTotal = hitMaximum;
 		#endif
-
-		/*****************************************************/
-		;
-		/*if(triangleOffset == 10000) {
-		
-			int arraySize = hierarchyNodeTotal * triangleTotal;
-			int* duplicateHeadFlagsArray = new int[arraySize];
-
-			Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&duplicateHeadFlagsArray[0], headFlagsArray, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-
-			printf("Head Flags (Nodes: %u Bounding Spheres: %u Total: %u)\n", arraySize / triangleTotal, boundingSphereTotal, hierarchyNodeTotal * triangleTotal);
-
-			unsigned int counter = 0;
-			
-			for(int i=0; i<arraySize; i++)
-				if((i % triangleTotal - 92) % 720 == 0)
-					printf("[%u]\t", i);
-
-			for(int i=0; i<arraySize; i++) {
-
-				if(i % triangleTotal == 0)
-					printf("\n");
-					//printf("\nNode %05u (%d)\n", i / triangleTotal, i);
-
-				if(i % triangleTotal == 0)
-					printf("%u\t", duplicateHeadFlagsArray[i]);
-				if((i % triangleTotal - 92) % 720 == 0)
-					printf("%u\t", duplicateHeadFlagsArray[i]);
-
-				//if(duplicateHeadFlagsArray[i] != 0)
-					//printf("[%u] = %u\t", i, duplicateHeadFlagsArray[i]);
-
-				//if(duplicateHeadFlagsArray[i] != 0)
-					//counter += duplicateHeadFlagsArray[i];
-			}
-
-			//cout << "\nMissed Hits = " << counter << endl;
-
-			Utility::checkCUDAError("cudaMemcpy()", cudaMemcpy(&duplicateHeadFlagsArray[0], scanArray, arraySize * sizeof(int), cudaMemcpyDeviceToHost));
-
-			for(int i=0; i<arraySize; i++) {
-
-				if(i % triangleTotal == 0)
-					printf("\n");
-
-				if(i % triangleTotal == 0) {
-					
-					if(i / triangleTotal > 0)
-						printf("%u\t", duplicateHeadFlagsArray[i]- duplicateHeadFlagsArray[(i/triangleTotal) * triangleTotal - 1]);
-					else
-						printf("%u\t", duplicateHeadFlagsArray[i]);
-				}
-				if((i % triangleTotal - 92) % 720 == 0) {
-
-					if(i / triangleTotal > 0)
-						printf("%u\t", duplicateHeadFlagsArray[i]- duplicateHeadFlagsArray[(i/triangleTotal) * triangleTotal - 1]);
-					else
-						printf("%u\t", duplicateHeadFlagsArray[i]);
-				}
-
-				//if(duplicateHeadFlagsArray[i] != 0)
-					//printf("[%05u] %05u\t", i, duplicateHeadFlagsArray[i]);
-			}
-			
-			cudaDeviceSynchronize();
-			exit(0);
-		}*/
-		;
-		/*****************************************************/
 
 		if(hitTotal == 0) {
 
@@ -2663,9 +2865,25 @@ extern "C" {
 		*hierarchyHitTotal = hitTotal - missedHitTotal;
 		
 		#ifdef TRAVERSAL_DEBUG
-			cout << "[Traversal Level " << 1 << "]" << " Hit Maximum = " << hitTotal << endl;
-			cout << "[Traversal Level " << 1 << "]" << " Missed Hit Total = " << missedHitTotal << endl;
-			cout << "[Traversal Level " << 1 << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
+			fs << "[Traversal Level " << 1 << "]" << " Hit Maximum = " << hitTotal << endl;
+			fs << "[Traversal Level " << 1 << "]" << " Missed Hit Total = " << missedHitTotal << endl;
+			fs << "[Traversal Level " << 1 << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
+			//cout << "[Traversal Level " << 1 << "]" << " Hit Maximum = " << hitTotal << endl;
+			//cout << "[Traversal Level " << 1 << "]" << " Missed Hit Total = " << missedHitTotal << endl;
+			//cout << "[Traversal Level " << 1 << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
+		#endif
+
+		fs.close();
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Hierarchy Traversal Warmup: " << kernelTimer.ElapsedMillis() << endl;
+
 		#endif
 	}
 
@@ -2692,6 +2910,31 @@ extern "C" {
 							// Output Variable containing the Hierarchy Hit Memory Size.
 							unsigned int* hierarchyHitMemoryTotal) {
 
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
+		ostringstream ss;
+		ss << "tests/traversal-test-" << sceneID << ".txt";
+
+		ofstream fs;
+		fs.open(ss.str(), ofstream::out | ofstream::app);
+
 		// Calculate the Nodes Offset and Total
 		unsigned int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
 		unsigned int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
@@ -2706,7 +2949,8 @@ extern "C" {
 		}
 
 		#ifdef TRAVERSAL_DEBUG
-			cout << "::HierarchyTraversalWrapper::" << endl;
+			fs << "::HierarchyTraversalWrapper::" << endl;
+			//cout << "::HierarchyTraversalWrapper::" << endl;
 		#endif
 
 		// Create the Hierarchy Hit Arrays
@@ -2720,7 +2964,8 @@ extern "C" {
 			unsigned int hitTotal = *hierarchyHitTotal;
 
 			#ifdef TRAVERSAL_DEBUG
-				cout << "[Traversal Level  "<< hierarchyLevel << "] Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
+				fs << "[Traversal Level  "<< hierarchyLevel << "] Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
+				//cout << "[Traversal Level  "<< hierarchyLevel << "] Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
 			#endif
 
 			// Grid based on the Hierarchy Hit Total
@@ -2768,14 +3013,31 @@ extern "C" {
 			*hierarchyHitTotal = hitMaximum - missedHitTotal;
 
 			#ifdef TRAVERSAL_DEBUG
-				cout << "[Traversal Level  "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
-				cout << "[Traversal Level  "<< hierarchyLevel << "] Missed Hit Total = " << missedHitTotal << endl;
-				cout << "[Traversal Level  "<< hierarchyLevel << "] Connected Hit Total : " << *hierarchyHitTotal << endl;
+				fs << "[Traversal Level  "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
+				fs << "[Traversal Level  "<< hierarchyLevel << "] Missed Hit Total = " << missedHitTotal << endl;
+				fs << "[Traversal Level  "<< hierarchyLevel << "] Connected Hit Total : " << *hierarchyHitTotal << endl;
+				//cout << "[Traversal Level  "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
+				//cout << "[Traversal Level  "<< hierarchyLevel << "] Missed Hit Total = " << missedHitTotal << endl;
+				//cout << "[Traversal Level  "<< hierarchyLevel << "] Connected Hit Total : " << *hierarchyHitTotal << endl;
 			#endif
 		}
 		
 		#ifdef TRAVERSAL_DEBUG
-			cout << "Ray Total: " << rayTotal << endl;
+			fs << "Ray Total: " << rayTotal << endl;
+			//cout << "Ray Total: " << rayTotal << endl;
+		#endif
+
+		fs.close();
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Hierarchy Traversal: " << kernelTimer.ElapsedMillis() << endl;
+
 		#endif
 	}
 
@@ -2826,6 +3088,25 @@ extern "C" {
 							// Output Array containing the Shadow Ray Flags.
 							unsigned int* shadowFlagsArray) {
 
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		// Grid based on the Hierarchy Hit Count
 		dim3 intersectionBlock(1024);
 		dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
@@ -2846,6 +3127,17 @@ extern "C" {
 			windowWidth, windowHeight,
 			cameraPosition,
 			shadowFlagsArray);
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Shadow Intersection: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void ShadowRayColoringWrapper(
@@ -2915,6 +3207,25 @@ extern "C" {
 							// Auxiliary Array containing the Intersection Times.
 							unsigned int* intersectionTimeArray) {
 
+		#ifdef KERNEL_TIMER
+
+			// File Opening
+			ostringstream ss;
+			ss << "tests/timer-" << sceneID << ".txt";
+			// File Opening
+			ofstream fs;
+			fs.open(ss.str(), ofstream::out | ofstream::app);
+
+			// Kernel Timer
+			GpuTimer kernelTimer;
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Start the Timer
+			kernelTimer.Start();
+
+		#endif
+
 		// Grid based on the Hierarchy Hit Count
 		dim3 intersectionBlock(1024);
 		dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
@@ -2936,6 +3247,17 @@ extern "C" {
 			lightTotal,
 			cameraPosition,
 			intersectionTimeArray);
+
+		#ifdef KERNEL_TIMER
+
+			// Make sure there isn't a Kernel Running
+			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			// Stop the Timer
+			kernelTimer.Stop();
+
+			fs << "Reflection Intersection: " << kernelTimer.ElapsedMillis() << endl;
+
+		#endif
 	}
 
 	void ReflectionRayColoringWrapper(

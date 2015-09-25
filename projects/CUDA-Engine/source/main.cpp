@@ -89,7 +89,9 @@ map<int, Object*> objectMap;
 map<int, Light*> lightMap;
 
 // Scene ID
-int sceneID = 1;
+int sceneID = 0;
+// Scene Exitor
+int sceneExitor = 0;
 
 // FrameBuffer Wrapper
 FrameBuffer *frameBuffer;
@@ -647,7 +649,13 @@ bool createShadowRays(bool rasterizer, float3 cameraPosition) {
 
 // [Ray-Tracing] Colors a processed Batch of Shadow Rays.
 bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixelBufferObject) {
-	
+
+	ostringstream ss;
+	ss << "tests/shadow-division-test-" << sceneID << ".txt";
+
+	ofstream fs;
+	fs.open(ss.str(), ofstream::out | ofstream::app);
+
 	if(rasterizer == true) {
 
 		// Prepare the Shadow Flags Array
@@ -665,14 +673,16 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 		for(unsigned int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
 			
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+				fs << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+				//cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
 			#endif
 			
 			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
 			unsigned int triangleDivisionTotal = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
 			
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				cout << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+				fs << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+				//cout << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
 			#endif
 
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
@@ -751,8 +761,12 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
+		fs.close();
+
 		return true;
 	}
+
+	fs.close();
 
 	return false;
 }
@@ -787,7 +801,13 @@ bool createReflectionRays(bool rasterizer, float3 cameraPosition) {
 
 // [Ray-Tracing] Colors a processed Batch of Reflection Rays.
 bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition, unsigned int* pixelBufferObject) {
-	
+
+	ostringstream ss;
+	ss << "tests/reflection-division-test-" << sceneID << ".txt";
+
+	ofstream fs;
+	fs.open(ss.str(), ofstream::out | ofstream::app);
+
 	if(rasterizer == true) {
 
 		// Prepare the Intersection Times Array
@@ -802,16 +822,18 @@ bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition
 
 		// Traverse the Ray Hierarchy once for every Batch
 		for(unsigned int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
-			
+
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+				fs << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+				//cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
 			#endif
 
 			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
 			unsigned int triangleDivisionTotal = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
 
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				cout << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+				fs << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+				//cout << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
 			#endif
 
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
@@ -901,8 +923,12 @@ bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition
 			Utility::checkCUDAError("ReflectionRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
+		fs.close();
+
 		return true;
 	}
+
+	fs.close();
 	
 	return false;
 }
@@ -1116,8 +1142,6 @@ void display() {
 
 		// Translation Matrix/
 		Matrix translationMatrix = object->getTransform()->getModelMatrix();
-		//translationMatrix.translate(object->getTransform()->getPosition());
-		//translationMatrix.scale(object->getTransform()->getScale());
 		translationMatrix.getValue(&modelMatrices[object->getID() * 16]);
 		
 		// Scale Matrix
@@ -1187,22 +1211,6 @@ void display() {
 			// Calculate the Color based on the Rasterizer Input for the first Iteration.
 			if(result == true)
 				result = colorShadowRays(true, cameraEye, pixelBufferObject);
-
-			/*int value = sceneManager->value;
-			ScreenPreparationWrapper(
-				cudaRayArrayDP,
-				cudaPrimaryRayIndexKeysArrayDP, 
-				cudaPrimaryRayIndexValuesArrayDP,
-				cudaUpdatedBoundingSpheresDP,
-				boundingSphereTotal,
-				6,
-				windowWidth, windowHeight,
-				cameraEye,
-				make_float3(cameraDirection[VX], cameraDirection[VY], cameraDirection[VZ]),
-				make_float3(cameraUp[VX], cameraUp[VY], cameraUp[VZ]),
-				make_float3(cameraRight[VX], cameraRight[VY], cameraRight[VZ]),
-				pixelBufferObject);
-			break;*/
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
@@ -1310,7 +1318,10 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 
-	//cout << "[Callback] Display Successfull" << endl;
+	cout << "[Callback] Display Successfull" << endl;
+
+	if(sceneExitor > 0)
+		exit(0);
 }
 
 // [Scene] Reshapes up the Scene
@@ -1757,8 +1768,8 @@ void initializeLights() {
 		positionalLight1->setPosition(Vector(-15.0f, 15.0f, 7.5f, 1.0f));
 		positionalLight1->setColor(Vector(1.0f, 1.0f, 1.0f, 1.0f));
 
-		positionalLight1->setDiffuseIntensity(0.5f);
-		positionalLight1->setSpecularIntensity(0.5f);
+		positionalLight1->setDiffuseIntensity(0.75f);
+		positionalLight1->setSpecularIntensity(0.75f);
 	
 		lightMap[positionalLight1->getIdentifier()] = positionalLight1;
 		sceneManager->addLight(positionalLight1);
@@ -2043,38 +2054,97 @@ void initializeObjects() {
 			sceneManager->addSceneNode(wallObjectNode);
 		}
 
-		Object* sphereObject = new Object("Sphere");
+		// Create the Spheres Mesh
+		Mesh* sphereMesh = new Mesh("Sphere Mesh", "sphere/sphere.obj");
+		// Create the Spheres Materials
+		Material* sphereMaterial = new Material("Sphere Gold Material", "sphere/gold.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
 
-			// Create the Spheres Mesh
-			Mesh* sphereMesh = new Mesh("Sphere Mesh", "sphere/sphere.obj");
-			// Create the Spheres Materials
-			Material* sphereMaterial = new Material("Sphere Gold Material", "sphere/gold.mtl", sceneManager->getShaderProgram(BLINN_PHONG_SHADER));
+		Object* sphere0Object = new Object("Sphere 0");
+
 			// Create the Objects Transform
-			Transform* sphereTransform = new Transform("Sphere");
-			sphereTransform->setPosition(Vector(0.0f,-32.5, 0.0f, 1.0f));
-			sphereTransform->setScale(Vector(25.0f,25.0f,25.0f,1.0f));
+			Transform* sphere0Transform = new Transform("Sphere");
+			sphere0Transform->setPosition(Vector(0.0f,-32.5, 0.0f, 1.0f));
+			sphere0Transform->setScale(Vector(25.0f,25.0f,25.0f,1.0f));
 				
 			// Set the Objects Mesh
-			sphereObject->setMesh(sphereMesh);
+			sphere0Object->setMesh(sphereMesh);
 			// Set the Objects Material
-			sphereObject->setMaterial(sphereMaterial);
+			sphere0Object->setMaterial(sphereMaterial);
 			// Set the Objects Transform
-			sphereObject->setTransform(sphereTransform);
+			sphere0Object->setTransform(sphere0Transform);
 
 			// Initialize the Object
-			sphereObject->createMesh();
-			sphereObject->setID(sceneManager->getObjectID());
+			sphere0Object->createMesh();
+			sphere0Object->setID(sceneManager->getObjectID());
 
 			// Add the Object to the Scene Manager
-			sceneManager->addObject(sphereObject);
+			sceneManager->addObject(sphere0Object);
 			// Add the Object to the Object Map (CUDA Loading)
-			objectMap[sphereObject->getID()] = sphereObject;
+			objectMap[sphere0Object->getID()] = sphere0Object;
 
 			// Create the Objects Scene Node
-			SceneNode* sphereObjectNode = new SceneNode("Sphere");
-			sphereObjectNode->setObject(sphereObject);
+			SceneNode* sphere0ObjectNode = new SceneNode("Sphere 0");
+			sphere0ObjectNode->setObject(sphere0Object);
 	
-		sceneManager->addSceneNode(sphereObjectNode);
+		sceneManager->addSceneNode(sphere0ObjectNode);
+
+		Object* sphere1Object = new Object("Sphere 1");
+
+			// Create the Objects Transform
+			Transform* sphere1Transform = new Transform("Sphere");
+			sphere1Transform->setPosition(Vector(32.5f,-32.5, 0.0f, 1.0f));
+			sphere1Transform->setScale(Vector(25.0f,25.0f,25.0f,1.0f));
+				
+			// Set the Objects Mesh
+			sphere1Object->setMesh(sphereMesh);
+			// Set the Objects Material
+			sphere1Object->setMaterial(sphereMaterial);
+			// Set the Objects Transform
+			sphere1Object->setTransform(sphere1Transform);
+
+			// Initialize the Object
+			sphere1Object->createMesh();
+			sphere1Object->setID(sceneManager->getObjectID());
+
+			// Add the Object to the Scene Manager
+			sceneManager->addObject(sphere1Object);
+			// Add the Object to the Object Map (CUDA Loading)
+			objectMap[sphere1Object->getID()] = sphere1Object;
+
+			// Create the Objects Scene Node
+			SceneNode* sphere1ObjectNode = new SceneNode("Sphere 1");
+			sphere1ObjectNode->setObject(sphere1Object);
+	
+		sceneManager->addSceneNode(sphere1ObjectNode);
+
+		Object* sphere2Object = new Object("Sphere 2");
+
+			// Create the Objects Transform
+			Transform* sphere2Transform = new Transform("Sphere");
+			sphere2Transform->setPosition(Vector(0.0f,-32.5,-32.5f, 1.0f));
+			sphere2Transform->setScale(Vector(25.0f,25.0f,25.0f,1.0f));
+				
+			// Set the Objects Mesh
+			sphere2Object->setMesh(sphereMesh);
+			// Set the Objects Material
+			sphere2Object->setMaterial(sphereMaterial);
+			// Set the Objects Transform
+			sphere2Object->setTransform(sphere2Transform);
+
+			// Initialize the Object
+			sphere2Object->createMesh();
+			sphere2Object->setID(sceneManager->getObjectID());
+
+			// Add the Object to the Scene Manager
+			sceneManager->addObject(sphere2Object);
+			// Add the Object to the Object Map (CUDA Loading)
+			objectMap[sphere2Object->getID()] = sphere2Object;
+
+			// Create the Objects Scene Node
+			SceneNode* sphere2ObjectNode = new SceneNode("Sphere 2");
+			sphere2ObjectNode->setObject(sphere2Object);
+	
+		sceneManager->addSceneNode(sphere2ObjectNode);
 	}
 	// Sponza
 	else if(sceneID == 2) {
@@ -2544,11 +2614,56 @@ void init(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 
-	// ADD SCENE SELECTOR HERE
+	// No Scene selected
+	if (argc < 3) {
 
-	freopen("error.txt","w",stderr);
-	freopen("output.txt","w",stdout);
-	
+		cout << "No Scene Selected." << endl;
+		cout << "[USAGE] Parameter 1: 0-3 (scene selector) Parameter 2: 0-1 (exit after first frame)" << endl;
+	}
+
+	// Scene selected
+	if (argc >= 2) {
+
+		int scene = atoi(argv[1]);
+
+		cout << "Scene Selected = " << endl;
+
+		switch(scene) {
+		
+			case 0:		cout << " Office" << endl;
+						break;
+
+			case 1:		cout << " Cornell" << endl;
+						break;
+
+			case 2:		cout << " Sponza" << endl;
+						break;
+
+			default:	cout << " Invalid (going default)" << endl;
+						break;
+		}
+
+		sceneID = min(scene, 3);
+	}
+
+	// Exitor defined
+	if (argc >= 3) {
+
+		int exitor = atoi(argv[2]);
+
+		sceneExitor = exitor;
+	}
+
+	// Open the Error File
+	/*ostringstream errorFileStringStream;
+	errorFileStringStream << "error-" << sceneID << "-file.txt";
+	freopen(errorFileStringStream.str().c_str(),"w",stderr);*/
+
+	// Open the Output File
+	/*ostringstream outputFileStringStream;
+	outputFileStringStream << "output-" << sceneID << "-file.txt";
+	freopen(outputFileStringStream.str().c_str(),"w",stderr);*/
+
 	// Init the Animation
 	init(argc, argv);
 
@@ -2565,6 +2680,11 @@ int main(int argc, char* argv[]) {
 	#ifdef MEMORY_LEAK
 		_CrtDumpMemoryLeaks();
 	#endif
+
+	// Close the Error Stream
+    fclose(stderr);
+	// Close the Output Stream
+    fclose(stdout);
 
 	exit(EXIT_SUCCESS);
 }

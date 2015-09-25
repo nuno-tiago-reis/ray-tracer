@@ -11,20 +11,27 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
 		Release|Win32 = Release|Win32
+		Static Release|Win32 = Static Release|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Debug|Win32.ActiveCfg = Debug|Win32
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Debug|Win32.Build.0 = Debug|Win32
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Release|Win32.ActiveCfg = Release|Win32
 		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Release|Win32.Build.0 = Release|Win32
+		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Static Release|Win32.ActiveCfg = Static Release|Win32
+		{309DFAE9-0A6E-4AFC-A3C5-9574241BF8FB}.Static Release|Win32.Build.0 = Static Release|Win32
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Debug|Win32.ActiveCfg = Debug|Win32
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Debug|Win32.Build.0 = Debug|Win32
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Release|Win32.ActiveCfg = Release|Win32
 		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Release|Win32.Build.0 = Release|Win32
+		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Static Release|Win32.ActiveCfg = Static Release|Win32
+		{32F9991F-30E3-4B87-81D8-F5C958610FDC}.Static Release|Win32.Build.0 = Static Release|Win32
 		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Debug|Win32.ActiveCfg = Debug|Win32
 		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Debug|Win32.Build.0 = Debug|Win32
 		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Release|Win32.ActiveCfg = Release|Win32
 		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Release|Win32.Build.0 = Release|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Static Release|Win32.ActiveCfg = Static Release|Win32
+		{2018CF90-FBAB-4B41-B997-E0D6BBF781D6}.Static Release|Win32.Build.0 = Static Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
