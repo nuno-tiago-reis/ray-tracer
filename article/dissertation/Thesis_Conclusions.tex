@@ -11,19 +11,15 @@
 \chapter{Conclusions}
 \label{chapter:conclusions}
 
-Insert your chapter material here...
+Our paper introduced a new algorithm that creates an efficient Ray-Space Hierarchy which greatly reduces the number of intersection tests necessary to ray-trace a scene due to its improved coherency and shallow bounding volume hierarchy.
 
-
-% ----------------------------------------------------------------------
-\section{Achievements}
-\label{section:achievements}
-
-The major achievements of the present work...
-
+We achieved our goal of reducing the number of intersection tests using a Ray-Space Hierarchy. This technique is orthogonal to the use of both Object and Space Hierarchies. They can all be be used together in the same application to obtain even better results.
+Our results show that we can expect a reduction in computed intersections of ~54\% for shadow rays and ~28\% for reflection rays compared to previous state of the art RSHs.
 
 % ----------------------------------------------------------------------
 \section{Future Work}
-\label{section:future}
+\label{section:future-work}
 
-A few ideas for future work...
+However there is still room for improvement, namely in two areas: The first area of improvement concerns the ray hashing functions. Since the hash determines how rays are sorted, the hierarchy will improve if we manage to enhance the ray classification accuracy (i.e. ray spatial coherency).
 
+The second area of improvement relates to the object bounding-volumes. We used spherical bounding volumes in this paper and a shallow object hierarchy. In the future we aim to also combine our coherent ray hierarchy with a deeper object hierarchy that will further reduce the number of ray-primitive intersections (e.g. \cite{Bradshaw04}).

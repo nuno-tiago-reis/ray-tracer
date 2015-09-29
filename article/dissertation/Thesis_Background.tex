@@ -11,52 +11,29 @@
 \chapter{Background}
 \label{chapter:background}
 
-Insert your chapter material here...
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Ray-Tracing}
+\label{section:background_ray_tracing}
 
+Ray-tracing \cite{Whitted80} is a global illumination \cite{Ritschel12} technique that is used for the synthesis of realistic images which employs recursive ray-casting \cite{Appel68}.
+
+The ray tracing algorithm casts primary rays from the eye but does not stop there. 
+When the rays intersect geometry they can generate extra secondary rays: e.g. shadow, reflection and refraction rays.
+
+These rays differentiate ray-tracing from the more traditional rasterization algorithm since they naturally allow realistic and complex effects like reflections, refractions and shadows without any need for additional techniques. However this comes with at price. Ray-tracing is computationally expensive. There is extensive research and ongoing to try and optimize it. Much of this research involves creating hierarchies in either the Object or Spatial domains to decrease the number of intersection tests in a divide and conquer fashion.
+
+Object and Spatial Hierarchies help reduce the amount of intersections by reducing the amount of scene geometry required to test by culling many polygons and objects away from the ray paths at once.
+
+Ray-Space Hierarchies, use ray bundles or ray caching mechanisms to achieve the same goal, reduce the number of intersections. Instead of creating hierarchies based on the scenes geometry, they are based on the rays being cast in each frame. This is the approach we decided to take is based on ray bundling but also uses a feature of ray caching, which is ray hashing \cite{Arvo87} \cite{Aila10}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Theoretical Overview}
-\label{section:overview}
+\section{Whitted Ray-Tracing for Dynamic Scenes using a Ray-Space Hierarchy on the GPU}
+\label{section:backgroud_roger07}
 
-Some overview of the underlying theory about the topic...
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Theoretical Model 1}
-\label{section:theory1}
-
-The research should be supported with a comprehensive list of references.
-These should appear whenever necessary, in the limit, from the first to the last chapter.
-
-A reference can be cited in any of the following ways:
-%
-\begin{itemize}
-  \item Citation mode \#1 - \quad \cite{jameson:adjointns}
-  \item Citation mode \#2 - \quad \citet{jameson:adjointns}
-  \item Citation mode \#3 - \quad \citep{jameson:adjointns}
-  \item Citation mode \#4 - \quad \citet*{jameson:adjointns}
-  \item Citation mode \#5 - \quad \citep*{jameson:adjointns}
-  \item Citation mode \#6 - \quad \citealt{jameson:adjointns}
-  \item Citation mode \#7 - \quad \citealp{jameson:adjointns}
-  \item Citation mode \#8 - \quad \citeauthor{jameson:adjointns}
-  \item Citation mode \#9 - \quad \citeyear{jameson:adjointns}
-  \item Citation mode \#10 - \quad \citeyearpar{jameson:adjointns}
-\end{itemize}
-%
-Several citations can be made simultaneously as \citep{nocedal:opt,marta:ijcfd}. \\
-
-This is often the default bibliography style adopted (numbers following the citation order), according to the options:\\
-{\tt \textbackslash usepackage\{natbib\}} in file {\tt Thesis\_Preamble.tex},\\
-{\tt \textbackslash bibliographystyle\{abbrvnat\}} in file {\tt Thesis.tex}.\\
-%
-Notice however that this style can be changed from numerical citation order to authors' last name with the options: \\
-{\tt \textbackslash usepackage[numbers]\{natbib\}} in file {\tt Thesis\_Preamble.tex},\\
-{\tt \textbackslash bibliographystyle\{abbrvunsrtnat\}} in file {\tt Thesis.tex}.
-
+Roger et al. \cite{Roger07} algorithm consists of five steps. The scene is first rasterized, obtaining this way the output information we typically obtain from tracing primary rays using a more traditional ray-tracer. The first batch of secondary rays is generated using this information and then becomes the base for the RSH. The secondary rays are bundled into nodes consisting of a bounding sphere for the rays origin and a bounding cone for the rays direction they create the bottom-level of the hierarchy. Each successive level is created by combining the nodes from earlier levels. Once the top-level is created, the scenes geometry is then intersected with the RSH. Each hit is stored as an integer pair consisting of the triangle identifier and the node identifier. Only these hits will be tested in the lower levels of the hierarchy, effectively reducing the total number of intersection tests with each level. There is an issue however, since the rays aren't sorted in any way, that even at lower levels of the hierarchy the nodes will be too wide and thus intersect too much geometry, which will increase the number of intersection tests necessary. We attempt to solve this problem by sorting the rays prior to creating the RSH.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Theoretical Model 2}
-\label{section:theory2}
+\section{Fast Ray Sorting and Breadth-First Packet Traversal for GPU Ray Tracing}
+\label{section:backgroud_garanzha10}
 
-Other models...
-
+Garanzha and Loop \cite{Garanzha10} introduced an algorithm using various parallel primitives to adapt the ray-tracing algorithm to the GPU. Their algorithm sorts the generated rays and creates tight-fit frustums on the GPU and then intersects them with a Bounding Volume Hierarchy for the scenes geometry that is built on the CPU. One of the most interesting parts of their work is the fast ray sorting since it is done using parallel primitives. This mitigates the overall time of the operation since it is executed on the GPU. This approach can be merged with Roger et al's \cite{Roger07} algorithm in order to create a more efficient RSH.

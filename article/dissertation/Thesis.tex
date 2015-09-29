@@ -63,6 +63,8 @@
 % ----------------------------------------------------------------------
 \documentclass[10pt,a4paper,twoside]{report}
 
+\usepackage{amssymb}
+
 % ----------------------------------------------------------------------
 % Define external packages, language, margins, fonts and new commands
 % ----------------------------------------------------------------------
@@ -145,16 +147,6 @@
 \printnomenclature
 \cleardoublepage
 
-% entries of glossary list
-\input{Thesis_Glossary} % file "Thesis_Glossary.tex"
-
-% Add entry in the table of contents as section
-\phantomsection
-\addcontentsline{toc}{section}{\glossaryname}
-% Insert glossary section produced by MakeIndex
-\printglossary
-\cleardoublepage
-
 % Set arabic numbering (1,2,...) after preface
 %
 \setcounter{page}{1}
@@ -170,19 +162,10 @@
 \input{Thesis_Background} % file "Thesis_Background.tex"
 \cleardoublepage
 
-\input{Thesis_Implementation} % file "Thesis_Implementation.tex"
+\input{Thesis_Algorithm} % file "Thesis_Algorithm.tex"
 \cleardoublepage
 
-%\input{Thesis_new_file} % add new .tex files for new chapters
-% \cleardoublepage
-
-%\input{Thesis_new_file} % add new .tex files for new chapters
-% \cleardoublepage
-
-%\input{Thesis_new_file} % add new .tex files for new chapters
-% \cleardoublepage
-
-\input{Thesis_Results} % file "Thesis_Results.tex"
+\input{Thesis_Evaluation} % file "Thesis_Evaluation.tex"
 \cleardoublepage
 
 \input{Thesis_Conclusions} % file "Thesis_Conclusions.tex"
@@ -196,43 +179,10 @@
 \phantomsection
 \addcontentsline{toc}{chapter}{\bibname}
 
-% Include all references in .bib file, even non-cited ones...
-%\nocite{*} % this should be used carefully because it is not correct!
-
-% Produces the bibliography section when processed by BibTeX
-%
-% Bibliography style
-% > entries ordered alphabetically
-%\bibliographystyle{plain}
-% > unsorted with entries appearing in the order in which the citations appear.
-%\bibliographystyle{unsrt}
-% > entries ordered alphabetically, with first names and names of journals and months abbreviated
-%\bibliographystyle{abbrv}
-% > entries ordered alphabetically, with reference markers based on authors' initials and publication year
-%\bibliographystyle{alpha}
-%
-% Replacement bibliography styles provided by 'natbib' package
-% (plainnat.bst, abbrvnat.bst, unsrtnat.bst )
-% > entries ordered alphabetically
-%\bibliographystyle{plainnat}
-% > unsorted with entries appearing in the order in which the citations appear.
-%\bibliographystyle{unsrtnat}
-% > entries ordered alphabetically, with first names and names of journals and months abbreviated
-%\bibliographystyle{abbrvnat} % <<<<< SELECT IF USING REFERENCES BY AUTHOR/YEAR
-% > entries ordered alphabetically, with reference markers based on authors' initials and publication year
-%\bibliographystyle{alpha}
-%
-% Custom bibliography style adapted from 'natbib' package
-%   (based on http://tex.stackexchange.com/questions/5053/is-it-possible-to-get-unsrt-abbrv-bibliography)
-%   (unsrtnat.bst + abbrvnat.bst -> abbrvunsrtnat.bst)
-%   (original files copied from:
-%   http://tug.ctan.org/macros/latex/contrib/natbib/abbrvnat.bst
-%   http://tug.ctan.org/macros/latex/contrib/natbib/unsrtnat.bst
-% > unsorted with entries appearing in the order in which the citations appear, with first names and names of journals and months abbreviated.
-\bibliographystyle{abbrvunsrtnat} % <<<<< SELECT IF USING REFERENCES BY NUMBER (CITATION ORDER)
+\bibliographystyle{abbrvunsrtnat}
 
 % External bibliography database file in the BibTeX format
-\bibliography{Thesis_bib_DB} % file "Thesis_bib_DB.bib"
+\bibliography{Thesis_Bibliography} % file "Thesis_Bibliography.bib"
 
 \cleardoublepage
 
@@ -250,14 +200,14 @@
 % re-set arabic numbering (A.1,A.2,...) (optional, use only if chapter prefix is added)
 %\setcounter{page}{1}
 
-\input{Thesis_Appendix_A} % file "Thesis_Appendix_A.tex"
+\input{Thesis_Appendix} % file "Thesis_Appendix.tex"
 \cleardoublepage
 
 % re-set arabic numbering (B.1,B.2,...) (optional, use only if chapter prefix is added)
 %\setcounter{page}{1}
 
-\input{Thesis_Appendix_B} % file "Thesis_Appendix_B.tex"
-\cleardoublepage
+%\input{Thesis_Appendix_B} % file "Thesis_Appendix_B.tex"
+%\cleardoublepage
 
 % ----------------------------------------------------------------------
 \end{document}

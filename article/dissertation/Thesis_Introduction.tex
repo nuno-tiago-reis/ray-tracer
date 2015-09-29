@@ -11,32 +11,27 @@
 \chapter{Introduction}
 \label{chapter:introduction}
 
-Insert your chapter material here...
+In Naive Ray-Tracing (RT) each ray is tested against each polygon in the scene, this leads to N x M intersection tests per frame, assuming that we have N rays and M polygons. Performance is thus low, especially with moderately complex scenes due to the sheer amount of intersection tests computed. To optimize this naive approach (and RT in general) there are two common approaches to reduce the number of intersection tests, which are the bottleneck of the algorithm, Object Hierarchies and Spatial Hierarchies. Our work instead focuses on Ray Hierarchies and how to optimize them. This is a less well explored area of the RT domain and one that is complementary to the Object-Spatial Hierarchies.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Motivation}
-\label{section:motivation}
+This paper presents the Coherent Ray-Space Hierarchy (CRSH) algorithm. CRSH builds upon the Ray-Space Hierarchy (RSH) \cite{Roger07} and Ray-Sorting algorithms \cite{Garanzha10}. RSH, described by Roger et al., uses a tree that contains bounding sphere-cones that encompass a local set of rays. The tree is built bottom-up and traversed top-down. Our CRSH algorithm adds Ray-Sorting, described by Garanzha and Loop, to the mix in order to achieve higher efficiency in each tree node and then expands on this basis with whole mesh culling and improved hashing methods.
 
-Relevance of the subject...
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Topic Overview}
-\label{section:overview}
-
-Provide an overview of the topic to be studied...
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Objectives}
 \label{section:objectives}
 
-Explicitly state the objectives set to be achieved with this thesis...
+We hypothesize that improving the coherency of the rays contained within each tree node shall lead to tighter bounding sphere-cones which, in turn, should reduce the amount of ray-geometry intersections. We use specialized ray hashing methods, tuned to the ray types we enumerated (e.g. shadow, reflection and refraction), to further improve the efficiency of the hierarchy. Finally we also introduce whole mesh bounding spheres to reduce even further the number of intersection tests at the top level of the hierarchy. This shallow spherical BVH allows us to further reduce the amount of ray-primitive intersection tests. We note that our technique uses rasterization to determine the primary intersections thus reserving the use of RT for secondaries.
 
+\newpage
+
+Our main contributions are:
+\begin{itemize}
+    \item[-] a compact ray-space hierarchy (RSH) based on ray-indexing and ray-sorting.
+    \item[-] the novel combination of ray-sorting \cite{Garanzha10} with ray-space hierarchy techniques \cite{Roger07} to reduce the amount of ray-primitive intersections.
+    \item[-] culling whole meshes from the RSH prior to performing the final per primitive traversal.
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Thesis Outline}
+\section{Outline}
 \label{section:outline}
 
-Briefly explain the contents of the different chapters...
-
+This dissertation is subdivided into 5 different chapters. The first chapter introduces ray-tracing and ray-space hierarchies as well as the goals of this work. The second chapter provides some insight on previous work in the area. The third chapter describes the algorithm, first by giving an overview and then explains each step in detail. The fourth chapter provides the evaluation methods and results as well as discussing those results. The final section concludes this work by providing a final overview on the work and introducing ideas for future work.

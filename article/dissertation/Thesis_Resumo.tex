@@ -13,9 +13,8 @@
 % Add entry in the table of contents as section
 \addcontentsline{toc}{section}{Resumo}
 
-Inserir o resumo em Portugu\^{e}s aqui com o máximo de 250 palavras e acompanhado de 4 a 6 palavras-chave...
+Nós apresentamos um algoritmo para a criação de uma hierarquia multinível no espaço dos raios de raios coerentes que corre no GPU. O nosso algoritmo usa rasterização para processar os raios primários e posteriormente usa esses resultados como entrada para a criação da hierarquia de raios secundários. O algoritmo gera um conjunto de raios; cria índices para esses raios, de acordo com os seus atributos; e ordena-os. Deste modo geramos uma lista de raios que são coerentes com os seus adjacentes. Para melhorar o desempenho ainda mais, subdividimos a geometria da cena num conjunto de esferas envolventes que são posteriormente intersectadas com a hierarquia de raios para diminuir o número de falsos positivos nos testes de intersecção com primitivas. Demonstramos que a nossa técnica diminui de forma notável o número de intersecções entre primitivas necessárias para renderizar uma imagem, em particular até cerca de 50\% menos do que outros algoritmos nesta classe.
 
 \vfill
 
-\textbf{\Large Palavras-chave:} palavra-chave1, palavra-chave2,...
-
+\textbf{\Large Palavras-chave:} {Rasterização, Ray-Tracing, Indexaçao de Raios, Ordenamento de Raios, Cone Envolvente, Esfera Envolvente, Hierarquias, GPU, GPGPU}

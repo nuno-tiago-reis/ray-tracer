@@ -1,0 +1,526 @@
+% ---------------------------------------------------------------------------
+% Author guideline and sample document for EG publication using LaTeX2e input
+% D.Fellner, v1.13, Jul 31, 2008
+
+\documentclass{egpubl}
+
+\usepackage{eg2016}
+\usepackage{amssymb}
+
+% --- for  Annual CONFERENCE
+\ConferenceSubmission   % uncomment for Conference submission
+%\ConferencePaper        % uncomment for (final) Conference Paper
+% \STAR                   % uncomment for STAR contribution
+% \Tutorial               % uncomment for Tutorial contribution
+% \ShortPresentation      % uncomment for (final) Short Conference Presentation
+% \Areas                  % uncomment for Areas contribution
+% \MedicalPrize           % uncomment for Medical Prize contribution
+% \Education              % uncomment for Education contribution
+%
+% --- for  CGF Journal
+% \JournalSubmission    % uncomment for submission to Computer Graphics Forum
+% \JournalPaper         % uncomment for final version of Journal Paper
+%
+% --- for  CGF Journal: special issue
+% \SpecialIssueSubmission    % uncomment for submission to Computer Graphics Forum, special issue
+% \SpecialIssuePaper         % uncomment for final version of Journal Paper, special issue
+%
+% --- for  EG Workshop Proceedings
+% \WsSubmission    % uncomment for submission to EG Workshop
+% \WsPaper         % uncomment for final version of EG Workshop contribution
+%
+\electronicVersion % can be used both for the printed and electronic version
+
+% !! *please* don't change anything above
+% !! unless you REALLY know what you are doing
+% ------------------------------------------------------------------------
+
+% for including postscript figures
+% mind: package option 'draft' will replace PS figure by a filname within a frame
+\ifpdf \usepackage[pdftex]{graphicx} \pdfcompresslevel=9
+\else \usepackage[dvips]{graphicx} \fi
+
+\PrintedOrElectronic
+
+% prepare for electronic version of your document
+\usepackage{t1enc,dfadobe}
+
+\usepackage{egweblnk}
+\usepackage{cite}
+
+% For backwards compatibility to old LaTeX type font selection.
+% Uncomment if your document adheres to LaTeX2e recommendations.
+% \let\rm=\rmfamily    \let\sf=\sffamily    \let\tt=\ttfamily
+% \let\it=\itshape     \let\sl=\slshape     \let\sc=\scshape
+% \let\bf=\bfseries
+
+% end of prologue
+
+% ---------------------------------------------------------------------
+% EG author guidelines plus sample file for EG publication using LaTeX2e input
+% D.Fellner, v1.17, Sep 23, 2010
+
+\title[Coherent Ray-Space Hierarchy via Ray Hashing and Sorting]
+      {Coherent Ray-Space Hierarchy via Ray Hashing and Sorting}
+
+% for anonymous conference submission please enter your SUBMISSION ID
+% instead of the author's name (and leave the affiliation blank) !!
+\author[paper1114]{paper1114}
+%\author[Nuno T. Reis \& Vasco Costa \& Jo\~{a}o M. Pereira]
+%       {Nuno T. Reis$^{1}$
+%        and Vasco Costa$^{1}$
+%        and Jo\~{a}o M. Pereira$^{1}$
+%        \\
+% For Computer Graphics Forum: Please use the abbreviation of your first name.
+%$^1$Instituto Superior T\'{e}cnico, University of Lisbon\\
+%       }
+
+% ------------------------------------------------------------------------
+
+% if the Editors-in-Chief have given you the data, you may uncomment
+% the following five lines and insert it here
+%
+% \volume{27}   % the volume in which the issue will be published;
+% \issue{1}     % the issue number of the publication
+% \pStartPage{1}      % set starting page
+
+
+%-------------------------------------------------------------------------
+\begin{document}
+
+% \teaser{
+%  \includegraphics[width=\linewidth]{eg_new}
+%  \centering
+%   \caption{New EG Logo}
+% \label{fig:teaser}
+% }
+
+\maketitle
+
+\begin{abstract}
+
+We present an algorithm for creating an n-level ray-space hierarchy (RSH) of coherent rays that runs on the GPU. Our algorithm uses rasterization to process the primary rays, then uses those results as the inputs for a RSH, that processes the secondary rays. The RSH algorithm generates bundles of rays; hashes them, according to their attributes; and sorts them. Thus we generate a ray list with adjacent coherent rays. To improve the rendering performance of the RSH vs a more classical approach. In addition the scenes geometry is partitioned into a set of bounding spheres, intersected with the RSH, to further decrease the amount of false ray bundle-primitive intersection tests. We show that our technique notably reduces the amount of ray-primitive intersection tests, required to render an image. In particular it performs up to 50\% better in this metric than other algorithms in this class.
+
+    \keywords{Rasterization, Ray-Tracing, Ray-Hashing, Ray-Sorting, Bounding-Cone, Bounding-Sphere, Hierarchies, GPU, GPGPU}
+
+\begin{classification} % according to http://www.acm.org/class/1998/
+    \CCScat{Computing methodologies}{I.3.7}{Three-Dimensional Graphics and Realism}{Raytracing}
+\end{classification}
+
+\end{abstract}
+
+\section{Introduction}
+
+In Naive Ray-Tracing (RT) each ray is tested against each polygon in the scene, this leads to N x M intersection tests per frame, assuming that we have N rays and M polygons. Performance is thus low, especially with moderately complex scenes due to the sheer amount of intersection tests computed. To optimize this naive approach (and RT in general) there are two common approaches to reduce the number of intersection tests, which are the bottleneck of the algorithm, Object Hierarchies and Spatial Hierarchies. Our work instead focuses on Ray Hierarchies and how to optimize them. This is a less well explored area of the RT domain and one that is complementary to the Object-Spatial Hierarchies.
+
+This paper presents the Coherent Ray-Space Hierarchy (CRSH) algorithm. CRSH builds upon the Ray-Space Hierarchy (RSH) \cite{Roger07} and Ray-Sorting algorithms \cite{Garanzha10}. RSH, described by Roger et al., uses a tree that contains bounding sphere-cones that encompass a local set of rays. The tree is built bottom-up and traversed top-down. Our CRSH algorithm adds Ray-Sorting, described by Garanzha and Loop, to the mix in order to achieve higher efficiency in each tree node and then expands on this basis with whole mesh culling and improved hashing methods.
+
+We hypothesize that improving the coherency of the rays contained within each tree node shall lead to tighter bounding sphere-cones which, in turn, should reduce the amount of ray-geometry intersections. We use specialized ray hashing methods, tuned to the ray types we enumerated (e.g. shadow, reflection and refraction), to further improve the efficiency of the hierarchy. Finally we also introduce whole mesh bounding spheres to reduce even further the number of intersection tests at the top level of the hierarchy. This shallow spherical BVH allows us to further reduce the amount of ray-primitive intersection tests. We note that our technique uses rasterization to determine the primary intersections thus reserving the use of RT for secondaries.
+
+Our main contributions are:
+\begin{itemize}
+    \item[-] a compact ray-space hierarchy (RSH) based on ray-indexing and ray-sorting.
+    \item[-] the novel combination of ray-sorting \cite{Garanzha10} with ray-space hierarchy techniques \cite{Roger07} to reduce the amount of ray-primitive intersections.
+    \item[-] culling whole meshes from the RSH prior to performing the final per primitive traversal.
+\end{itemize}
+%\vfill
+%-------------------------------------------------------------------------
+
+\section{Background and Related Work}
+
+Ray-tracing \cite{Whitted80} is a global illumination \cite{Ritschel12} technique that is used for the synthesis of realistic images which employs recursive ray-casting \cite{Appel68}.
+
+The ray tracing algorithm casts primary rays from the eye but does not stop there. 
+When the rays intersect geometry they can generate extra secondary rays: e.g. shadow, reflection and refraction rays.
+
+These rays differentiate ray-tracing from the more traditional rasterization algorithm since they naturally allow realistic and complex effects like reflections, refractions and shadows without any need for additional techniques. However this comes with at price. Ray-tracing is computationally expensive. There is extensive research and ongoing to try and optimize it. Much of this research involves creating hierarchies in either the Object or Spatial domains to decrease the number of intersection tests in a divide and conquer fashion.
+
+Object and Spatial Hierarchies help reduce the amount of intersections by reducing the amount of scene geometry required to test by culling many polygons and objects away from the ray paths at once.
+
+Ray-Space Hierarchies, use ray bundles or ray caching mechanisms to achieve the same goal, reduce the number of intersections. Instead of creating hierarchies based on the scenes geometry, they are based on the rays being cast in each frame. This is the approach we decided to take is based on ray bundling but also uses a feature of ray caching, which is ray hashing \cite{Arvo87} \cite{Aila10}.
+
+\subsection{Whitted Ray-Tracing for Dynamic Scenes using a Ray-Space Hierarchy on the GPU}
+
+Roger et al. \cite{Roger07} algorithm consists of five steps. The scene is first rasterized, obtaining this way the output information we typically obtain from tracing primary rays using a more traditional ray-tracer. The first batch of secondary rays is generated using this information and then becomes the base for the RSH. The secondary rays are bundled into nodes consisting of a bounding sphere for the rays origin and a bounding cone for the rays direction they create the bottom-level of the hierarchy. Each successive level is created by combining the nodes from earlier levels. Once the top-level is created, the scenes geometry is then intersected with the RSH. Each hit is stored as an integer pair consisting of the triangle identifier and the node identifier. Only these hits will be tested in the lower levels of the hierarchy, effectively reducing the total number of intersection tests with each level. There is an issue however, since the rays aren't sorted in any way, that even at lower levels of the hierarchy the nodes will be too wide and thus intersect too much geometry, which will increase the number of intersection tests necessary. We attempt to solve this problem by sorting the rays prior to creating the RSH.
+
+\subsection{Fast Ray Sorting and Breadth-First Packet Traversal for GPU Ray Tracing}
+
+Garanzha and Loop \cite{Garanzha10} introduced an algorithm using various parallel primitives to adapt the ray-tracing algorithm to the GPU. Their algorithm sorts the generated rays and creates tight-fit frustums on the GPU and then intersects them with a Bounding Volume Hierarchy for the scenes geometry that is built on the CPU. One of the most interesting parts of their work is the fast ray sorting since it is done using parallel primitives. This mitigates the overall time of the operation since it is executed on the GPU. This approach can be merged with Roger et al's \cite{Roger07} algorithm in order to create a more efficient RSH.
+
+%-------------------------------------------------------------------------
+
+\section{Our Algorithm} 
+
+\subsection{Overview}
+
+Our algorithm is performed in eight steps (see Figure~\ref{fig:crsh}). In each frame steps 1 and 2 are executed just once while steps 3 through 6 are executed once per ray batch. Batches can consist of any combination of shadow rays, reflection rays or refraction rays.
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.50]{images/overview.jpg}
+    \caption{\label{fig:crsh}Coherent Ray-Space Hierarchy Overview.}
+\end{figure}
+
+\subsection{Rasterization}
+
+Rasterization is performed as a first step. There was in the path an ongoing urban legend that Rasterization and Ray-Tracing are polar opposites and that a choice has to be made between these two techniques. This is not true at all. Although Rasterization solves the rendering problem conversely vs Ray-Tracing (i.e. projecting primitives to the screen, vs projecting rays backwards to the primitives in the scene), one can complement the other. The first set of rays, the primary rays, does not convey any of the global illumination effects that Ray-Tracing is well suited to achieve, such as Shadows, Reflections and Refractions. This means that Rasterization can convey similar visual results to tracing the primary rays, while being extremely faster and optimized in the graphics hardware. Supplementing the Rasterization of primary rays with the Ray-Tracing of secondary rays can get us the benefits from both techniques: the efficiency of Rasterization and the global illumination effects from Ray-Tracing.
+
+\medskip
+
+In order to combine both techniques the output from the fragment shaders used to rasterize the scene must be more than just the traditional fragment colors. We need to create different render targets according to the information we want to store. In our case we output the fragment diffuse and specular properties, the fragment position and the fragment normal. In our implementation the fragment shader outputs 4 different textures containing four 32 bit floats per pixel each. These textures are generated with OpenGL/GLSL and are then sent to CUDA to create the first level of secondary rays.
+
+\subsection{Ray-Tracing}
+
+\subsubsection{Bounding Volume Update}
+Here we update the object bounding spheres according to the transformations being applied to the object they contain (e.g. translation, scale). Since we only update the center and the radius there is no need to recalculate the bounding spheres in each frame (transformations do not invalidate the bounding spheres).
+
+We pre-compute the minimum bounding sphere of the object meshes, using an implementation based on \cite{Gartner99}s algorithm, so there is no impact on render time performance for this computation.
+
+\subsubsection{Secondary Ray Generation and Indexing}
+
+After the Rasterization step we need to generate the secondary rays. We create an index for each individual ray in order to speed up ray sorting in the following steps. We use a different hashing function for each type of ray (see Figures~\ref{fig:sr}, ~\ref{fig:rr}). Since each ray consists of an origin and a direction it would be straightforward to use these two parameters to create our hash. However for shadow rays it is sufficient to use the light-index, to which it belongs, and the ray direction. This is doable if we invert the origin of the shadow ray so that it is located at the light source rather than the originating fragment. To further reduce the size of the hash keys we convert the ray direction into spherical coordinates \cite{GraphicGems5} and store both the light index and the spherical coordinates into a 32 bit integer, with the light index having the higher bit-value such that the shadow rays are sorted according to the light source a priori.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.50]{images/hash-shadow-ray.jpg}
+    \caption{\label{fig:sr}Shadow Ray Hash.}
+\end{figure}
+
+The Reflection and Refraction rays are also converted to spherical coordinates. However in this case the ray origin is used in the hash, given that these rays are not coherent with regards to the origin, unlike shadow rays.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.50]{images/hash-ordinary-ray.jpg}
+    \caption{\label{fig:rr}Reflection and Refraction Ray Hash.}
+\end{figure}
+
+Once generation is complete, we have an array with the generated secondary rays as well as two arrays with the ray keys (ray hashes) and the ray values (ray position in the ray array) and a final array with head flags which indicate if there is a ray in the corresponding position within the key-value arrays, where we store either a 0 or a 1, indicating if there is a ray or not, respectively.
+Using the information from the head flags array we then run a trimming operator on the key-value arrays (see Figure~\ref{fig:at}). This is done by first applying an inclusive scan operator \cite{Merrill09} on the head flags array, which gives us the number of positions each pair needs to be shifted to the left. This is done in order to trim the arrays \cite{GPUGems2}.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.50]{images/array-trimming.jpg}
+    \caption{\label{fig:at}Array Trimming}
+\end{figure}
+
+\subsubsection{Secondary Ray Compression}
+
+Here we use a compression-sorting-decompression scheme, expanding on prior work by Garanzha and Loops \cite{Garanzha10}. The compression step exploits the local coherency of rays. Even for secondary rays, the bounces generated by two adjacent rays have a good chance of being coherent. This can result in the same hash value for both bounces. Given this information, we compress the ray key-value pairs into chunks, minimizing the number of pairs that need to be sorted. To compress the pairs we utilize a head flags array with the same size as the key-value pair array, initializing it with $0$s in every position and inserting $1$s into positions in which the key (hash) of the corresponding pair differs from the previous pair. After populating the head flags array we apply an inclusive scan operator on it \cite{Merrill09}. By combining the head flags array with the scan output array we create the chunk keys, base and size arrays, which contain the hash, starting index and size of the corresponding chunks (see Figure~\ref{fig:rcc}). The chunk keys are represented in different colors at the image below. The chunk base array represents the original position of the first ray in the chunk while the chunk size array represents the size of the chunk, needed for the ray array decompression.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.50]{images/ray-compression.jpg}
+    \caption{\label{fig:rcc}Ray Compression into Chunks}
+\end{figure}
+
+\subsubsection{Secondary Ray Sorting}
+
+After ray compression we have an array of chunks with the information required to reconstruct the initial rays array. So we can begin the actual sorting. We radix sort \cite{Merrill11} the chunks array according to the chunk keys.
+
+\subsubsection{Secondary Ray Decompression}
+
+Decompression works by creating a skeleton array. This skeleton array is similar to the head flag arrays we created before except that it contains the size of the sorted chunks. Next we apply an exclusive scan operator on the skeleton array. This will give us the positions of the chunks starting positions on the sorted key and value arrays. After creating these two arrays for each position in the scan array we fill the sorted ray array. We start in the position indicated in the scan array and finish after filling the number of rays contained within the corresponding chunk.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.50]{images/ray-decompression.jpg}
+    \caption{Ray Decompression from Chunks}
+\end{figure}
+
+\subsubsection{Hierarchy Creation}
+
+With the sorted rays we can now create the actual hierarchy. Since the rays are now sorted coherently the hierarchy will be much tighter in its lower levels, giving us a smaller number of intersection candidates as we traverse further down the hierarchy.
+Each node in the hierarchy is represented by a sphere and a cone (see Figures~\ref{fig:bc}, \ref{fig:bs}).
+
+\begin{figure}[!htb]
+    \centering
+    
+    \includegraphics[scale=0.30]{images/bounding-cone-2d.jpg}
+    \caption{\label{fig:bc}Bounding Cone - 2D View}
+
+    \vspace{2.5pt}
+
+    \includegraphics[scale=0.30]{images/bounding-sphere-2d.jpg}
+    \caption{\label{fig:bs}Bounding Sphere - 2D View}
+\end{figure}
+
+The sphere contains all the nodes ray origins while the cone contain the rays themselves (see Figure~\ref{fig:cru}). This structure is stored using eight floats: the sphere center and radius (four floats) and the cone direction and spread angle (four floats). The construction of the hierarchy is done in a bottom-up fashion. Thus we start with the leaves, with spheres of radius $0$ and a cone with spread angle equal to $0$. These leaves correspond to the sorted rays. The upper levels of the hierarchy are created by calculating the union of the child nodes. The number of children combined in each node can also be parametrized. 
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.30]{images/cone-union.png}
+    \caption{\label{fig:cru}Cone-Ray Union - 2D View. \small{courtesy of \cite{Szecsi06}}.}
+\end{figure}
+
+For the first level of nodes we use the formulas below to create compact cones \cite{Szecsi06}.
+
+\begin{equation}
+    \vec{q} = \frac{ (\vec{x} \cdot \vec{r}) \cdot \vec{x} - \vec{r} }
+                   {|(\vec{x} \cdot \vec{r}) \cdot \vec{x} - \vec{r}|}
+\end{equation}
+
+\begin{equation}
+    \vec{e} = \vec{x} \cdot \cos(\phi) + \vec{q} \cdot \sin{\phi}
+\end{equation}
+
+\begin{equation}
+    \vec{x}_{new} = \frac{ \vec{e} + \vec{r} }
+                         {|\vec{e} + \vec{r}|}
+\end{equation}
+
+\begin{equation}
+    \cos{\phi_{new}} = \vec{x}_{new} \cdot \vec{r}
+\end{equation}
+
+For the remaining levels we use the following formulas to combining cones:
+
+\begin{equation}
+    \vec{x}_{new} = \frac{ \vec{x_{1}} + \vec{x_{2}} }
+                         {|\vec{x_{1}} + \vec{x_{2}}|}
+\end{equation}
+
+\begin{equation}        
+    \cos{\phi_{new}} = \frac{\arccos(\vec{x_{1}} + \vec{x_{2}})}{2} + \max(\phi_{1}, \phi_{2})
+\end{equation}
+
+Finally for the union of spheres we use this formula:
+
+\begin{equation}
+center_{new} = \frac{center_{1} + center_{2}}{2}\\
+\end{equation}
+\begin{equation}
+radius_{new} = \frac{|center_{2} - center_{1}|}{2} + \max(radius_{1},radius_{2})\\
+\end{equation}
+    
+Each ray needs to know the pixel that it corresponds to. After the sorting step rays are not in their original order. We need a way to map rays back to the screen pixels. Since the hierarchy is not tied directly to the geometry positions in the scene it does not matter for hierarchy creation whether the scene is dynamic or static. The only thing which does matter is the number of bounces of each ray, meaning that if there are more pixels occupied in the screen, the hierarchy will have more nodes.
+
+\medskip
+
+Roger et al. \cite{Roger07} also noted that some nodes might become too large as we travel higher up into the hierarchy. To mitigate this problem we decided to limit the number of levels generated and subsequently the number of levels traversed. Since rays are sorted before this step, there is much higher coherency between rays in the lower levels. If we focus on these rays and ignore the higher levels of the hierarchy we will have better results (this will be demonstrated later in the evaluation section). There is a possibility that we might end up having more local intersection tests but since the nodes in the higher levels of the hierarchy are quite large, we would most likely end up having intersections with every single triangle. Thus having no real gain from calculating intersections on these higher level nodes to begin with.
+
+\subsubsection{Hierarchy Traversal}
+
+Once we have an hierarchy we can traverse it. Prior to traversing the hierarchy we compute the bounding spheres for each object in the scene using Bernd Gartners algorithm \cite{Gartner99}.
+
+For the top level of the hierarchy we intersect the hierarchy nodes with the bounding spheres to cull intersections further. Finally we traverse the hierarchy in a top-down order, intersecting each node with the scenes geometry. Since the top level nodes of the hierarchy fully contain the bottom level nodes, triangles rejected at the top levels will not be tested again in the bottom level nodes. Let us say we start traversing the hierarchy with the root node. If a certain triangle does not intersect the root node then this means that that specific triangle will not intersect any of its children. Since it is the root node, it also means that no ray in the scene will intersect it so we do not have to further test it for intersections. After traversing each level of the hierarchy we store the intersection information in an array so that the child nodes will know the sets of triangles they have to compute intersections against. The intersection tests being run at this stage are only coarse grained tests. They use the triangles bounding spheres since we will have to do the actual intersection tests in the final stage anyway. The intersection tests are being run in a parallel manner so there is an issue regarding empty spaces in the textures that contain the intersection information. These arrays need to be trimmed using the same procedure that we used after the ray generation. These hits are stored as an int32 in which the first 18 bits store the node id and the last 14 bits store the triangle id. This is not a problem for larger scenes since those processed in triangle batches. Each hit only needs to store the maximum number of triangles per batch.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.50]{images/node-sphere-intersection.jpg}
+    \caption{\label{fig:crud2}Cone-Ray Union - 2D View. \small courtesy of \cite{Roger07}.}
+\end{figure}
+
+To calculate the intersection between the node, which is composed of the union of a sphere and a cone, we simplify the problem by enlarging the triangles bounding sphere \cite{Ericson04} and reducing the cones size (see Figure~\ref{fig:crud2}). The original formula for cone-sphere intersections was described in the Amanatides paper \cite{Amanatides84}. The current formula, which expands on the work of Amanatides, was described by Roger et al. \cite{Roger07}.
+
+\begin{equation}
+result = {|C - H|} \times \tan{\alpha} + \frac{d+r}{\cos{\alpha}} \geqslant
+         {|P - H|}
+\end{equation}
+
+\subsubsection{Final Intersection Tests}
+
+After traversing the hierarchy we have an array of node id and triangle id pairs. The candidates for the local intersection tests \cite{Moller97}. In this final step all that remains is to find out which is the closest intersected triangle for each ray and accumulate shading. Depending on the depth that we want for the algorithm we might need to output another set of secondary rays. Since the algorithm is generic, all that is necessary for this is to output these rays onto the ray array that we used initially and continue from the ray-sorting step.
+
+%-------------------------------------------------------------------------
+
+\section{Evaluation}
+
+\subsection{Test Methodology}
+
+We implemented our CRSH algorithm in OpenGL/C++ and CUDA/C++ then compared it with our implementation of RAH \cite{Roger07} over the same architecture. We map our algorithm onto the GPU, parallelizing it there fully. We achieve this mainly by the use of parallel primitives, like prefix sums \cite{Blelloch90}. We used the CUB \cite{Merrill09}  \cite{Merrill11} library to perform parallel radix sorts and prefix sums.
+
+We measure the amount of intersections, including misses and hits, to evaluate ray hierarchy algorithms proficiency at reducing the amount of ray-primitive intersection tests required to render an image. All scenes were rendered at $512\times512$ resolution.
+
+The test information was collected using a NVIDIA GeForce GTX TITAN GPU with 6 GB of RAM. Our algorithm is completely executed on the GPU (including hierarchy construction and traversal) so the CPU has no impact on the test results.
+
+\subsection{Test Scenes}
+
+We used three different scenes, \textsc{Office}, \textsc{Cornell} and \textsc{Sponza}.
+
+The \textsc{Office} scene (36K triangles) is representative of interior design applications. It is divided into several submeshes therefore it adapts very well to our bounding volume scheme. For this scene the emphasis was on testing shadow rays. 
+
+We selected \textsc{Cornell} (790 triangles). as it is representative of highly reflective scenes. It consists an object surrounded by six mirrors. On this scene we focused on testing reflection rays although it also features shadow rays in it.
+
+\textsc{Sponza} (66K triangles), much like \textsc{Office}, is representative of architectural scenes. For this scene the emphasis was also on testing shadow rays but for scenes that do not conform with our bounding volume scheme. This scene does not adapt well to our scheme as is not divided into submeshes. 
+
+\subsection{Test Results and Discussion}
+
+We hypothesised that our more coherent RSH hierarchy needs to compute fewer intersection results to render a scene. We expect more expressive results for shadow rays. As shadow rays have low divergence the sorting step should create a more coherent RSH than for reflection rays. In addition our hierarchy should also be more coherent with reflection rays than one based on the RAH algorithm due to the hashing we use. However by the very nature of reflection rays they will never be as coherent as shadow rays resulting in a lower quality hierarchy.
+
+\begin{table}[!htb]
+\begin{center}
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rrr}
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{images/office}} & & \\
+    \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Level 1} & \textsc{Level 2} & \textsc{Level 3}\\
+    \hline
+    \emph{RAH Algorithm} & & \\
+    \hline
+    \quad \# Sh Intersections  & 17863536	 & 131228368    & 202134400  \\
+    \quad Sh Misses            & 1459990	 & 105961568    & 186536226	 \\
+    \quad Sh Hits              & 16403546	 & 25266800	    & 15598174	 \\
+
+    & & \\
+
+    \hline
+    \emph{Our Algorithm} & & \\
+    \hline
+    \quad \# Sh Intersections   & 4108164	     & 31863128	    & 75095808	 \\
+    \quad Sh Misses    & 125148		 & 21144630	    & 57127535	 \\
+    \quad Sh Hits & 3983016		 & 10718498	    & 17968273	 \\
+\end{tabular}
+\end{center}
+\caption{\label{table:office-results}
+\textsc{Office} rendering performance (251546 shadow rays).}
+\end{table}
+
+Our initial expectations for Office were to get a much lower number of intersection tests with our algorithm than with RAH. The scene is a good fit to our bounding volume scheme and our highly coherent shadow ray hierarchy. Results confirm (see Table~\ref{table:office-results}) our initial expectations: we compute 46\% less intersections than RAH on this scene. 97,21\% less than a brute force approach.
+
+\begin{table}[!htb]
+\begin{center}
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rrr}
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{images/cornell}} & & \\
+    \multicolumn{1}{c|}{\textsc{Cornell}} & \textsc{Level 1} & \textsc{Level 2} & \textsc{Level 3}\\
+    \hline
+    \emph{RAH Algorithm} & & \\
+    \hline
+    \quad \# Sh Intersections   & 805752	 & 5556560		& 10814328	 \\
+    \quad Sh Misses             & 111182	 & 4204769	    & 9227709	 \\
+    \quad Sh Hits               & 694570	 & 1351791		& 1586619	 \\
+    & & \\
+    \quad \# Re Intersections   & 2285568	 & 18143152	    & 54373424	 \\
+    \quad Re Misses             & 17674		 & 11346474	    & 48340898	 \\
+    \quad Re Hits               & 2267894	 & 6796678	    & 6032526    \\
+
+    & & \\
+
+    \hline
+    \emph{Our Algorithm} & & \\
+    \hline
+    \quad \# Sh Intersections   & 370152		 & 1768864	    & 4130048	 \\
+    \quad Sh Misses             & 149044		 & 1252608		& 2891984	 \\
+    \quad Sh Hits               & 221108		 & 516256	    & 1238064	 \\
+    & & \\
+    \quad \# Re Intersections   & 1787712	     & 12600640	    & 30460504	 \\
+    \quad Re Misses             & 212632		 & 8793077	    & 24908902   \\
+    \quad Re Hits               & 1575080		 & 3807563	    & 5551602	 \\
+\end{tabular}
+\end{center}
+\caption{\label{table:cornell-results}
+\textsc{Cornell} rendering performance (184717 shadow \& 524288 reflection rays).}
+\end{table}
+
+For the Cornell scene we focused primarily on the reflection rays which are much more incoherent than shadow rays so we expected results to be less positive than with the Office scene. We compute 32\% less intersections overall (shadow and reflection rays combined) than the RAH algorithm and 93,15\% less than the brute force approach (see Table~\ref{table:cornell-results}).
+
+\begin{table}[!htb]
+\begin{center}
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rrr}
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{images/sponza}} & & \\
+    \multicolumn{1}{c|}{\textsc{Sponza}} & \textsc{Level 1} & \textsc{Level 2} & \textsc{Level 3}\\
+    \hline
+    \emph{RAH Algorithm} & & \\
+    \hline
+    \quad \# Sh Intersections  & 33357900	 & 200061944    & 261267720  \\
+    \quad Sh Misses            & 6487857	 & 182303479    & 248568705	 \\
+    \quad Sh Hits              & 26870043	 & 17758465	    & 12699015	 \\
+
+    & & \\
+
+    \hline
+    \emph{Our Algorithm} & & \\
+    \hline    
+    \quad \# Sh Intersections  & 33357900	& 23359968	& 61887672	 \\
+    \quad Sh Misses            & 30437904	& 15624009	& 53120871	 \\
+    \quad Sh Hits              & 2919996	& 7735959	& 8766801	 \\
+\end{tabular}
+\end{center}
+\caption{\label{table:sponza-results}
+\textsc{Sponza} rendering performance (256713 shadow rays).}
+\end{table}
+
+\begin{table*}[!htb]
+\begin{center}
+\includegraphics[width=0.45\textwidth]{images/chart}
+\vskip 1em
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rrrrrr}
+& \multicolumn{2}{c}{\textsc{Office}} & \multicolumn{2}{c}{\textsc{Cornell}} & \multicolumn{2}{c}{\textsc{Sponza}} \\
+\textsc{Algorithm} & \textsc{Total \# isect} & \textsc{Relative \%} & \textsc{Total \# isect} & \textsc{Relative \%} & \textsc{Total \# isect} & \textsc{Relative \%} \\
+    \hline
+    \emph{Brute Force}     & 9133132168        & 100\% & 153995886          & 100\% & 17058578850 & 100\% \\
+    \emph{RAH Algorithm}   & 476011696         & 5.12\% & 152931944			& 9.93\% & 596279684 & 3.50\% \\
+    \emph{Our Algorithm}   & \textbf{254813284} & \textbf{2.79\%} & \textbf{105435248} & \textbf{6.85\%} & \textbf{188739948} & \textbf{1.11\%} \\
+\end{tabular}
+\end{center}
+\caption{\label{tab:results}
+\small\textsc{Office} (251546 shadow rays), \textsc{Cornell} (184717 shadow \& 524288 reflection rays), \textsc{Sponza} (256713 shadow rays)  rendering performance.}
+\end{table*}
+
+The final scene, Sponza, is a whole mesh. We did not employ object subdivision in this scene. Hence we expected worse results than with Office since we would only get the benefit of the shadow ray hierarchy and none from the bounding volume scheme. To our surprise, however, our CRSH algorithm actually manages to outperform RAH in Sponza by a bigger margin than in the Office scene.
+
+We compute 69\% less intersection tests than RAH and 98,89\% than the brute force approach. These results are due to the number of potential hits culled in the first level of the hierarchy (see Table~\ref{table:sponza-results}). Since our CRSH is more coherent, our algorithm culls 91\% of those hits at the first level while RAH only culls 19\%.
+
+%-------------------------------------------------------------------------
+
+\section{Conclusions and Future Work}
+
+Our paper introduced a new algorithm that creates an efficient Ray-Space Hierarchy which greatly reduces the number of intersection tests necessary to ray-trace a scene due to its improved coherency and shallow bounding volume hierarchy.
+
+We achieved our goal of reducing the number of intersection tests using a Ray-Space Hierarchy. This technique is orthogonal to the use of both Object and Space Hierarchies. They can all be be used together in the same application to obtain even better results.
+Our results show that we can expect a reduction in computed intersections of ~54\% for shadow rays and ~28\% for reflection rays compared to previous state of the art RSHs.
+
+However there is still room for improvement, namely in two areas: The first area of improvement concerns the ray hashing functions. Since the hash determines how rays are sorted, the hierarchy will improve if we manage to enhance the ray classification accuracy (i.e. ray spatial coherency).
+
+The second area of improvement relates to the object bounding-volumes. We used spherical bounding volumes in this paper and a shallow object hierarchy. In the future we aim to also combine our coherent ray hierarchy with a deeper object hierarchy that will further reduce the number of ray-primitive intersections (e.g. \cite{Bradshaw04}).
+
+%-------------------------------------------------------------------------
+
+
+%-------------------------------------------------------------------------
+
+\bibliographystyle{eg-alpha-doi}
+
+\nocite{*}
+\bibliography{egbib}
+\vfill
+
+\pagebreak 
+
+\section*{Appendix}
+
+\begin{center}
+    \includegraphics[scale=0.45]{images/office} \\
+    \textsc{Office} \\
+    \vskip 1em
+
+    \includegraphics[scale=0.45]{images/cornell} \\
+    \textsc{Cornell} \\
+    \vskip 1em
+
+    \includegraphics[scale=0.45]{images/sponza}   \\
+    \textsc{Sponza} \\
+    \vskip 1em
+\end{center}
+
+%-------------------------------------------------------------------------
+
+
+\end{document}
