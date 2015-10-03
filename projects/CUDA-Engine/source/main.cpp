@@ -58,6 +58,7 @@
 #include "ScreenTexture.h"
 
 // Utility
+#include "TestManager.h"
 #include "XML_Reader.h"
 #include "OBJ_Reader.h"
 
@@ -88,10 +89,16 @@ map<int, Object*> objectMap;
 // Light Map
 map<int, Light*> lightMap;
 
+// Algorithm ID
+int algorithmID = 0;
+
 // Scene ID
 int sceneID = 0;
 // Scene Exitor
 int sceneExitor = 0;
+
+// Soft Shadows
+bool softShadows = false;
 
 // FrameBuffer Wrapper
 FrameBuffer *frameBuffer;
@@ -623,19 +630,30 @@ extern "C" {
 bool createShadowRays(bool rasterizer, float3 cameraPosition) {
 
 	if(rasterizer == true) {
-	
-		// Create the Rays and Index them [DONE]
-		ShadowRayCreationWrapper(
-			windowWidth, windowHeight, 
-			LIGHT_SOURCE_MAXIMUM,
-			cudaRayArrayDP, 
-			cudaHeadFlagsArrayDP, 
-			#ifdef IMPROVED_ALGORITHM
+
+		// If we're using CRSH
+		if(algorithmID == 0) {
+
+			// Create the Rays and Index them [DONE]
+			ShadowRayCreationWrapper(
+				windowWidth, windowHeight, 
+				LIGHT_SOURCE_MAXIMUM,
+				cudaRayArrayDP, 
+				cudaHeadFlagsArrayDP, 
 				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-			#else
+		}
+		// If we're using RAH
+		else {
+
+			// Create the Rays and Index them [DONE]
+			ShadowRayCreationWrapper(
+				windowWidth, windowHeight, 
+				LIGHT_SOURCE_MAXIMUM,
+				cudaRayArrayDP, 
+				cudaHeadFlagsArrayDP, 
 				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP);
-			#endif
-	
+		}
+
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ShadowRayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 			Utility::checkCUDAError("ShadowRayCreationWrapper::cudaGetLastError()", cudaGetLastError());
@@ -649,12 +667,6 @@ bool createShadowRays(bool rasterizer, float3 cameraPosition) {
 
 // [Ray-Tracing] Colors a processed Batch of Shadow Rays.
 bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixelBufferObject) {
-
-	ostringstream ss;
-	ss << "tests/shadow-division-test-" << sceneID << ".txt";
-
-	ofstream fs;
-	fs.open(ss.str(), ofstream::out | ofstream::app);
 
 	if(rasterizer == true) {
 
@@ -673,16 +685,14 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 		for(unsigned int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
 			
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				fs << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
-				//cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+				cout << "Shadow Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
 			#endif
 			
 			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
 			unsigned int triangleDivisionTotal = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
 			
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				fs << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
-				//cout << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+				cout << "Shadow Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
 			#endif
 
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
@@ -750,23 +760,15 @@ bool colorShadowRays(bool rasterizer, float3 cameraPosition, unsigned int* pixel
 			lightTotal,
 			cameraPosition,
 			cudaPrimaryChunkKeysArrayDP,
-			#ifdef ANTI_ALIASING
-				cudaPrimaryChunkValuesArrayDP);
-			#else
-				pixelBufferObject);
-			#endif
+			pixelBufferObject);
 
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 			Utility::checkCUDAError("ShadowRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
-		fs.close();
-
 		return true;
 	}
-
-	fs.close();
 
 	return false;
 }
@@ -776,17 +778,28 @@ bool createReflectionRays(bool rasterizer, float3 cameraPosition) {
 	
 	if(rasterizer == true) {
 
-		// Create the Rays and Index them [DONE]
-		ReflectionRayCreationWrapper(
-			windowWidth, windowHeight,
-			cameraPosition,
-			cudaRayArrayDP, 
-			cudaHeadFlagsArrayDP, 
-			#ifdef IMPROVED_ALGORITHM
+		// If we're using CRSH
+		if(algorithmID == 0) {
+
+			// Create the Rays and Index them [DONE]
+			ReflectionRayCreationWrapper(
+				windowWidth, windowHeight,
+				cameraPosition,
+				cudaRayArrayDP, 
+				cudaHeadFlagsArrayDP, 
 				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP);
-			#else
+		}
+		// If we're using RAH
+		else {
+
+			// Create the Rays and Index them [DONE]
+			ReflectionRayCreationWrapper(
+				windowWidth, windowHeight,
+				cameraPosition,
+				cudaRayArrayDP, 
+				cudaHeadFlagsArrayDP, 
 				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP);
-			#endif
+		}
 	
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ReflectionRayCreationWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
@@ -801,12 +814,6 @@ bool createReflectionRays(bool rasterizer, float3 cameraPosition) {
 
 // [Ray-Tracing] Colors a processed Batch of Reflection Rays.
 bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition, unsigned int* pixelBufferObject) {
-
-	ostringstream ss;
-	ss << "tests/reflection-division-test-" << sceneID << ".txt";
-
-	ofstream fs;
-	fs.open(ss.str(), ofstream::out | ofstream::app);
 
 	if(rasterizer == true) {
 
@@ -824,16 +831,14 @@ bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition
 		for(unsigned int i=0; i<(triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)); i++) {
 
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				fs << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
-				//cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
+				cout << "Reflection Ray Iteration " << (i+1) << "/" << (triangleTotal/HIERARCHY_TRIANGLE_MAXIMUM + (triangleTotal % HIERARCHY_TRIANGLE_MAXIMUM ? 1 : 0)) << endl;
 			#endif
 
 			unsigned int triangleOffset = i * HIERARCHY_TRIANGLE_MAXIMUM;
 			unsigned int triangleDivisionTotal = HIERARCHY_TRIANGLE_MAXIMUM - max(HIERARCHY_TRIANGLE_MAXIMUM * (i + 1) - triangleTotal, 0);
 
 			#ifdef TRIANGLE_DIVISION_DEBUG
-				fs << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
-				//cout << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
+				cout << "Reflection Ray Iteration " << triangleOffset << "/" << triangleTotal << endl;
 			#endif
 
 			// Traverse the Hierarchy testing each Node against the Triangles Bounding Spheres [DONE]
@@ -895,74 +900,78 @@ bool colorReflectionRays(bool rasterizer, bool createRays, float3 cameraPosition
 				Utility::checkCUDAError("ReflectionRayIntersectionWrapper::cudaGetLastError()", cudaGetLastError());
 			#endif
 		}
-		
-		// Color the Scene according to the Reflection Rays
-		ReflectionRayColoringWrapper(
-			cudaUpdatedTrianglePositionsDP, 
-			cudaUpdatedTriangleNormalsDP,
-			windowWidth, windowHeight,
-			lightTotal,
-			cameraPosition,
-			createRays,
-			cudaPrimaryChunkKeysArrayDP,
-			cudaRayArrayDP,
-			cudaHeadFlagsArrayDP,
-			#ifdef IMPROVED_ALGORITHM
+
+		// If we're using CRSH
+		if(algorithmID == 0) {
+
+			// Color the Scene according to the Reflection Rays
+			ReflectionRayColoringWrapper(
+				cudaUpdatedTrianglePositionsDP, 
+				cudaUpdatedTriangleNormalsDP,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				createRays,
+				cudaPrimaryChunkKeysArrayDP,
+				cudaRayArrayDP,
+				cudaHeadFlagsArrayDP,
 				cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
-			#else
-				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-			#endif
-			#ifdef ANTI_ALIASING
-				cudaPrimaryChunkValuesArrayDP);
-			#else
 				pixelBufferObject);
-			#endif
+		}
+		// If we're using RAH
+		else {
+
+			// Color the Scene according to the Reflection Rays
+			ReflectionRayColoringWrapper(
+				cudaUpdatedTrianglePositionsDP, 
+				cudaUpdatedTriangleNormalsDP,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				createRays,
+				cudaPrimaryChunkKeysArrayDP,
+				cudaRayArrayDP,
+				cudaHeadFlagsArrayDP,
+				cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+				pixelBufferObject);
+		}
 
 		#ifdef SYNCHRONIZE_DEBUG
 			Utility::checkCUDAError("ReflectionRayColoringWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 			Utility::checkCUDAError("ReflectionRayColoringWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
 
-		fs.close();
-
 		return true;
 	}
 
-	fs.close();
-	
 	return false;
 }
 
 // [Ray-Tracing] Processes a Batch of Rays previously created.
 bool castRays(bool shadows) {
 
-	// Trim the Ray Indices [DONE]
-	RayTrimmingWrapper(
-		#ifdef IMPROVED_ALGORITHM
-			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP, 
-		#else
-			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		#endif
-		windowWidth, windowHeight, 
-		LIGHT_SOURCE_MAXIMUM,
-		cudaHeadFlagsArrayDP, 
-		cudaScanArrayDP, 
-		#ifdef IMPROVED_ALGORITHM
-			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
-		#else
+	// If we're using CRSH
+	if(algorithmID == 0) {
+
+		// Trim the Ray Indices [DONE]
+		RayTrimmingWrapper(
 			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			windowWidth, windowHeight, 
+			LIGHT_SOURCE_MAXIMUM,
+			cudaHeadFlagsArrayDP, 
+			cudaScanArrayDP, 
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+			&rayTotal);
+
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
-		&rayTotal);
 
-	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
-	#endif
+		// Early Exit
+		if(rayTotal == 0)
+			return false;
 
-	if(rayTotal == 0)
-		return false;
-
-	#ifdef IMPROVED_ALGORITHM
 		// Compress the Unsorted Ray Indices into Chunks [DONE]
 		RayCompressionWrapper(
 			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP, 
@@ -1003,15 +1012,37 @@ bool castRays(bool shadows) {
 			Utility::checkCUDAError("RayDecompressionWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
 			Utility::checkCUDAError("RayDecompressionWrapper::cudaGetLastError()", cudaGetLastError());
 		#endif
-	#endif
+	}
+	// If we're using RAH
+	else {
+
+		// Trim the Ray Indices [DONE]
+		RayTrimmingWrapper(
+			cudaSecondaryRayIndexKeysArrayDP, cudaSecondaryRayIndexValuesArrayDP,
+			windowWidth, windowHeight, 
+			LIGHT_SOURCE_MAXIMUM,
+			cudaHeadFlagsArrayDP, 
+			cudaScanArrayDP, 
+			cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
+			&rayTotal);
+
+		#ifdef SYNCHRONIZE_DEBUG
+			Utility::checkCUDAError("RayTrimmingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+			Utility::checkCUDAError("RayTrimmingWrapper::cudaGetLastError()", cudaGetLastError());
+		#endif
+
+		// Early Exit
+		if(rayTotal == 0)
+			return false;
+	}
 
 	// Create the Ray Hierarchy
 	HierarchyCreationWrapper(
 		cudaRayArrayDP,
 		cudaPrimaryRayIndexKeysArrayDP, cudaPrimaryRayIndexValuesArrayDP,
 		rayTotal,
-		(shadows == true) ? SHADOW_RAY_RADIUS : 0.0f,
-		(shadows == true) ? SHADOW_RAY_SPREAD : 0.0f,
+		(shadows == true && softShadows == true) ? SHADOW_RAY_RADIUS : 0.0f,
+		(shadows == true && softShadows == true) ? SHADOW_RAY_SPREAD : 0.0f,
 		cudaHierarchyArrayDP);
 		
 	#ifdef SYNCHRONIZE_DEBUG
@@ -1183,8 +1214,8 @@ void display() {
 	#endif
 
 	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("TriangleUpdateWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("TriangleUpdateWrapper::cudaGetLastError()", cudaGetLastError());
+		Utility::checkCUDAError("BoundingSphereUpdate::cudaDeviceSynchronize()", cudaDeviceSynchronize());
+		Utility::checkCUDAError("BoundingSphereUpdate::cudaGetLastError()", cudaGetLastError());
 	#endif
 
 	/****************************************************************/
@@ -1211,6 +1242,10 @@ void display() {
 			// Calculate the Color based on the Rasterizer Input for the first Iteration.
 			if(result == true)
 				result = colorShadowRays(true, cameraEye, pixelBufferObject);
+
+			// Debug
+			TestManager* testManager = TestManager::getInstance();
+			testManager->dump(algorithmID, sceneID, i, rayTotal);
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
@@ -1227,6 +1262,10 @@ void display() {
 			// Calculate the Color.
 			if(result == true)
 				result = colorReflectionRays(true, true, cameraEye, pixelBufferObject);
+
+			// Debug
+			TestManager* testManager = TestManager::getInstance();
+			testManager->dump(algorithmID, sceneID, i, rayTotal);
 		}
 
 		// Cast the Reflection and Refraction Ray Batches
@@ -1240,27 +1279,12 @@ void display() {
 			// Calculate the Color.
 			if(result == true)
 				result = colorReflectionRays(true, false, cameraEye, pixelBufferObject);
+
+			// Debug
+			TestManager* testManager = TestManager::getInstance();
+			testManager->dump(algorithmID, sceneID, i, rayTotal);
 		}
 	}
-
-	/****************************************************************/
-	/*																*/
-	/*						Anti-Aliasing							*/
-	/*																*/
-	/****************************************************************/
-
-	#ifdef ANTI_ALIASING
-		// Run the Anti-Aliasing
-		AntiAliasingWrapper(
-			windowWidth, windowHeight,
-			cudaSecondaryRayIndexValuesArrayDP,
-			pixelBufferObject);
-	#endif
-
-	#ifdef SYNCHRONIZE_DEBUG
-		Utility::checkCUDAError("AntiAliasingWrapper::cudaDeviceSynchronize()", cudaDeviceSynchronize());
-		Utility::checkCUDAError("AntiAliasingWrapper::cudaGetLastError()", cudaGetLastError());
-	#endif
 
 	/****************************************************************/
 	/*																*/
@@ -1664,6 +1688,9 @@ void initializeOpenGL() {
 void initializeCUDA() {
 
 	int device = gpuGetMaxGflopsDeviceId();
+
+	// Reset the Device
+	 Utility::checkCUDAError("cudaDeviceReset()", cudaDeviceReset());
 
 	// Force CUDA to use the Highest performance GPU
 	Utility::checkCUDAError("cudaSetDevice()",		cudaSetDevice(device));
@@ -2618,7 +2645,9 @@ int main(int argc, char* argv[]) {
 	if (argc < 3) {
 
 		cout << "No Scene Selected." << endl;
-		cout << "[USAGE] Parameter 1: 0-3 (scene selector) Parameter 2: 0-1 (exit after first frame)" << endl;
+		cout << "[USAGE] Parameter 1: 0 to 2 (Office: 0, Cornell: 1, Sponza: 2)" << endl;
+		cout << "[USAGE] Parameter 2: 0 or 1 (CRSH Algorithm: 0, RAH Algorith: 1)" << endl;
+		cout << "[USAGE] Parameter 3: 0 or 1 (Exit after the first frame: 0, Continue after the first frame: 1)" << endl;
 	}
 
 	// Scene selected
@@ -2646,23 +2675,34 @@ int main(int argc, char* argv[]) {
 		sceneID = min(scene, 3);
 	}
 
-	// Exitor defined
+	// Algorithm selected
 	if (argc >= 3) {
 
-		int exitor = atoi(argv[2]);
+		string algorithm(argv[2]);
+
+		cout << "Scene Selected = " << endl;
+
+		if(algorithm.compare("CRSH") == 0)
+			algorithmID = 0;
+
+		if(algorithm.compare("RAH") == 0)
+			algorithmID = 1;
+	}
+
+	// Exitor defined
+	if (argc >= 4) {
+
+		int exitor = atoi(argv[3]);
 
 		sceneExitor = exitor;
 	}
 
-	// Open the Error File
-	/*ostringstream errorFileStringStream;
-	errorFileStringStream << "error-" << sceneID << "-file.txt";
-	freopen(errorFileStringStream.str().c_str(),"w",stderr);*/
-
-	// Open the Output File
-	/*ostringstream outputFileStringStream;
-	outputFileStringStream << "output-" << sceneID << "-file.txt";
-	freopen(outputFileStringStream.str().c_str(),"w",stderr);*/
+	// Initialize the Soft Shadows
+	#ifdef SOFT_SHADOWS
+		softShadows = true;
+	#else
+		softShadows = false;
+	#endif
 
 	// Init the Animation
 	init(argc, argv);
@@ -2680,11 +2720,6 @@ int main(int argc, char* argv[]) {
 	#ifdef MEMORY_LEAK
 		_CrtDumpMemoryLeaks();
 	#endif
-
-	// Close the Error Stream
-    fclose(stderr);
-	// Close the Output Stream
-    fclose(stdout);
 
 	exit(EXIT_SUCCESS);
 }

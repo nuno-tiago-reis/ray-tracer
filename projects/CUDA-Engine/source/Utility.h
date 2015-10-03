@@ -19,7 +19,6 @@ class Utility {
 	private:
 
 		Utility();
-
 		~Utility();
 
 	public:

@@ -146,16 +146,19 @@
     <Filter Include="Source Files\Library\Utility\Miniball">
       <UniqueIdentifier>{90587ac0-542d-4d5c-b080-bc6a9ce29909}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Utility\Textures">
+    <Filter Include="Source Files\Test Manager">
+      <UniqueIdentifier>{34aa6da0-f4a7-4ac9-9a71-2c165e547dec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Library\Scene\Textures">
       <UniqueIdentifier>{78db1ec1-3653-4d41-bd72-b7994428e745}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Utility\Textures\NoiseTexture">
+    <Filter Include="Source Files\Library\Scene\Textures\NoiseTexture">
       <UniqueIdentifier>{a1d170dc-e493-4772-966c-3eda42b689b8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Utility\Textures\NoiseTexture\PerlinNoise">
+    <Filter Include="Source Files\Library\Scene\Textures\NoiseTexture\PerlinNoise">
       <UniqueIdentifier>{226640cb-7723-40bf-b766-48cd5750c80a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Library\Utility\Textures\CubeTexture">
+    <Filter Include="Source Files\Library\Scene\Textures\CubeTexture">
       <UniqueIdentifier>{5c8e5a32-cd69-42a8-92a7-d2c9d42d7b23}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -212,13 +215,13 @@
       <Filter>Source Files\Library\Scene\Shaders\BlinnPhong</Filter>
     </ClCompile>
     <ClCompile Include="source\Texture.cpp">
-      <Filter>Source Files\Library\Utility\Textures</Filter>
+      <Filter>Source Files\Library\Scene\Textures</Filter>
     </ClCompile>
     <ClCompile Include="source\PerlinNoise.cpp">
-      <Filter>Source Files\Library\Utility\Textures\NoiseTexture\PerlinNoise</Filter>
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture\PerlinNoise</Filter>
     </ClCompile>
     <ClCompile Include="source\GeneratedTexture.cpp">
-      <Filter>Source Files\Library\Utility\Textures\NoiseTexture</Filter>
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture</Filter>
     </ClCompile>
     <ClCompile Include="source\XML_Reader.cpp">
       <Filter>Source Files\Library\Utility\XML</Filter>
@@ -227,7 +230,7 @@
       <Filter>Source Files\Library\Scene\Scene Manager\Sounds</Filter>
     </ClCompile>
     <ClCompile Include="source\CubeTexture.cpp">
-      <Filter>Source Files\Library\Utility\Textures\CubeTexture</Filter>
+      <Filter>Source Files\Library\Scene\Textures\CubeTexture</Filter>
     </ClCompile>
     <ClCompile Include="source\Mesh.cpp">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Mesh</Filter>
@@ -276,6 +279,9 @@
     </ClCompile>
     <ClCompile Include="source\BoundingSphere.cpp">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Bounding Volume</Filter>
+    </ClCompile>
+    <ClCompile Include="source\TestManager.cpp">
+      <Filter>Source Files\Test Manager</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -334,10 +340,10 @@
       <Filter>Source Files\Library\Scene\Shaders\BlinnPhong</Filter>
     </ClInclude>
     <ClInclude Include="source\Texture.h">
-      <Filter>Source Files\Library\Utility\Textures</Filter>
+      <Filter>Source Files\Library\Scene\Textures</Filter>
     </ClInclude>
     <ClInclude Include="source\PerlinNoise.h">
-      <Filter>Source Files\Library\Utility\Textures\NoiseTexture\PerlinNoise</Filter>
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture\PerlinNoise</Filter>
     </ClInclude>
     <ClInclude Include="source\XML_Reader.h">
       <Filter>Source Files\Library\Utility\XML</Filter>
@@ -349,7 +355,7 @@
       <Filter>Source Files\Library\Utility</Filter>
     </ClInclude>
     <ClInclude Include="source\CubeTexture.h">
-      <Filter>Source Files\Library\Utility\Textures\CubeTexture</Filter>
+      <Filter>Source Files\Library\Scene\Textures\CubeTexture</Filter>
     </ClInclude>
     <ClInclude Include="source\Mesh.h">
       <Filter>Source Files\Library\Scene\Scene Manager\Objects\Mesh</Filter>
@@ -376,7 +382,7 @@
       <Filter>Source Files\Library\Scene\Shaders\SphereMapping</Filter>
     </ClInclude>
     <ClInclude Include="source\GeneratedTexture.h">
-      <Filter>Source Files\Library\Utility\Textures\NoiseTexture</Filter>
+      <Filter>Source Files\Library\Scene\Textures\NoiseTexture</Filter>
     </ClInclude>
     <ClInclude Include="source\ParticleSystem.h">
       <Filter>Source Files\Library\Scene\Particle Systems</Filter>
@@ -407,6 +413,9 @@
     </ClInclude>
     <ClInclude Include="source\Miniball.hpp">
       <Filter>Source Files\Library\Utility\Miniball</Filter>
+    </ClInclude>
+    <ClInclude Include="source\TestManager.h">
+      <Filter>Source Files\Test Manager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

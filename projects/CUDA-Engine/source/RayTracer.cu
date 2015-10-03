@@ -1,5 +1,3 @@
-// Debug Macros
-
 // CUDA definitions
 #include <cuda_runtime.h>
 // CUB definitions
@@ -8,6 +6,7 @@
 // Math Includes 
 #include <helper_math.h>
 #include <math_functions.h>
+
 // Vector Includes
 #include <vector_types.h>
 #include <vector_functions.h>
@@ -16,9 +15,13 @@
 #include <fstream>
 #include <stdio.h>
 #include <map>
+
 // Utility Includes
 #include "Utility.h"
 #include "Constants.h"
+
+// Test Includes
+#include "TestManager.h"
 
 // Temporary Storage
 static void *scanTemporaryStorage = NULL;
@@ -57,38 +60,6 @@ texture<float4, 1, cudaReadModeElementType> boundingSpheresTexture;
 texture<float4, 1, cudaReadModeElementType> lightPositionsTexture;
 texture<float4, 1, cudaReadModeElementType> lightColorsTexture;
 texture<float2, 1, cudaReadModeElementType> lightIntensitiesTexture;
-
-// CUB Timer
-struct GpuTimer {
-
-	cudaEvent_t start;
-	cudaEvent_t stop;
-
-	GpuTimer() {
-		cudaEventCreate(&start);
-		cudaEventCreate(&stop);
-	}
-
-	~GpuTimer() {
-		cudaEventDestroy(start);
-		cudaEventDestroy(stop);
-	}
-
-	void Start() {
-		cudaEventRecord(start, 0);
-	}
-
-	void Stop() {
-		cudaEventRecord(stop, 0);
-	}
-
-	float ElapsedMillis() {
-		float elapsed;
-		cudaEventSynchronize(stop);
-		cudaEventElapsedTime(&elapsed, start, stop);
-		return elapsed;
-	}
-};
 
 // Ray structure
 struct Ray {
@@ -1329,7 +1300,7 @@ __global__ void CreateHierarchyBoundingSphereHits(
 	headFlagsArray[x] = (offset > triangleID) ? 0 : 1;
 }
 
-__global__ void CreateHierarchyLevel0Hits(
+__global__ void CreateCRSHHierarchyLevel0Hits(
 							// Input Array containing the Ray Hierarchy.
 							float4* hierarchyArray,
 							// Input Array containing the Updated Triangle Positions.
@@ -1355,11 +1326,53 @@ __global__ void CreateHierarchyLevel0Hits(
 	if(x >= hitTotal)
 		return;
 
-	#ifdef IMPROVED_ALGORITHM
-		unsigned int hit = trimmedHierarchyHitsArray[x];
-	#else
-		unsigned int hit = CreateHit(x / triangleTotal, x % triangleTotal);
-	#endif
+	unsigned int hit = trimmedHierarchyHitsArray[x];
+
+	unsigned int nodeID = ExtractNodeID(hit);
+	unsigned int triangleID = ExtractTriangleID(hit);
+
+	// Load and the Triangle and Create the Triangle Bounding Sphere
+	float4 triangle = CreateTriangleBoundingSphere(
+		make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3]),
+		make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 1]),
+		make_float3(trianglePositionsArray[(triangleOffset + triangleID) * 3 + 2]));
+
+	// Load the Hierarchy Node
+	float4 sphere = hierarchyArray[(nodeOffset + nodeID) * 2];
+	float4 cone = hierarchyArray[(nodeOffset + nodeID) * 2 + 1];
+	
+	// Calculate the Intersection and store the result
+	headFlagsArray[x] = (SphereNodeIntersection(sphere, cone, triangle, cos(cone.w), tan(cone.w)) == true) ? 0 : 1;
+	hierarchyHitsArray[x] = hit;
+}
+
+__global__ void CreateRAHHierarchyLevel0Hits(
+							// Input Array containing the Ray Hierarchy.
+							float4* hierarchyArray,
+							// Input Array containing the Updated Triangle Positions.
+							float4* trianglePositionsArray,
+							// Auxiliary Variable containing the Triangle Total.
+							const unsigned int triangleTotal,
+							// Auxiliary Variable containing the Triangle Offset.
+							const unsigned int triangleOffset,
+							// Auxiliary Variable containing the Hit Total.
+							const unsigned int hitTotal,
+							// Auxiliary Variable containing the Node Offset.
+							const unsigned int nodeOffset,
+							// Auxiliary Variable containing the Node Read Total.
+							const unsigned int nodeReadTotal,
+							// Output Array containing the Head Flags Output.
+							unsigned int* headFlagsArray, 
+							// Output Arrays containing the Ray Hierarchy Hits.
+							unsigned int* hierarchyHitsArray,
+							unsigned int* trimmedHierarchyHitsArray) {
+
+	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
+
+	if(x >= hitTotal)
+		return;
+
+	unsigned int hit = CreateHit(x / triangleTotal, x % triangleTotal);
 
 	unsigned int nodeID = ExtractNodeID(hit);
 	unsigned int triangleID = ExtractTriangleID(hit);
@@ -1627,55 +1640,55 @@ __global__ void ColorPrimaryShadowRay(
 			// Check if the Light is Blocked
 			if(intersectionRecord != UINT_MAX) {
 
-				// Light Direction
-				float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition;
-				// Light Distance
-				float lightDistance = length(lightDirection);
-				// Normalize the Light Direction
-				lightDirection = normalize(lightDirection);
+					// Light Direction
+					float3 lightDirection = make_float3(tex1Dfetch(lightPositionsTexture, l)) - fragmentPosition;
+					// Light Distance
+					float lightDistance = length(lightDirection);
+					// Normalize the Light Direction
+					lightDirection = normalize(lightDirection);
 
-				// Light Color
-				float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
-				// Light Intensity (x = diffuse, y = specular)
-				float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
-				// Light Attenuation
-				float attenuation = 1.0f / (0.75f + lightDistance * 0.0005f + lightDistance * lightDistance * 0.00005f);
+					// Light Color
+					float3 lightColor = make_float3(tex1Dfetch(lightColorsTexture, l));
+					// Light Intensity (x = diffuse, y = specular)
+					float2 lightIntensity = tex1Dfetch(lightIntensitiesTexture, l);
+					// Light Attenuation
+					float attenuation = 1.0f / (0.75f + lightDistance * 0.0005f + lightDistance * lightDistance * 0.00005f);
 
-				// Calculate the Diffuse Factor
-				float diffuseFactor = clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f);
+					// Calculate the Diffuse Factor
+					float diffuseFactor = clamp(max(dot(lightDirection, fragmentNormal), 0.0f), 0.0f, 1.0f);
 
-				if(diffuseFactor > 0.0f) {
+					if(diffuseFactor > 0.0f) {
 
-					// Blinn-Phong approximation Halfway Vector
-					float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
+						// Blinn-Phong approximation Halfway Vector
+						float3 halfwayVector = normalize(lightDirection - normalize(fragmentPosition - cameraPosition));
 					
-					// Calculate the Specular Factor
-					float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
+						// Calculate the Specular Factor
+						float specularFactor = clamp(powf(max(dot(halfwayVector, fragmentNormal), 0.0f), fragmentSpecularColor.w), 0.0f, 1.0f);
 					
-					#ifdef SOFT_SHADOWS
-						// Calculate the Shadow Factor
-						float shadowFactor = 0.0f;
-						for(int i=0; i<16; i++) {
+						#ifdef SOFT_SHADOWS
+							// Calculate the Shadow Factor
+							float shadowFactor = 0.0f;
+							for(int i=0; i<16; i++) {
 
-							if((intersectionRecord & (0x00000003 << (i * 2))) == 0)
-								if(i==5 || i==6 || i==9 || i==10)
-									shadowFactor += 0.55f/16.0f;
-								else if(i==0 || i==3 || i==12 || i==15)
-									shadowFactor += 0.5375f/16.0f;
-								else
-									shadowFactor += 0.525f/16.0f;
-						}
-						// Diffuse Component
-						fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation * log2(1.0f + shadowFactor * 2.0f);
-						// Specular Component
-						fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation * log2(1.0f + shadowFactor * 2.0f);
-					#else
-						// Diffuse Component
-						fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;// * log2(1.0f + shadowFactor * 2.0f);
-						// Specular Component
-						fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;// * log2(1.0f + shadowFactor * 2.0f);
-					#endif
-				}
+								if((intersectionRecord & (0x00000003 << (i * 2))) == 0)
+									if(i==5 || i==6 || i==9 || i==10)
+										shadowFactor += 0.55f/16.0f;
+									else if(i==0 || i==3 || i==12 || i==15)
+										shadowFactor += 0.5375f/16.0f;
+									else
+										shadowFactor += 0.525f/16.0f;
+							}
+							// Diffuse Component
+							fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation * log2(1.0f + shadowFactor * 2.0f);
+							// Specular Component
+							fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation * log2(1.0f + shadowFactor * 2.0f);
+						#else
+							// Diffuse Component
+							fragmentColor += make_float3(fragmentDiffuseColor) * lightColor * diffuseFactor * lightIntensity.x * attenuation;// * log2(1.0f + shadowFactor * 2.0f);
+							// Specular Component
+							fragmentColor += make_float3(fragmentSpecularColor) * lightColor * specularFactor * lightIntensity.y * attenuation;// * log2(1.0f + shadowFactor * 2.0f);
+						#endif
+					}
 			}
 		}
 	}
@@ -1779,7 +1792,7 @@ __global__ void ColorReflectionRay(
 	unsigned int rayIndex = x + y * windowWidth * LIGHT_SOURCE_MAXIMUM;
 
 	// Reflection Ray Intersection Triangle
-	unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[x + y * (windowWidth * LIGHT_SOURCE_MAXIMUM)];
+	unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[rayIndex];
 	unsigned int intersectionTriangle = intersectionRecord & 0x000FFFFF;
 
 	if(intersectionRecord != UINT_MAX) {
@@ -1793,8 +1806,8 @@ __global__ void ColorReflectionRay(
 		float3 vertex2 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 2]);
 
 		// Calculate the Reflection Ray
-		float3 rayOrigin = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2];
-		float3 rayDirection = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2 + 1];
+		float3 rayOrigin = rayArray[rayIndex * 2];
+		float3 rayDirection = rayArray[rayIndex * 2 + 1];
 
 		// Calculate the Intersection Time
 		float intersectionTime = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
@@ -1892,7 +1905,7 @@ __global__ void ColorAndCreateReflectionRay(
 	unsigned int rayIndex = x + y * windowWidth * LIGHT_SOURCE_MAXIMUM;
 
 	// Reflection Ray Intersection Triangle
-	unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[x + y * (windowWidth * LIGHT_SOURCE_MAXIMUM)];
+	unsigned int intersectionRecord = (unsigned int)intersectionTimeArray[rayIndex];
 	unsigned int intersectionTriangle = intersectionRecord & 0x000FFFFF;
 
 	if(intersectionRecord != UINT_MAX) {
@@ -1906,8 +1919,8 @@ __global__ void ColorAndCreateReflectionRay(
 		float3 vertex2 = make_float3(trianglePositionsArray[intersectionTriangle * 3 + 2]);
 
 		// Calculate the Reflection Ray
-		float3 rayOrigin = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2];
-		float3 rayDirection = rayArray[(x + y * windowWidth * LIGHT_SOURCE_MAXIMUM) * 2 + 1];
+		float3 rayOrigin = rayArray[rayIndex * 2];
+		float3 rayDirection = rayArray[rayIndex * 2 + 1];
 
 		// Calculate the Intersection Time
 		float intersectionTime = RayTriangleIntersection(Ray(rayOrigin + rayDirection * epsilon, rayDirection), vertex0, vertex1 - vertex0, vertex2 - vertex0);
@@ -2016,6 +2029,8 @@ __global__ void AntiAliasing(
 
 extern "C" {
 
+	TestManager* testManager = TestManager::getInstance();
+
 	void TriangleUpdateWrapper(
 							// Input Array containing the updated Model Matrices.
 							float* modelMatricesArray,
@@ -2041,7 +2056,6 @@ extern "C" {
 			trianglePositionsArray, triangleNormalsArray);
 	}
 
-	
 	void BoundingSphereUpdateWrapper(
 							// Input Array containing the updated Translation Matrices.
 							float* translationMatricesArray,
@@ -2194,45 +2208,23 @@ extern "C" {
 							unsigned int* rayIndexKeysArray, 
 							unsigned int* rayIndexValuesArray) {
 
-		// Grid based on the Screen Dimensions.
-		dim3 block(1024);
-		dim3 grid((windowWidth * windowHeight * lightTotal) / block.x + 1);
-
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[ShadowRayCreationWrapper] Block = " << block.x  << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::rayCreationTimerID);
 		#endif
 
-		#ifdef KERNEL_TIMER
+			// Grid based on the Screen Dimensions.
+			dim3 block(1024);
+			dim3 grid((windowWidth * windowHeight * lightTotal) / block.x + 1);
 
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[ShadowRayCreationWrapper] Block = " << block.x  << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
+			#endif
 
-			// Kernel Timer
-			GpuTimer kernelTimer;
+			// Create the Shadow Rays
+			CreateShadowRays<<<grid, block>>>(windowWidth, windowHeight, lightTotal, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
 
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
-		#endif
-
-		// Create the Shadow Rays
-		CreateShadowRays<<<grid, block>>>(windowWidth, windowHeight, lightTotal, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
-
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Shadow Ray Creation: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::rayCreationTimerID);
 		#endif
 	}
 
@@ -2249,45 +2241,23 @@ extern "C" {
 							unsigned int* rayIndexKeysArray, 
 							unsigned int* rayIndexValuesArray) {
 
-		// Grid based on the Screen Dimensions.
-		dim3 block(32,32);
-		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);
-
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[ReflectionRayCreationWrapper] Block = " << block.x * block.y << " Threads " << "Grid = " << grid.x * grid.y << " Blocks" << endl;
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::rayCreationTimerID);
 		#endif
 
-		#ifdef KERNEL_TIMER
+			// Grid based on the Screen Dimensions.
+			dim3 block(32,32);
+			dim3 grid(windowWidth/block.x + 1, windowHeight/block.y + 1);
 
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[ReflectionRayCreationWrapper] Block = " << block.x * block.y << " Threads " << "Grid = " << grid.x * grid.y << " Blocks" << endl;
+			#endif
 
-			// Kernel Timer
-			GpuTimer kernelTimer;
+			// Create the Reflection Rays
+			CreateReflectionRays<<<grid, block>>>(windowWidth, windowHeight, cameraPosition, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
 
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
-		#endif
-
-		// Create the Reflection Rays
-		CreateReflectionRays<<<grid, block>>>(windowWidth, windowHeight, cameraPosition, rayArray, headFlagsArray, rayIndexKeysArray, rayIndexValuesArray);
-
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Reflection Ray Creation: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::rayCreationTimerID);
 		#endif
 	}
 
@@ -2309,57 +2279,35 @@ extern "C" {
 							// Output Variable containing the Number of Rays.
 							unsigned int* rayTotal) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::rayTrimmingTimerID);
 		#endif
 
-		// Maximum Number of Rays being cast per Frame
-		unsigned int rayMaximum = windowWidth * windowHeight * lightTotal;
+			// Maximum Number of Rays being cast per Frame
+			unsigned int rayMaximum = windowWidth * windowHeight * lightTotal;
 
-		// Calculate the Inclusive Scan using the Ray Head Flags.
-		Utility::checkCUDAError("RayTrimmingWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayMaximum));
+			// Calculate the Inclusive Scan using the Ray Head Flags.
+			Utility::checkCUDAError("RayTrimmingWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayMaximum));
 
-		// Grid based on the Ray Count
-		dim3 block(1024);
-		dim3 grid(rayMaximum/block.x + 1);
+			// Grid based on the Ray Count
+			dim3 block(1024);
+			dim3 grid(rayMaximum/block.x + 1);
 
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[TrimRays] Block = " << block.x << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
-		#endif
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[TrimRays] Block = " << block.x << " Threads " << "Grid = " << grid.x << " Blocks" << endl;
+			#endif
 
-		// Create the Trimmed Rays
-		CreateTrimmedRays<<<grid, block>>>(rayIndexKeysArray, rayIndexValuesArray, rayMaximum, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
+			// Create the Trimmed Rays
+			CreateTrimmedRays<<<grid, block>>>(rayIndexKeysArray, rayIndexValuesArray, rayMaximum, scanArray, trimmedRayIndexKeysArray, trimmedRayIndexValuesArray);
 
-		// Check the Inclusive Scan Output (Last position gives us the number of Rays that weren't generated)
-		Utility::checkCUDAError("RayTrimmingWrapper::cudaMemcpy()", cudaMemcpy(rayTotal, &scanArray[rayMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+			// Check the Inclusive Scan Output (Last position gives us the number of Rays that weren't generated)
+			Utility::checkCUDAError("RayTrimmingWrapper::cudaMemcpy()", cudaMemcpy(rayTotal, &scanArray[rayMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
 
-		// Calculate the Ray Total
-		*rayTotal = rayMaximum - *rayTotal;
+			// Calculate the Ray Total
+			*rayTotal = rayMaximum - *rayTotal;
 
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Ray Trimming: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::rayTrimmingTimerID);
 		#endif
 	}
 
@@ -2382,65 +2330,43 @@ extern "C" {
 							// Output Variable containing the Number of Chunks.
 							unsigned int* chunkTotal) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::rayCompressionTimerID);
 		#endif
 
-		// Grid based on the Ray Count
-		dim3 rayBlock(1024);
-		dim3 rayGrid(rayTotal/rayBlock.x + 1);
+			// Grid based on the Ray Count
+			dim3 rayBlock(1024);
+			dim3 rayGrid(rayTotal/rayBlock.x + 1);
 		
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[CreateChunkFlags] Block = " << rayBlock.x << " Threads " << "Grid = " << rayGrid.x << " Blocks" << endl;
-		#endif
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[CreateChunkFlags] Block = " << rayBlock.x << " Threads " << "Grid = " << rayGrid.x << " Blocks" << endl;
+			#endif
 
-		// Create the Chunk Flags
-		CreateChunkFlags<<<rayGrid, rayBlock>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
+			// Create the Chunk Flags
+			CreateChunkFlags<<<rayGrid, rayBlock>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray);
 
-		// Calculate the Inclusive Scan using the Chunk Head Flags.
-		Utility::checkCUDAError("RayCompressionWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
+			// Calculate the Inclusive Scan using the Chunk Head Flags.
+			Utility::checkCUDAError("RayCompressionWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, rayTotal));
 		
-		// Check the Inclusive Scan Output (Last position gives us the number of Chunks that were generated)
-		Utility::checkCUDAError("RayCompressionWrapper::cudaMemcpy()", cudaMemcpy(chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
+			// Check the Inclusive Scan Output (Last position gives us the number of Chunks that were generated)
+			Utility::checkCUDAError("RayCompressionWrapper::cudaMemcpy()", cudaMemcpy(chunkTotal, &scanArray[rayTotal-1], sizeof(int), cudaMemcpyDeviceToHost));
 
-		// Create the Chunk Bases
-		CreateChunkBases<<<rayGrid, rayBlock>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray, scanArray, chunkBasesArray, chunkIndexKeysArray, chunkIndexValuesArray);
+			// Create the Chunk Bases
+			CreateChunkBases<<<rayGrid, rayBlock>>>(trimmedRayIndexKeysArray, trimmedRayIndexValuesArray, rayTotal, headFlagsArray, scanArray, chunkBasesArray, chunkIndexKeysArray, chunkIndexValuesArray);
 
-		// Grid based on the Ray Chunk Count
-		dim3 chunkBlock(1024);
-		dim3 chunkGrid(*chunkTotal/chunkBlock.x + 1);
+			// Grid based on the Ray Chunk Count
+			dim3 chunkBlock(1024);
+			dim3 chunkGrid(*chunkTotal/chunkBlock.x + 1);
 		
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[CreateChunkSizes] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
-		#endif
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[CreateChunkSizes] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
+			#endif
 
-		// Create the Chunk Sizes
-		CreateChunkSizes<<<chunkGrid, chunkBlock>>>(chunkBasesArray, *chunkTotal, rayTotal, chunkSizesArray);
+			// Create the Chunk Sizes
+			CreateChunkSizes<<<chunkGrid, chunkBlock>>>(chunkBasesArray, *chunkTotal, rayTotal, chunkSizesArray);
 
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Ray Compression: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::rayCompressionTimerID);
 		#endif
 	}
 
@@ -2454,41 +2380,19 @@ extern "C" {
 							unsigned int* sortedChunkIndexKeysArray, 
 							unsigned int* sortedChunkIndexValuesArray) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::raySortingTimerID);
 		#endif
 
-		// Sort the Chunks
-		Utility::checkCUDAError("RaySortingWrapper::cub::DeviceRadixSort::SortPairs()", 
-			cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
-			chunkIndexKeysArray, sortedChunkIndexKeysArray,
-			chunkIndexValuesArray, sortedChunkIndexValuesArray, 
-			chunkTotal));
+			// Sort the Chunks
+			Utility::checkCUDAError("RaySortingWrapper::cub::DeviceRadixSort::SortPairs()", 
+				cub::DeviceRadixSort::SortPairs(radixSortTemporaryStorage, radixSortTemporaryStoreBytes,
+				chunkIndexKeysArray, sortedChunkIndexKeysArray,
+				chunkIndexValuesArray, sortedChunkIndexValuesArray, 
+				chunkTotal));
 
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Ray Sorting: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::raySortingTimerID);
 		#endif
 	}
 
@@ -2513,62 +2417,40 @@ extern "C" {
 							unsigned int* sortedRayIndexKeysArray, 
 							unsigned int* sortedRayIndexValuesArray) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::rayDecompressionTimerID);
 		#endif
 
-		// Grid based on the Ray Chunk Count
-		dim3 chunkBlock(1024);
-		dim3 chunkGrid(chunkTotal/chunkBlock.x + 1);
+			// Grid based on the Ray Chunk Count
+			dim3 chunkBlock(1024);
+			dim3 chunkGrid(chunkTotal/chunkBlock.x + 1);
 		
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[CreateChunkSkeleton] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
-		#endif
+			#ifdef BLOCK_GRID_DEBUG
+				cout << "[CreateChunkSkeleton] Block = " << chunkBlock.x << " Threads " << "Grid = " << chunkGrid.x << " Blocks" << endl;
+			#endif
 
-		// Create the Sorted Ray Skeleton
-		CreateSortedRaySkeleton<<<chunkGrid, chunkBlock>>>(
-			chunkSizesArray, 
-			sortedChunkIndexValuesArray,
-			chunkTotal, 
-			skeletonArray);
+			// Create the Sorted Ray Skeleton
+			CreateSortedRaySkeleton<<<chunkGrid, chunkBlock>>>(
+				chunkSizesArray, 
+				sortedChunkIndexValuesArray,
+				chunkTotal, 
+				skeletonArray);
 
-		// Calculate the Exclusive Scan using the Sorted Ray Skeleton.
-		Utility::checkCUDAError("RayDecompressionWrapper::cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
+			// Calculate the Exclusive Scan using the Sorted Ray Skeleton.
+			Utility::checkCUDAError("RayDecompressionWrapper::cub::DeviceScan::ExclusiveSum()", cub::DeviceScan::ExclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, skeletonArray, scanArray, chunkTotal));
 
-		// Create the Sorted Rays
-		CreateSortedRays<<<chunkGrid, chunkBlock>>>(
-			chunkBasesArray, chunkSizesArray, 
-			sortedChunkIndexKeysArray, sortedChunkIndexValuesArray,
-			trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
-			scanArray, 
-			skeletonArray, 
-			chunkTotal, 
-			sortedRayIndexKeysArray, sortedRayIndexValuesArray);
+			// Create the Sorted Rays
+			CreateSortedRays<<<chunkGrid, chunkBlock>>>(
+				chunkBasesArray, chunkSizesArray, 
+				sortedChunkIndexKeysArray, sortedChunkIndexValuesArray,
+				trimmedRayIndexKeysArray, trimmedRayIndexValuesArray,
+				scanArray, 
+				skeletonArray, 
+				chunkTotal, 
+				sortedRayIndexKeysArray, sortedRayIndexValuesArray);
 
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Ray Decompression: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::rayDecompressionTimerID);
 		#endif
 	}
 
@@ -2587,78 +2469,56 @@ extern "C" {
 							// Output Array containing the Ray Hierarchy.
 							float4* hierarchyArray) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::hierarchyCreationTimerID);
 		#endif
 
-		unsigned int hierarchyNodeWriteOffset = 0;
-		unsigned int hierarchyNodeReadOffset = 0;
-		unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-
-		// Grid based on the Hierarchy Node Count
-		dim3 baseLevelBlock(1024);
-		dim3 baseLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
-
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[CreateHierarchyLevel0] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
-		#endif
-
-		// Create the First Level of the Ray Hierarchy.
-		CreateHierarchyLevel0<<<baseLevelGrid, baseLevelBlock>>>(
-			rayArray,
-			sortedRayIndexKeysArray, sortedRayIndexValuesArray, 
-			rayTotal,
-			hierarchyNodeTotal, 
-			initialRadius,
-			initialSpread,
-			hierarchyArray);
-		
-		// Create the Remaining Levels of the Ray Hierarchy.
-		for(unsigned int hierarchyLevel=1; hierarchyLevel<HIERARCHY_MAXIMUM_DEPTH; hierarchyLevel++) {
-			
-			hierarchyNodeReadOffset = hierarchyNodeWriteOffset;
-			hierarchyNodeWriteOffset += hierarchyNodeTotal;
-			hierarchyNodeTotal = hierarchyNodeTotal / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+			unsigned int hierarchyNodeWriteOffset = 0;
+			unsigned int hierarchyNodeReadOffset = 0;
+			unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 
 			// Grid based on the Hierarchy Node Count
-			dim3 nLevelBlock(1024);
-			dim3 nLevelGrid(hierarchyNodeTotal/nLevelBlock.x + 1);
+			dim3 baseLevelBlock(1024);
+			dim3 baseLevelGrid(hierarchyNodeTotal/baseLevelBlock.x + 1);
 
 			#ifdef BLOCK_GRID_DEBUG
-				cout << "[CreateHierarchyLevelN] Block = " << nLevelBlock.x << " Threads " << "Grid = " << nLevelGrid.x << " Blocks" << endl;
+				cout << "[CreateHierarchyLevel0] Block = " << baseLevelBlock.x << " Threads " << "Grid = " << baseLevelGrid.x << " Blocks" << endl;
 			#endif
 
-			CreateHierarchyLevelN<<<nLevelGrid, nLevelBlock>>>(
-				hierarchyArray, 
-				hierarchyNodeWriteOffset, 
-				hierarchyNodeReadOffset, 
-				hierarchyNodeTotal);
-		}
+			// Create the First Level of the Ray Hierarchy.
+			CreateHierarchyLevel0<<<baseLevelGrid, baseLevelBlock>>>(
+				rayArray,
+				sortedRayIndexKeysArray, sortedRayIndexValuesArray, 
+				rayTotal,
+				hierarchyNodeTotal, 
+				initialRadius,
+				initialSpread,
+				hierarchyArray);
+		
+			// Create the Remaining Levels of the Ray Hierarchy.
+			for(unsigned int hierarchyLevel=1; hierarchyLevel<HIERARCHY_MAXIMUM_DEPTH; hierarchyLevel++) {
+			
+				hierarchyNodeReadOffset = hierarchyNodeWriteOffset;
+				hierarchyNodeWriteOffset += hierarchyNodeTotal;
+				hierarchyNodeTotal = hierarchyNodeTotal / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 
-		#ifdef KERNEL_TIMER
+				// Grid based on the Hierarchy Node Count
+				dim3 nLevelBlock(1024);
+				dim3 nLevelGrid(hierarchyNodeTotal/nLevelBlock.x + 1);
 
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
+				#ifdef BLOCK_GRID_DEBUG
+					cout << "[CreateHierarchyLevelN] Block = " << nLevelBlock.x << " Threads " << "Grid = " << nLevelGrid.x << " Blocks" << endl;
+				#endif
 
-			fs << "Hierarchy Creation: " << kernelTimer.ElapsedMillis() << endl;
+				CreateHierarchyLevelN<<<nLevelGrid, nLevelBlock>>>(
+					hierarchyArray, 
+					hierarchyNodeWriteOffset, 
+					hierarchyNodeReadOffset, 
+					hierarchyNodeTotal);
+			}
 
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::hierarchyCreationTimerID);
 		#endif
 	}
 
@@ -2689,202 +2549,176 @@ extern "C" {
 							// Output Variable containing the Hierarchy Hit Memory Size.
 							unsigned int *hierarchyHitMemoryTotal) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::hierarchyTraversalTimerID);
 		#endif
 
-		ostringstream ss;
-		ss << "tests/traversal-warm-up-test-" << sceneID << ".txt";
+			// Create the Hierarchy Node Offses and Total
+			unsigned int hierarchyNodeOffset = 0;
+			unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 
-		ofstream fs;
-		fs.open(ss.str(), ofstream::out | ofstream::app);
+			for(unsigned int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
 
-		// Create the Hierarchy Node Offses and Total
-		unsigned int hierarchyNodeOffset = 0;
-		unsigned int hierarchyNodeTotal = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+				hierarchyNodeOffset = hierarchyNodeTotal + hierarchyNodeOffset;
+				hierarchyNodeTotal = hierarchyNodeTotal / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+			}
 
-		for(unsigned int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
+			// Create the Hit Maximum and Total
+			unsigned int hitMaximum = hierarchyNodeTotal * triangleTotal;
+			unsigned int hitTotal = 0;
+			unsigned int missedHitTotal = 0;
 
-			hierarchyNodeOffset = hierarchyNodeTotal + hierarchyNodeOffset;
-			hierarchyNodeTotal = hierarchyNodeTotal / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-		}
+			// Grid based on the Hit Maximum
+			dim3 block(1024);
+			dim3 grid(hitMaximum/block.x + 1);
 
-		// Create the Hit Maximum and Total
-		unsigned int hitMaximum = hierarchyNodeTotal * triangleTotal;
-		unsigned int hitTotal = 0;
-
-		// Grid based on the Hit Maximum
-		dim3 block(1024);
-		dim3 grid(hitMaximum/block.x + 1);
-
-		#ifdef IMPROVED_ALGORITHM
+			// If we're using CRSH
+			if(algorithmID == 0) {
 		
-			#ifdef BLOCK_GRID_DEBUG 
-				cout << "[PrepareArray] Grid = " << grid.x << endl;
-			#endif
+				#ifdef BLOCK_GRID_DEBUG 
+					cout << "[PrepareArray] Grid = " << grid.x << endl;
+				#endif
+
+				// Clean the Head Flags Array
+				PrepareArray<<<grid, block>>>(0, hitMaximum, headFlagsArray);
+
+				// Grid based on the Hierarchy Node * Bounding Box Count
+				dim3 boundingSphereBlock(1024);
+				dim3 boundingSphereGrid((hierarchyNodeTotal * boundingSphereTotal)/boundingSphereBlock.x + 1);
+				
+				#ifdef BLOCK_GRID_DEBUG
+					cout << "[CreateHierarchyLevel0Hits] Block = " << boundingSphereBlock.x << " Threads " << "Grid = " << boundingSphereGrid.x << " Blocks" << endl;
+				#endif
+
+				CalculateBoundingSpheresIntersections<<<boundingSphereGrid, boundingSphereBlock>>>(
+					hierarchyArray, 
+					boundingSphereArray,
+					boundingSphereTotal,
+					triangleTotal,
+					triangleOffset,
+					hierarchyNodeOffset, 
+					hierarchyNodeTotal, 
+					headFlagsArray);
+
+				// Create the Trim Scan Array
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+
+				// Grid based on the Hierarchy Hit Count
+				dim3 hitMaximumBlock(1024);
+				dim3 hitMaximumGrid(hitMaximum/hitMaximumBlock.x + 1);
+
+				#ifdef BLOCK_GRID_DEBUG
+					cout << "[CreateHierarchyLevel0Hits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
+				#endif
+
+				CreateHierarchyBoundingSphereHits<<<hitMaximumGrid, hitMaximumBlock>>>(
+					triangleTotal,
+					triangleOffset,
+					hierarchyNodeOffset, 
+					hierarchyNodeTotal, 
+					scanArray, 
+					headFlagsArray,
+					hierarchyHitsArray);
+
+				// Create the Trim Scan Array
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+
+				#ifdef BLOCK_GRID_DEBUG
+					cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
+				#endif
+
+				CreateTrimmedHierarchyHits<<<hitMaximumGrid, hitMaximumBlock>>>(
+					hierarchyHitsArray,
+					scanArray,
+					hitMaximum,
+					trimmedHierarchyHitsArray);
+
+				// Check the Hit Total (last position of the scan array) 
+				Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+
+				// Calculate the Hit Total for this Level
+				hitTotal = hitMaximum - missedHitTotal;
+			}
+			// If we're using RAH
+			else {
+
+				// Calculate the Hit Total for this Level
+				hitTotal = hitMaximum;
+			}
+
+			// Calculate the Hit Total for this Level
+			*hierarchyHitTotal = hitTotal;
+
+			// Early Exit
+			if(hitTotal == 0)
+				return;
 
 			// Clean the Head Flags Array
 			PrepareArray<<<grid, block>>>(0, hitMaximum, headFlagsArray);
 
-			// Grid based on the Hierarchy Node * Bounding Box Count
-			dim3 boundingSphereBlock(1024);
-			dim3 boundingSphereGrid((hierarchyNodeTotal * boundingSphereTotal)/boundingSphereBlock.x + 1);
-				
-			#ifdef BLOCK_GRID_DEBUG
-				cout << "[CreateHierarchyLevel0Hits] Block = " << boundingSphereBlock.x << " Threads " << "Grid = " << boundingSphereGrid.x << " Blocks" << endl;
-			#endif
-
-			CalculateBoundingSpheresIntersections<<<boundingSphereGrid, boundingSphereBlock>>>(
-				hierarchyArray, 
-				boundingSphereArray,
-				boundingSphereTotal,
-				triangleTotal,
-				triangleOffset,
-				hierarchyNodeOffset, 
-				hierarchyNodeTotal, 
-				headFlagsArray);
-
-			// Create the Trim Scan Array
-			Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
-
 			// Grid based on the Hierarchy Hit Count
-			dim3 hitMaximumBlock(1024);
-			dim3 hitMaximumGrid(hitMaximum/hitMaximumBlock.x + 1);
+			dim3 hitTotalBlock(1024);
+			dim3 hitTotalGrid(hitTotal/hitTotalBlock.x + 1);
 
-			#ifdef BLOCK_GRID_DEBUG
-				cout << "[CreateHierarchyLevel0Hits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
-			#endif
+			// If we're using CRSH
+			if(algorithmID == 0) {
 
-			CreateHierarchyBoundingSphereHits<<<hitMaximumGrid, hitMaximumBlock>>>(
-				triangleTotal,
-				triangleOffset,
-				hierarchyNodeOffset, 
-				hierarchyNodeTotal, 
-				scanArray, 
-				headFlagsArray,
-				hierarchyHitsArray);
+				CreateCRSHHierarchyLevel0Hits<<<hitTotalGrid, hitTotalBlock>>>(
+					hierarchyArray,
+					trianglePositionsArray,
+					triangleTotal,
+					triangleOffset,
+					hitTotal,
+					hierarchyNodeOffset,
+					hierarchyNodeTotal,
+					headFlagsArray,
+					hierarchyHitsArray,
+					trimmedHierarchyHitsArray);
+			}
+			// If we're using RAH
+			else {
+
+				CreateRAHHierarchyLevel0Hits<<<hitTotalGrid, hitTotalBlock>>>(
+					hierarchyArray,
+					trianglePositionsArray,
+					triangleTotal,
+					triangleOffset,
+					hitTotal,
+					hierarchyNodeOffset,
+					hierarchyNodeTotal,
+					headFlagsArray,
+					hierarchyHitsArray,
+					trimmedHierarchyHitsArray);
+			}
 
 			// Create the Trim Scan Array
-			Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+			Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitTotal));
 
 			#ifdef BLOCK_GRID_DEBUG
 				cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
 			#endif
 
-			CreateTrimmedHierarchyHits<<<hitMaximumGrid, hitMaximumBlock>>>(
+			CreateTrimmedHierarchyHits<<<hitTotalGrid, hitTotalBlock>>>(
 				hierarchyHitsArray,
 				scanArray,
-				hitMaximum,
+				hitTotal,
 				trimmedHierarchyHitsArray);
 
-			// Calculate the Hits Missed for this Level
-			int missedHitTotal;
 			// Check the Hit Total (last position of the scan array) 
-			Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+			Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitTotal - 1], sizeof(int), cudaMemcpyDeviceToHost));
 
 			// Calculate the Hit Total for this Level
-			hitTotal = hitMaximum - missedHitTotal;
+			*hierarchyHitTotal = hitTotal - missedHitTotal;
 
 			#ifdef TRAVERSAL_DEBUG
-				fs << "[Bounding Volume Intersections]" << " Hit Maximum = " << hitMaximum << endl;
-				fs << "[Bounding Volume Intersections]" << " Missed Hit Total = " << missedHitTotal << endl;
-				fs << "[Bounding Volume Intersections]" << " Connected Hit Total : " << hitTotal << endl;
-				//cout << "[Bounding Volume Intersections]" << " Hit Maximum = " << hitMaximum << endl;
-				//cout << "[Bounding Volume Intersections]" << " Missed Hit Total = " << missedHitTotal << endl;
-				//cout << "[Bounding Volume Intersections]" << " Connected Hit Total : " << hitTotal << endl;
+				testManager->incrementMaximumHitTotal(hitMaximum);
+				testManager->incrementMissedHitTotal(missedHitTotal);
+				testManager->incrementConnectedHitTotal(hitTotal);
 			#endif
 
-		#else
-
-			// Calculate the Hits Missed for this Level
-			int missedHitTotal;
-
-			// Calculate the Hit Total for this Level
-			hitTotal = hitMaximum;
-		#endif
-
-		if(hitTotal == 0) {
-
-			// Calculate the Hit Total for this Level
-			*hierarchyHitTotal = hitTotal;
-
-			return;
-		}
-
-		// Clean the Head Flags Array
-		PrepareArray<<<grid, block>>>(0, hitMaximum, headFlagsArray);
-
-		// Grid based on the Hierarchy Hit Count
-		dim3 hitTotalBlock(1024);
-		dim3 hitTotalGrid(hitTotal/hitTotalBlock.x + 1);
-
-		CreateHierarchyLevel0Hits<<<hitTotalGrid, hitTotalBlock>>>(
-			hierarchyArray,
-			trianglePositionsArray,
-			triangleTotal,
-			triangleOffset,
-			hitTotal,
-			hierarchyNodeOffset,
-			hierarchyNodeTotal,
-			headFlagsArray,
-			hierarchyHitsArray,
-			trimmedHierarchyHitsArray);
-
-		// Create the Trim Scan Array
-		Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitTotal));
-
-		#ifdef BLOCK_GRID_DEBUG
-			cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
-		#endif
-
-		CreateTrimmedHierarchyHits<<<hitTotalGrid, hitTotalBlock>>>(
-			hierarchyHitsArray,
-			scanArray,
-			hitTotal,
-			trimmedHierarchyHitsArray);
-
-		// Check the Hit Total (last position of the scan array) 
-		Utility::checkCUDAError("HierarchyTraversalWarmUpWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitTotal - 1], sizeof(int), cudaMemcpyDeviceToHost));
-
-		// Calculate the Hit Total for this Level
-		*hierarchyHitTotal = hitTotal - missedHitTotal;
-		
-		#ifdef TRAVERSAL_DEBUG
-			fs << "[Traversal Level " << 1 << "]" << " Hit Maximum = " << hitTotal << endl;
-			fs << "[Traversal Level " << 1 << "]" << " Missed Hit Total = " << missedHitTotal << endl;
-			fs << "[Traversal Level " << 1 << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
-			//cout << "[Traversal Level " << 1 << "]" << " Hit Maximum = " << hitTotal << endl;
-			//cout << "[Traversal Level " << 1 << "]" << " Missed Hit Total = " << missedHitTotal << endl;
-			//cout << "[Traversal Level " << 1 << "]" << " Connected Hit Total : " << *hierarchyHitTotal << endl;
-		#endif
-
-		fs.close();
-
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Hierarchy Traversal Warmup: " << kernelTimer.ElapsedMillis() << endl;
-
-		#endif
+		//#ifdef TIMER_DEBUG
+		//	testManager->stopTimer(TestManager::hierarchyTraversalTimerID);
+		//#endif
 	}
 
 	void HierarchyTraversalWrapper(
@@ -2910,134 +2744,88 @@ extern "C" {
 							// Output Variable containing the Hierarchy Hit Memory Size.
 							unsigned int* hierarchyHitMemoryTotal) {
 
-		#ifdef KERNEL_TIMER
+		//#ifdef TIMER_DEBUG
+		//	testManager->startTimer(TestManager::hierarchyTraversalTimerID);
+		//#endif
 
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
-		#endif
-
-		ostringstream ss;
-		ss << "tests/traversal-test-" << sceneID << ".txt";
-
-		ofstream fs;
-		fs.open(ss.str(), ofstream::out | ofstream::app);
-
-		// Calculate the Nodes Offset and Total
-		unsigned int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
-		unsigned int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
+			// Calculate the Nodes Offset and Total
+			unsigned int hierarchyNodeOffset[HIERARCHY_MAXIMUM_DEPTH];
+			unsigned int hierarchyNodeTotal[HIERARCHY_MAXIMUM_DEPTH];
 		
-		hierarchyNodeOffset[0] = 0;
-		hierarchyNodeTotal[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+			hierarchyNodeOffset[0] = 0;
+			hierarchyNodeTotal[0] = rayTotal / HIERARCHY_SUBDIVISION + (rayTotal % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
 
-		for(unsigned int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
+			for(unsigned int i=1; i<HIERARCHY_MAXIMUM_DEPTH; i++) {
 
-			hierarchyNodeOffset[i] = hierarchyNodeTotal[i-1] + hierarchyNodeOffset[i-1];
-			hierarchyNodeTotal[i] = hierarchyNodeTotal[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
-		}
+				hierarchyNodeOffset[i] = hierarchyNodeTotal[i-1] + hierarchyNodeOffset[i-1];
+				hierarchyNodeTotal[i] = hierarchyNodeTotal[i-1] / HIERARCHY_SUBDIVISION + (hierarchyNodeTotal[i-1] % HIERARCHY_SUBDIVISION != 0 ? 1 : 0);
+			}
 
-		#ifdef TRAVERSAL_DEBUG
-			fs << "::HierarchyTraversalWrapper::" << endl;
-			//cout << "::HierarchyTraversalWrapper::" << endl;
-		#endif
+			// Create the Hierarchy Hit Arrays
+			for(int hierarchyLevel=HIERARCHY_MAXIMUM_DEPTH-2; hierarchyLevel>=0; hierarchyLevel--) {
 
-		// Create the Hierarchy Hit Arrays
-		for(int hierarchyLevel=HIERARCHY_MAXIMUM_DEPTH-2; hierarchyLevel>=0; hierarchyLevel--) {
+				if((*hierarchyHitTotal) == 0)
+					return;
 
-			if((*hierarchyHitTotal) == 0)
-				return;
+				// Calculate the Hit Maximum for this Level
+				unsigned int hitMaximum = *hierarchyHitTotal * HIERARCHY_SUBDIVISION;
+				unsigned int hitTotal = *hierarchyHitTotal;
 
-			// Calculate the Hit Maximum for this Level
-			unsigned int hitMaximum = *hierarchyHitTotal * HIERARCHY_SUBDIVISION;
-			unsigned int hitTotal = *hierarchyHitTotal;
-
-			#ifdef TRAVERSAL_DEBUG
-				fs << "[Traversal Level  "<< hierarchyLevel << "] Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
 				//cout << "[Traversal Level  "<< hierarchyLevel << "] Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
-			#endif
 
-			// Grid based on the Hierarchy Hit Total
-			dim3 hitTotalBlock(1024);
-			dim3 hitTotalGrid(hitTotal/hitTotalBlock.x + 1);
+				// Grid based on the Hierarchy Hit Total
+				dim3 hitTotalBlock(1024);
+				dim3 hitTotalGrid(hitTotal/hitTotalBlock.x + 1);
 				
-			#ifdef BLOCK_GRID_DEBUG
-				cout << "[CreateHierarchyLevelNHits] Block = " << hitTotalBlock.x << " Threads " << "Grid = " << hitTotalGrid.x << " Blocks" << endl;
-			#endif
+				#ifdef BLOCK_GRID_DEBUG
+					cout << "[CreateHierarchyLevelNHits] Block = " << hitTotalBlock.x << " Threads " << "Grid = " << hitTotalGrid.x << " Blocks" << endl;
+				#endif
 				
-			CreateHierarchyLevelNHits<<<hitTotalGrid, hitTotalBlock>>>(
-				hierarchyArray,
-				trianglePositionsArray,
-				triangleTotal,
-				triangleOffset,
-				hitTotal,
-				hierarchyNodeOffset[hierarchyLevel],
-				hierarchyNodeTotal[hierarchyLevel],
-				headFlagsArray,
-				hierarchyHitsArray, trimmedHierarchyHitsArray);
+				CreateHierarchyLevelNHits<<<hitTotalGrid, hitTotalBlock>>>(
+					hierarchyArray,
+					trianglePositionsArray,
+					triangleTotal,
+					triangleOffset,
+					hitTotal,
+					hierarchyNodeOffset[hierarchyLevel],
+					hierarchyNodeTotal[hierarchyLevel],
+					headFlagsArray,
+					hierarchyHitsArray, trimmedHierarchyHitsArray);
 
-			// Create the Trim Scan Array
-			Utility::checkCUDAError("HierarchyTraversalWrapper::cub::DeviceScan::InclusiveSum(22)", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+				// Create the Trim Scan Array
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cub::DeviceScan::InclusiveSum(22)", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
 
-			// Grid based on the Hierarchy Hit Count
-			dim3 hitMaximumBlock(1024);
-			dim3 hitMaximumGrid(hitMaximum / hitMaximumBlock.x + 1);
+				// Grid based on the Hierarchy Hit Count
+				dim3 hitMaximumBlock(1024);
+				dim3 hitMaximumGrid(hitMaximum / hitMaximumBlock.x + 1);
 				
-			#ifdef BLOCK_GRID_DEBUG
-				cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
-			#endif
+				#ifdef BLOCK_GRID_DEBUG
+					cout << "[CreateTrimmedHierarchyHits] Block = " << hitMaximumBlock.x << " Threads " << "Grid = " << hitMaximumGrid.x << " Blocks" << endl;
+				#endif
 
-			CreateTrimmedHierarchyHits<<<hitMaximumGrid, hitMaximumBlock>>>(
-				hierarchyHitsArray,
-				scanArray,
-				hitMaximum,
-				trimmedHierarchyHitsArray);
+				CreateTrimmedHierarchyHits<<<hitMaximumGrid, hitMaximumBlock>>>(
+					hierarchyHitsArray,
+					scanArray,
+					hitMaximum,
+					trimmedHierarchyHitsArray);
 
-			// Calculate the Hits Missed for this Level
-			int missedHitTotal;
-			// Check the Hit Total (last position of the scan array) 
-			Utility::checkCUDAError("HierarchyTraversalWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
+				// Calculate the Hits Missed for this Level
+				int missedHitTotal;
+				// Check the Hit Total (last position of the scan array) 
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
 			
-			// Calculate the Hit Total for this Level
-			*hierarchyHitTotal = hitMaximum - missedHitTotal;
+				// Calculate the Hit Total for this Level
+				*hierarchyHitTotal = hitMaximum - missedHitTotal;
 
-			#ifdef TRAVERSAL_DEBUG
-				fs << "[Traversal Level  "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
-				fs << "[Traversal Level  "<< hierarchyLevel << "] Missed Hit Total = " << missedHitTotal << endl;
-				fs << "[Traversal Level  "<< hierarchyLevel << "] Connected Hit Total : " << *hierarchyHitTotal << endl;
-				//cout << "[Traversal Level  "<< hierarchyLevel << "] Hit Maximum = " << hitMaximum << endl;
-				//cout << "[Traversal Level  "<< hierarchyLevel << "] Missed Hit Total = " << missedHitTotal << endl;
-				//cout << "[Traversal Level  "<< hierarchyLevel << "] Connected Hit Total : " << *hierarchyHitTotal << endl;
-			#endif
-		}
-		
-		#ifdef TRAVERSAL_DEBUG
-			fs << "Ray Total: " << rayTotal << endl;
-			//cout << "Ray Total: " << rayTotal << endl;
-		#endif
+				#ifdef TRAVERSAL_DEBUG
+					testManager->incrementMaximumHitTotal(hitMaximum);
+					testManager->incrementMissedHitTotal(missedHitTotal);
+					testManager->incrementConnectedHitTotal(hitTotal);
+				#endif
+			}
 
-		fs.close();
-
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Hierarchy Traversal: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::hierarchyTraversalTimerID);
 		#endif
 	}
 
@@ -3053,16 +2841,12 @@ extern "C" {
 		dim3 block(1024);
 		dim3 grid(windowWidth*windowHeight*lightTotal/ block.x + 1);
 
-		//dim3 block(32,32);
-		//dim3 grid(windowWidth*windowHeight*lightTotal/ block.x + 1);
-
 		#ifdef BLOCK_GRID_DEBUG 
 			cout << "[PrepareArray] Grid = " << grid.x << endl;
 		#endif
 
 		// Prepare the Array
 		PrepareArray<<<grid, block>>>(0, windowWidth * windowHeight * lightTotal, shadowFlagsArray);
-		//PrepareArray2<<<grid, block>>>(0, windowWidth, windowHeight, shadowFlagsArray);
 	}
 
 	void ShadowRayIntersectionWrapper(
@@ -3088,55 +2872,33 @@ extern "C" {
 							// Output Array containing the Shadow Ray Flags.
 							unsigned int* shadowFlagsArray) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::intersectionTimerID);
 		#endif
 
-		// Grid based on the Hierarchy Hit Count
-		dim3 intersectionBlock(1024);
-		dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
+			// Grid based on the Hierarchy Hit Count
+			dim3 intersectionBlock(1024);
+			dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
 
-		#ifdef BLOCK_GRID_DEBUG 
-			cout << "[CalculateShadowRayIntersections] Grid = " << intersectionGrid.x << endl;
-		#endif
+			#ifdef BLOCK_GRID_DEBUG 
+				cout << "[CalculateShadowRayIntersections] Grid = " << intersectionGrid.x << endl;
+			#endif
 
-		// Local Intersection
-		CalculateShadowRayIntersections<<<intersectionGrid, intersectionBlock>>>(
-			rayArray, 
-			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
-			hierarchyHitsArray,
-			trianglePositionsArray,
-			hitTotal,
-			rayTotal,
-			triangleOffset,
-			windowWidth, windowHeight,
-			cameraPosition,
-			shadowFlagsArray);
+			// Local Intersection
+			CalculateShadowRayIntersections<<<intersectionGrid, intersectionBlock>>>(
+				rayArray, 
+				sortedRayIndexKeysArray, sortedRayIndexValuesArray,
+				hierarchyHitsArray,
+				trianglePositionsArray,
+				hitTotal,
+				rayTotal,
+				triangleOffset,
+				windowWidth, windowHeight,
+				cameraPosition,
+				shadowFlagsArray);
 
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Shadow Intersection: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::intersectionTimerID);
 		#endif
 	}
 
@@ -3152,16 +2914,24 @@ extern "C" {
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 
-		// Grid based on the Screen Dimensions.
-		dim3 colouringBlock(32,32);
-		dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
-
-		#ifdef BLOCK_GRID_DEBUG 
-			cout << "[ColorPrimaryShadowRay] Grid = " << colouringGrid.x << "," << colouringGrid.y << endl;
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::shadingTimerID);
 		#endif
 
-		// Colour the Screen
-		ColorPrimaryShadowRay<<<colouringGrid, colouringBlock>>>(windowWidth, windowHeight, lightTotal, cameraPosition, shadowFlagsArray, pixelBufferObject);
+			// Grid based on the Screen Dimensions.
+			dim3 colouringBlock(32,32);
+			dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+
+			#ifdef BLOCK_GRID_DEBUG 
+				cout << "[ColorPrimaryShadowRay] Grid = " << colouringGrid.x << "," << colouringGrid.y << endl;
+			#endif
+
+			// Colour the Screen
+			ColorPrimaryShadowRay<<<colouringGrid, colouringBlock>>>(windowWidth, windowHeight, lightTotal, cameraPosition, shadowFlagsArray, pixelBufferObject);
+
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::shadingTimerID);
+		#endif
 	}
 
 	void ReflectionRayPreparationWrapper(
@@ -3207,56 +2977,34 @@ extern "C" {
 							// Auxiliary Array containing the Intersection Times.
 							unsigned int* intersectionTimeArray) {
 
-		#ifdef KERNEL_TIMER
-
-			// File Opening
-			ostringstream ss;
-			ss << "tests/timer-" << sceneID << ".txt";
-			// File Opening
-			ofstream fs;
-			fs.open(ss.str(), ofstream::out | ofstream::app);
-
-			// Kernel Timer
-			GpuTimer kernelTimer;
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Start the Timer
-			kernelTimer.Start();
-
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::intersectionTimerID);
 		#endif
 
-		// Grid based on the Hierarchy Hit Count
-		dim3 intersectionBlock(1024);
-		dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
+			// Grid based on the Hierarchy Hit Count
+			dim3 intersectionBlock(1024);
+			dim3 intersectionGrid(hitTotal / intersectionBlock.x + 1);
 
-		#ifdef BLOCK_GRID_DEBUG 
-			cout << "[CalculateReflectionRayIntersections] Grid = " << intersectionGrid.x << endl;
-		#endif
+			#ifdef BLOCK_GRID_DEBUG 
+				cout << "[CalculateReflectionRayIntersections] Grid = " << intersectionGrid.x << endl;
+			#endif
 
-		// Local Intersection
-		CalculateReflectionRayIntersections<<<intersectionGrid, intersectionBlock>>>(
-			rayArray,
-			sortedRayIndexKeysArray, sortedRayIndexValuesArray,
-			hierarchyHitsArray,
-			trianglePositionsArray,
-			hitTotal,
-			rayTotal,
-			triangleOffset,
-			windowWidth, windowHeight,
-			lightTotal,
-			cameraPosition,
-			intersectionTimeArray);
+			// Local Intersection
+			CalculateReflectionRayIntersections<<<intersectionGrid, intersectionBlock>>>(
+				rayArray,
+				sortedRayIndexKeysArray, sortedRayIndexValuesArray,
+				hierarchyHitsArray,
+				trianglePositionsArray,
+				hitTotal,
+				rayTotal,
+				triangleOffset,
+				windowWidth, windowHeight,
+				lightTotal,
+				cameraPosition,
+				intersectionTimeArray);
 
-		#ifdef KERNEL_TIMER
-
-			// Make sure there isn't a Kernel Running
-			Utility::checkCUDAEror("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-			// Stop the Timer
-			kernelTimer.Stop();
-
-			fs << "Reflection Intersection: " << kernelTimer.ElapsedMillis() << endl;
-
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::intersectionTimerID);
 		#endif
 	}
 
@@ -3285,41 +3033,49 @@ extern "C" {
 							// Output Array containing the Screen Buffer.
 							unsigned int *pixelBufferObject) {
 
-		if(createRays == false) {
+		#ifdef TIMER_DEBUG
+			testManager->startTimer(TestManager::shadingTimerID);
+		#endif
 
-			// Grid based on the Screen Dimensions.
-			dim3 colouringBlock(32,32);
-			dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+			if(createRays == false) {
 
-			// Colour the Screen
-			ColorReflectionRay<<<colouringGrid, colouringBlock>>>(
-				rayArray,
-				trianglePositionsArray, triangleNormalsArray,
-				windowWidth, windowHeight,
-				lightTotal,
-				cameraPosition,
-				intersectionTimeArray,
-				pixelBufferObject);
-		}
-		else {
+				// Grid based on the Screen Dimensions.
+				dim3 colouringBlock(32,32);
+				dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
 
-			// Grid based on the Screen Dimensions.
-			dim3 colouringBlock(32,32);
-			dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+				// Colour the Screen
+				ColorReflectionRay<<<colouringGrid, colouringBlock>>>(
+					rayArray,
+					trianglePositionsArray, triangleNormalsArray,
+					windowWidth, windowHeight,
+					lightTotal,
+					cameraPosition,
+					intersectionTimeArray,
+					pixelBufferObject);
+			}
+			else {
 
-			// Colour the Screen
-			ColorAndCreateReflectionRay<<<colouringGrid, colouringBlock>>>(
-				rayArray,
-				trianglePositionsArray, triangleNormalsArray,
-				windowWidth, windowHeight,
-				lightTotal,
-				cameraPosition,
-				intersectionTimeArray,
-				headFlagsArray, 
-				rayIndexKeysArray, 
-				rayIndexValuesArray,
-				pixelBufferObject);
-		}
+				// Grid based on the Screen Dimensions.
+				dim3 colouringBlock(32,32);
+				dim3 colouringGrid(windowWidth/colouringBlock.x + 1, windowHeight/colouringBlock.y + 1);
+
+				// Colour the Screen
+				ColorAndCreateReflectionRay<<<colouringGrid, colouringBlock>>>(
+					rayArray,
+					trianglePositionsArray, triangleNormalsArray,
+					windowWidth, windowHeight,
+					lightTotal,
+					cameraPosition,
+					intersectionTimeArray,
+					headFlagsArray, 
+					rayIndexKeysArray, 
+					rayIndexValuesArray,
+					pixelBufferObject);
+			}
+
+		#ifdef TIMER_DEBUG
+			testManager->stopTimer(TestManager::shadingTimerID);
+		#endif
 	}
 
 	void AntiAliasingWrapper(
