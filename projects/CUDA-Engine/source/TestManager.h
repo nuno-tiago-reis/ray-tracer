@@ -10,6 +10,9 @@
 // CUDA definitions
 #include <cuda_runtime.h>
 
+// Utility
+#include "Constants.h"
+
 // CUB Timer
 struct GpuTimer {
 
@@ -87,19 +90,19 @@ class TestManager {
 		// Debug Timer Map
 		map<int, GpuTimer*> timerMap;
 
-		// Maximum Hit Total
-		int maximumHitTotal;
-		// Missed Hit Total
-		int missedHitTotal;
-		// Connected Hit Total
-		int connectedHitTotal;
+		// Accumulated Maximum Hit Total
+		int accumulatedMaximumHitTotal;
+		// Accumulated Missed Hit Total
+		int accumulatedMissedHitTotal;
+		// Accumulated Connected Hit Total
+		int accumulatedConnectedHitTotal;
 
-		// Current Maximum Hit Total
-		int currentMaximumHitTotal;
-		// Current Missed Hit Total
-		int currentMissedHitTotal;
-		// Current Connected Hit Total
-		int currentConnectedHitTotal;
+		// Final Maximum Hit Total
+		int finalMaximumHitTotal;
+		// Final Missed Hit Total
+		int finalMissedHitTotal;
+		// Final Connected Hit Total
+		int finalConnectedHitTotal;
 
 		/* Constructors & Destructors - Private due to Singleton */
 		TestManager();
@@ -116,34 +119,38 @@ class TestManager {
 		void stopTimer(int timerID);
 
 		// Incrementers
-		void incrementMaximumHitTotal(int maximumHitTotal);
-		void incrementMissedHitTotal(int missedHitTotal);
-		void incrementConnectedHitTotal(int connectedHitTotal);
+		void incrementAccumulatedMaximumHitTotal(int maximumHitTotal);
+		void incrementAccumulatedMissedHitTotal(int missedHitTotal);
+		void incrementAccumulatedConnectedHitTotal(int connectedHitTotal);
+
+		void incrementFinalMaximumHitTotal(int maximumHitTotal);
+		void incrementFinalMissedHitTotal(int missedHitTotal);
+		void incrementFinalConnectedHitTotal(int connectedHitTotal);
 
 		// Getters
 		GpuTimer* getTimer(int timerID);
 
-		int getMaximumHitTotal();
-		int getMissedHitTotal();
-		int getConnectedHitTotal();
+		int getAccumulatedMaximumHitTotal();
+		int getAccumulatedMissedHitTotal();
+		int getAccumulatedConnectedHitTotal();
 
-		int getCurrentMaximumHitTotal();
-		int getCurrentMissedHitTotal();
-		int getCurrentConnectedHitTotal();
+		int getFinalMaximumHitTotal();
+		int getFinalMissedHitTotal();
+		int getFinalConnectedHitTotal();
 
 		// Setters
 		void setTimer(GpuTimer* timer, int timerID);
 
-		void setMaximumHitTotal(int maximumHitTotal);
-		void setMissedHitTotal(int missedHitTotal);
-		void setConnectedHitTotal(int connectedHitTotal);
+		void setAccumulatedMaximumHitTotal(int accumulatedMaximumHitTotal);
+		void setAccumulatedMissedHitTotal(int accumulatedMissedHitTotal);
+		void setAccumulatedConnectedHitTotal(int accumulatedConnectedHitTotal);
 
-		void setCurrentMaximumHitTotal(int currentMaximumHitTotal);
-		void setCurrentMissedHitTotal(int currentMissedHitTotal);
-		void setCurrentConnectedHitTotal(int currentConnectedHitTotal);
+		void setFinalMaximumHitTotal(int finalMaximumHitTotal);
+		void setFinalMissedHitTotal(int finalMissedHitTotal);
+		void setFinalConnectedHitTotal(int finalConnectedHitTotal);
 
 		// Dump
-		void dump(int algorithmID, int sceneID, int iterationID, int rayTotal);
+		void dump(int algorithmID, int sceneID, int iterationID, int rayTotal, int triangleTotal);
 };
 
 #endif

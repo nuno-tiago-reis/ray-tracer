@@ -2711,9 +2711,24 @@ extern "C" {
 			*hierarchyHitTotal = hitTotal - missedHitTotal;
 
 			#ifdef TRAVERSAL_DEBUG
-				testManager->incrementMaximumHitTotal(hitMaximum);
-				testManager->incrementMissedHitTotal(missedHitTotal);
-				testManager->incrementConnectedHitTotal(hitTotal);
+
+				/*ofstream filestream;
+				filestream.open("tests/output.txt", ofstream::out | ofstream::app);
+
+				filestream << "\n::NEW ITERATION [2]::\n" << endl;
+
+				filestream.close();*/
+
+				testManager->incrementAccumulatedMaximumHitTotal(hitMaximum);
+				testManager->incrementAccumulatedMissedHitTotal(missedHitTotal);
+				testManager->incrementAccumulatedConnectedHitTotal(*hierarchyHitTotal);
+
+				if(triangleOffset == 0) {
+				
+					testManager->setFinalMaximumHitTotal(0);
+					testManager->setFinalMissedHitTotal(0);
+					testManager->setFinalConnectedHitTotal(0);
+				}
 			#endif
 
 		//#ifdef TIMER_DEBUG
@@ -2818,9 +2833,24 @@ extern "C" {
 				*hierarchyHitTotal = hitMaximum - missedHitTotal;
 
 				#ifdef TRAVERSAL_DEBUG
-					testManager->incrementMaximumHitTotal(hitMaximum);
-					testManager->incrementMissedHitTotal(missedHitTotal);
-					testManager->incrementConnectedHitTotal(hitTotal);
+					
+					/*ofstream filestream;
+					filestream.open("tests/output.txt", ofstream::out | ofstream::app);
+	
+					filestream << "\n::NEW ITERATION [" << hierarchyLevel << "]::\n" << endl;
+
+					filestream.close();*/
+
+					testManager->incrementAccumulatedMaximumHitTotal(hitMaximum);
+					testManager->incrementAccumulatedMissedHitTotal(missedHitTotal);
+					testManager->incrementAccumulatedConnectedHitTotal(*hierarchyHitTotal);
+					
+					if(hierarchyLevel == 0) {
+
+						testManager->incrementFinalMaximumHitTotal(hitMaximum);
+						testManager->incrementFinalMissedHitTotal(missedHitTotal);
+						testManager->incrementFinalConnectedHitTotal(*hierarchyHitTotal);
+					}
 				#endif
 			}
 

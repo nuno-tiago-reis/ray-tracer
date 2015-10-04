@@ -25,7 +25,7 @@
 #define HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM 10000
 
 // Ray-Tracing Hierarchy Depth Constants
-#define HIERARCHY_MAXIMUM_DEPTH 3
+#define HIERARCHY_MAXIMUM_DEPTH 2
 #define HIERARCHY_SUBDIVISION 8
 
 // Mode Constants

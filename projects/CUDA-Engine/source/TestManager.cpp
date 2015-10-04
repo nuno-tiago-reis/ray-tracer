@@ -27,19 +27,19 @@ int TestManager::shadingTimerID = 8;
 
 TestManager::TestManager() {
 
-	// Initialize the Maximum Hit Total
-	this->maximumHitTotal = 0;
-	// Initialize the Missed Hit Total
-	this->missedHitTotal = 0;
-	// Initialize the Connected Hit Total
-	this->connectedHitTotal = 0;
+	// Initialize the Accumulated Maximum Hit Total
+	this->accumulatedMaximumHitTotal = 0;
+	// Initialize the Accumulated Missed Hit Total
+	this->accumulatedMissedHitTotal = 0;
+	// Initialize the Accumulated Connected Hit Total
+	this->accumulatedConnectedHitTotal = 0;
 
-	// Initialize the Current Maximum Hit Total
-	this->currentMaximumHitTotal = 0;
-	// Initialize the Current Missed Hit Total
-	this->currentMissedHitTotal = 0;
-	// Initialize the Current Connected Hit Total
-	this->currentConnectedHitTotal = 0;
+	// Initialize the Final Maximum Hit Total
+	this->finalMaximumHitTotal = 0;
+	// Initialize the Final Missed Hit Total
+	this->finalMissedHitTotal = 0;
+	// Initialize the Final Connected Hit Total
+	this->finalConnectedHitTotal = 0;
 }
 
 TestManager::~TestManager() {
@@ -90,25 +90,55 @@ void TestManager::stopTimer(int timerID) {
 	Utility::checkCUDAError("TestManager::GpuTimer::Stop()", cudaGetLastError());
 }
 
-void TestManager::incrementMaximumHitTotal(int maximumHitTotal) {
+void TestManager::incrementAccumulatedMaximumHitTotal(int maximumHitTotal) {
 
-	this->maximumHitTotal += maximumHitTotal;
+	this->accumulatedMaximumHitTotal += maximumHitTotal;
 
-	this->currentMaximumHitTotal = maximumHitTotal;
+	/*ofstream filestream;
+	filestream.open("tests/output.txt", ofstream::out | ofstream::app);
+
+	filestream << "[Adding] Maximum Hits:\t" << maximumHitTotal << endl;
+
+	filestream.close();*/
 }
 
-void TestManager::incrementMissedHitTotal(int missedHitTotal) {
+void TestManager::incrementAccumulatedMissedHitTotal(int missedHitTotal) {
+	
+	this->accumulatedMissedHitTotal += missedHitTotal;
 
-	this->missedHitTotal += missedHitTotal;
+	/*ofstream filestream;
+	filestream.open("tests/output.txt", ofstream::out | ofstream::app);
 
-	this->currentMissedHitTotal = missedHitTotal;
+	filestream << "[Adding] Missed Hits:\t" << missedHitTotal << endl;
+
+	filestream.close();*/
 }
 
-void TestManager::incrementConnectedHitTotal(int connectedHitTotal) {
+void TestManager::incrementAccumulatedConnectedHitTotal(int connectedHitTotal) {
+	
+	this->accumulatedConnectedHitTotal += connectedHitTotal;
 
-	this->connectedHitTotal += connectedHitTotal;
+	/*ofstream filestream;
+	filestream.open("tests/output.txt", ofstream::out | ofstream::app);
 
-	this->currentConnectedHitTotal = connectedHitTotal;
+	filestream << "[Adding] Connected Hits:\t" << connectedHitTotal << endl;
+
+	filestream.close();*/
+}
+
+void TestManager::incrementFinalMaximumHitTotal(int maximumHitTotal) {
+
+	this->finalMaximumHitTotal += maximumHitTotal;
+}
+
+void TestManager::incrementFinalMissedHitTotal(int missedHitTotal) {
+	
+	this->finalMissedHitTotal += missedHitTotal;
+}
+
+void TestManager::incrementFinalConnectedHitTotal(int connectedHitTotal) {
+	
+	this->finalConnectedHitTotal += connectedHitTotal;
 }
 
 GpuTimer* TestManager::getTimer(int timerID) {
@@ -116,34 +146,34 @@ GpuTimer* TestManager::getTimer(int timerID) {
 	return this->timerMap[timerID];
 }
 
-int TestManager::getMaximumHitTotal() {
+int TestManager::getAccumulatedMaximumHitTotal() {
 
-	return this->maximumHitTotal;
+	return this->accumulatedMaximumHitTotal;
 }
 
-int TestManager::getMissedHitTotal() {
+int TestManager::getAccumulatedMissedHitTotal() {
 
-	return this->missedHitTotal;
+	return this->accumulatedMissedHitTotal;
 }
 
-int TestManager::getConnectedHitTotal() {
+int TestManager::getAccumulatedConnectedHitTotal() {
 
-	return this->connectedHitTotal;
+	return this->accumulatedConnectedHitTotal;
 }
 
-int TestManager::getCurrentMaximumHitTotal() {
+int TestManager::getFinalMaximumHitTotal() {
 
-	return this->currentMaximumHitTotal;
+	return this->finalMaximumHitTotal;
 }
 
-int TestManager::getCurrentMissedHitTotal() {
+int TestManager::getFinalMissedHitTotal() {
 
-	return this->currentMissedHitTotal;
+	return this->finalMissedHitTotal;
 }
 
-int TestManager::getCurrentConnectedHitTotal() {
+int TestManager::getFinalConnectedHitTotal() {
 
-	return this->currentConnectedHitTotal;
+	return this->finalConnectedHitTotal;
 }
 
 void TestManager::setTimer(GpuTimer* timer, int timerID) {
@@ -151,53 +181,53 @@ void TestManager::setTimer(GpuTimer* timer, int timerID) {
 	this->timerMap[timerID] = timer;
 }
 
-void TestManager::setMaximumHitTotal(int maximumHitTotal) {
+void TestManager::setAccumulatedMaximumHitTotal(int accumulatedMaximumHitTotal) {
 
-	this->maximumHitTotal = maximumHitTotal;
+	this->accumulatedMaximumHitTotal = accumulatedMaximumHitTotal;
 }
 
-void TestManager::setMissedHitTotal(int missedHitTotal) {
+void TestManager::setAccumulatedMissedHitTotal(int accumulatedMissedHitTotal) {
 
-	this->missedHitTotal = missedHitTotal;
+	this->accumulatedMissedHitTotal = accumulatedMissedHitTotal;
 }
 
-void TestManager::setConnectedHitTotal(int connectedHitTotal) {
+void TestManager::setAccumulatedConnectedHitTotal(int accumulatedConnectedHitTotal) {
 
-	this->connectedHitTotal = connectedHitTotal;
+	this->accumulatedConnectedHitTotal = accumulatedConnectedHitTotal;
 }
 
-void TestManager::setCurrentMaximumHitTotal(int currentMaximumHitTotal) {
+void TestManager::setFinalMaximumHitTotal(int finalMaximumHitTotal) {
 
-	this->currentMaximumHitTotal = currentMaximumHitTotal;
+	this->finalMaximumHitTotal = finalMaximumHitTotal;
 }
 
-void TestManager::setCurrentMissedHitTotal(int currentMissedHitTotal) {
+void TestManager::setFinalMissedHitTotal(int finalMissedHitTotal) {
 
-	this->currentMissedHitTotal = currentMissedHitTotal;
+	this->finalMissedHitTotal = finalMissedHitTotal;
 }
 
-void TestManager::setCurrentConnectedHitTotal(int currentConnectedHitTotal) {
+void TestManager::setFinalConnectedHitTotal(int finalConnectedHitTotal) {
 
-	this->currentConnectedHitTotal = currentConnectedHitTotal;
+	this->finalConnectedHitTotal = finalConnectedHitTotal;
 }
 
-void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTotal) {
+void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTotal, int triangleTotal) {
 
 	ostringstream filename;
 	
 	// Append the Algorithm Name
 	if(algorithmID == 0)
-		filename << "tests/test-crsh-";
+		filename << "tests/test-crsh" << "-d" << HIERARCHY_MAXIMUM_DEPTH << "-n" << HIERARCHY_SUBDIVISION;
 	else
-		filename << "tests/test-rah-";
+		filename << "tests/test-rah" << "-d" << HIERARCHY_MAXIMUM_DEPTH << "-n" << HIERARCHY_SUBDIVISION;
 	
 	// Append the Scene Name
 	if(sceneID == 0)
-		filename << "office.txt";
+		filename << "-office.txt";
 	else if(sceneID == 1)
-		filename << "cornell.txt";
+		filename << "-cornell.txt";
 	else if(sceneID == 2)
-		filename << "sponza.txt";
+		filename << "-sponza.txt";
 
 	ofstream filestream;
 	filestream.open(filename.str(), ofstream::out | ofstream::app);
@@ -208,15 +238,23 @@ void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTot
 	else
 		filestream << "Reflection Ray Iteration " << iterationID << endl << endl;
 
-	// Intersection Results
-	filestream << "[Accumulated] Maximum Hit Total:\t" << this->maximumHitTotal << endl;
-	filestream << "[Accumulated] Missed Hit Total:\t" << this->missedHitTotal << endl;
-	filestream << "[Accumulated] Connected Hit Total:\t" << this->connectedHitTotal << endl;
+	// Test Setup
+	filestream << "Ray Total:\t" << rayTotal << endl;
+	filestream << "TriangleTotal:\t" << triangleTotal << endl;
 
-	// Current Intersection Results
-	filestream << "[Current] Maximum Hit Total:\t" << this->currentMaximumHitTotal << endl;
-	filestream << "[Current] Missed Hit Total:\t" << this->currentMissedHitTotal << endl;
-	filestream << "[Current] Connected Hit Total:\t" << this->currentConnectedHitTotal << endl;
+	// Intersection Results
+	filestream << "[Accumulated] Maximum Hit Total:\t" << this->accumulatedMaximumHitTotal << endl;
+	filestream << "[Accumulated] Missed Hit Total:\t" << this->accumulatedMissedHitTotal << endl;
+	filestream << "[Accumulated] Connected Hit Total:\t" << this->accumulatedConnectedHitTotal << endl;
+
+	// Final Intersection Results
+	filestream << "[Final] Maximum Hit Total:\t" << this->finalMaximumHitTotal << endl;
+	filestream << "[Final] Missed Hit Total:\t" << this->finalMissedHitTotal << endl;
+	filestream << "[Final] Connected Hit Total:\t" << this->finalConnectedHitTotal << endl;
+
+	// Algorithm Intersection Results
+	filestream << "[Algorithm] Brute Force Total:\t" << rayTotal * triangleTotal << endl;
+	filestream << "[Algorithm] Algorithm Total:\t" << this->accumulatedMaximumHitTotal + this->finalConnectedHitTotal * HIERARCHY_SUBDIVISION << endl;
 
 	// Timer Results
 	filestream << "[Timer] Ray Creation:\t" << this->timerMap[rayCreationTimerID]->ElapsedMillis() << endl; 

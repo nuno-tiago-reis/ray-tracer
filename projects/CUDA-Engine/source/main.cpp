@@ -1245,7 +1245,7 @@ void display() {
 
 			// Debug
 			TestManager* testManager = TestManager::getInstance();
-			testManager->dump(algorithmID, sceneID, i, rayTotal);
+			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
@@ -1265,7 +1265,7 @@ void display() {
 
 			// Debug
 			TestManager* testManager = TestManager::getInstance();
-			testManager->dump(algorithmID, sceneID, i, rayTotal);
+			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
 		}
 
 		// Cast the Reflection and Refraction Ray Batches
@@ -1282,7 +1282,7 @@ void display() {
 
 			// Debug
 			TestManager* testManager = TestManager::getInstance();
-			testManager->dump(algorithmID, sceneID, i, rayTotal);
+			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
 		}
 	}
 
