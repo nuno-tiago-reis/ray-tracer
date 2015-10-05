@@ -1,0 +1,92 @@
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	3436536
+[Accumulated] Missed Hit Total:	1645246
+[Accumulated] Connected Hit Total:	1791290
+[Final 3] Maximum Hit Total:	35280
+[Final 3] Missed Hit Total:	5874
+[Final 3] Connected Hit Total:	29406
+[Final 2] Maximum Hit Total:	235248
+[Final 2] Missed Hit Total:	134258
+[Final 2] Connected Hit Total:	100990
+[Final 1] Maximum Hit Total:	807920
+[Final 1] Missed Hit Total:	513159
+[Final 1] Connected Hit Total:	294761
+[Final 0] Maximum Hit Total:	2358088
+[Final 0] Missed Hit Total:	991955
+[Final 0] Connected Hit Total:	1366133
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	14365600
+[Timer] Ray Creation:	0.589184
+[Timer] Ray Trimming:	0.268384
+[Timer] Ray Compression:	0.350016
+[Timer] Ray Sorting:	0.479904
+[Timer] Ray Decompression:	2.3023
+[Timer] Hierarchy Creation:	2.25226
+[Timer] Hierarchy Traversal:	5.82528
+[Timer] Intersection:	35.8091
+[Timer] Shading:	0.886144
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	5691576
+[Accumulated] Missed Hit Total:	3493461
+[Accumulated] Connected Hit Total:	2198115
+[Final 3] Maximum Hit Total:	50688
+[Final 3] Missed Hit Total:	150
+[Final 3] Connected Hit Total:	50538
+[Final 2] Maximum Hit Total:	404304
+[Final 2] Missed Hit Total:	184854
+[Final 2] Connected Hit Total:	219450
+[Final 1] Maximum Hit Total:	1755600
+[Final 1] Missed Hit Total:	1320477
+[Final 1] Connected Hit Total:	435123
+[Final 0] Maximum Hit Total:	3480984
+[Final 0] Missed Hit Total:	1987980
+[Final 0] Connected Hit Total:	1493004
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	17635608
+[Timer] Ray Creation:	0.749568
+[Timer] Ray Trimming:	0.36048
+[Timer] Ray Compression:	0.437952
+[Timer] Ray Sorting:	0.717248
+[Timer] Ray Decompression:	1.41094
+[Timer] Hierarchy Creation:	2.69917
+[Timer] Hierarchy Traversal:	8.70643
+[Timer] Intersection:	35.8947
+[Timer] Shading:	1.22352
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	9642584
+[Accumulated] Missed Hit Total:	6651034
+[Accumulated] Connected Hit Total:	2991550
+[Final 3] Maximum Hit Total:	50688
+[Final 3] Missed Hit Total:	0
+[Final 3] Connected Hit Total:	50688
+[Final 2] Maximum Hit Total:	405504
+[Final 2] Missed Hit Total:	106875
+[Final 2] Connected Hit Total:	298629
+[Final 1] Maximum Hit Total:	2389032
+[Final 1] Missed Hit Total:	1539362
+[Final 1] Connected Hit Total:	849670
+[Final 0] Maximum Hit Total:	6797360
+[Final 0] Missed Hit Total:	5004797
+[Final 0] Connected Hit Total:	1792563
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	23983088
+[Timer] Ray Creation:	0.749568
+[Timer] Ray Trimming:	0.331072
+[Timer] Ray Compression:	0.49696
+[Timer] Ray Sorting:	0.730144
+[Timer] Ray Decompression:	1.12438
+[Timer] Hierarchy Creation:	2.61882
+[Timer] Hierarchy Traversal:	15.148
+[Timer] Intersection:	40.1408
+[Timer] Shading:	0.870368
+

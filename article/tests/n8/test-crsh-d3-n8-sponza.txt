@@ -1,0 +1,27 @@
+Shadow Ray Iteration
+Ray Total:	256713
+TriangleTotal:	66450
+[Accumulated] Maximum Hit Total:	118605540
+[Accumulated] Missed Hit Total:	99182784
+[Accumulated] Connected Hit Total:	19422756
+[Final 2] Maximum Hit Total:	33357900
+[Final 2] Missed Hit Total:	30437904
+[Final 2] Connected Hit Total:	2919996
+[Final 1] Maximum Hit Total:	23359968
+[Final 1] Missed Hit Total:	15624009
+[Final 1] Connected Hit Total:	7735959
+[Final 0] Maximum Hit Total:	61887672
+[Final 0] Missed Hit Total:	53120871
+[Final 0] Connected Hit Total:	8766801
+[Algorithm] Brute Force Total:	-121290334
+[Algorithm] Algorithm Total:	188739948
+[Timer] Ray Creation:	0.705824
+[Timer] Ray Trimming:	0.324832
+[Timer] Ray Compression:	0.35984
+[Timer] Ray Sorting:	0.499616
+[Timer] Ray Decompression:	1.80464
+[Timer] Hierarchy Creation:	2.53443
+[Timer] Hierarchy Traversal:	6.50733
+[Timer] Intersection:	14.8969
+[Timer] Shading:	0.602208
+

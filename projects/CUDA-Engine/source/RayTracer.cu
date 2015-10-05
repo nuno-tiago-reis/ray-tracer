@@ -2712,23 +2712,13 @@ extern "C" {
 
 			#ifdef TRAVERSAL_DEBUG
 
-				/*ofstream filestream;
-				filestream.open("tests/output.txt", ofstream::out | ofstream::app);
-
-				filestream << "\n::NEW ITERATION [2]::\n" << endl;
-
-				filestream.close();*/
-
-				testManager->incrementAccumulatedMaximumHitTotal(hitMaximum);
+				testManager->incrementAccumulatedMaximumHitTotal(hitTotal);
 				testManager->incrementAccumulatedMissedHitTotal(missedHitTotal);
 				testManager->incrementAccumulatedConnectedHitTotal(*hierarchyHitTotal);
 
-				if(triangleOffset == 0) {
-				
-					testManager->setFinalMaximumHitTotal(0);
-					testManager->setFinalMissedHitTotal(0);
-					testManager->setFinalConnectedHitTotal(0);
-				}
+				testManager->incrementFinalMaximumHitTotal(hitTotal, HIERARCHY_MAXIMUM_DEPTH-1);
+				testManager->incrementFinalMissedHitTotal(missedHitTotal, HIERARCHY_MAXIMUM_DEPTH-1);
+				testManager->incrementFinalConnectedHitTotal(*hierarchyHitTotal, HIERARCHY_MAXIMUM_DEPTH-1);
 			#endif
 
 		//#ifdef TIMER_DEBUG
@@ -2783,7 +2773,7 @@ extern "C" {
 					return;
 
 				// Calculate the Hit Maximum for this Level
-				unsigned int hitMaximum = *hierarchyHitTotal * HIERARCHY_SUBDIVISION;
+				unsigned int hitMaximum = (*hierarchyHitTotal) * HIERARCHY_SUBDIVISION;
 				unsigned int hitTotal = *hierarchyHitTotal;
 
 				//cout << "[Traversal Level  "<< hierarchyLevel << "] Memory Usage: " << (float)hitMaximum/(float)(*hierarchyHitMemoryTotal) << endl;
@@ -2795,7 +2785,7 @@ extern "C" {
 				#ifdef BLOCK_GRID_DEBUG
 					cout << "[CreateHierarchyLevelNHits] Block = " << hitTotalBlock.x << " Threads " << "Grid = " << hitTotalGrid.x << " Blocks" << endl;
 				#endif
-				
+
 				CreateHierarchyLevelNHits<<<hitTotalGrid, hitTotalBlock>>>(
 					hierarchyArray,
 					trianglePositionsArray,
@@ -2808,7 +2798,7 @@ extern "C" {
 					hierarchyHitsArray, trimmedHierarchyHitsArray);
 
 				// Create the Trim Scan Array
-				Utility::checkCUDAError("HierarchyTraversalWrapper::cub::DeviceScan::InclusiveSum(22)", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
+				Utility::checkCUDAError("HierarchyTraversalWrapper::cub::DeviceScan::InclusiveSum()", cub::DeviceScan::InclusiveSum(scanTemporaryStorage, scanTemporaryStoreBytes, headFlagsArray, scanArray, hitMaximum));
 
 				// Grid based on the Hierarchy Hit Count
 				dim3 hitMaximumBlock(1024);
@@ -2828,29 +2818,19 @@ extern "C" {
 				int missedHitTotal;
 				// Check the Hit Total (last position of the scan array) 
 				Utility::checkCUDAError("HierarchyTraversalWrapper::cudaMemcpy()", cudaMemcpy(&missedHitTotal, &scanArray[hitMaximum - 1], sizeof(int), cudaMemcpyDeviceToHost));
-			
+
 				// Calculate the Hit Total for this Level
 				*hierarchyHitTotal = hitMaximum - missedHitTotal;
 
 				#ifdef TRAVERSAL_DEBUG
-					
-					/*ofstream filestream;
-					filestream.open("tests/output.txt", ofstream::out | ofstream::app);
-	
-					filestream << "\n::NEW ITERATION [" << hierarchyLevel << "]::\n" << endl;
-
-					filestream.close();*/
 
 					testManager->incrementAccumulatedMaximumHitTotal(hitMaximum);
 					testManager->incrementAccumulatedMissedHitTotal(missedHitTotal);
 					testManager->incrementAccumulatedConnectedHitTotal(*hierarchyHitTotal);
-					
-					if(hierarchyLevel == 0) {
 
-						testManager->incrementFinalMaximumHitTotal(hitMaximum);
-						testManager->incrementFinalMissedHitTotal(missedHitTotal);
-						testManager->incrementFinalConnectedHitTotal(*hierarchyHitTotal);
-					}
+					testManager->incrementFinalMaximumHitTotal(hitMaximum, hierarchyLevel);
+					testManager->incrementFinalMissedHitTotal(missedHitTotal, hierarchyLevel);
+					testManager->incrementFinalConnectedHitTotal(*hierarchyHitTotal, hierarchyLevel);
 				#endif
 			}
 

@@ -1,0 +1,73 @@
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	3126280
+[Accumulated] Missed Hit Total:	1434541
+[Accumulated] Connected Hit Total:	1691739
+[Final 1] Maximum Hit Total:	750384
+[Final 1] Missed Hit Total:	453397
+[Final 1] Connected Hit Total:	296987
+[Final 0] Maximum Hit Total:	2375896
+[Final 0] Missed Hit Total:	981144
+[Final 0] Connected Hit Total:	1394752
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	14284296
+[Timer] Ray Creation:	0.711872
+[Timer] Ray Trimming:	0.476768
+[Timer] Ray Compression:	0.665152
+[Timer] Ray Sorting:	0.824544
+[Timer] Ray Decompression:	2.95296
+[Timer] Hierarchy Creation:	2.35459
+[Timer] Hierarchy Traversal:	7.92595
+[Timer] Intersection:	12.9162
+[Timer] Shading:	0.743328
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	4819532
+[Accumulated] Missed Hit Total:	2891414
+[Accumulated] Connected Hit Total:	1928118
+[Final 1] Maximum Hit Total:	1341660
+[Final 1] Missed Hit Total:	906926
+[Final 1] Connected Hit Total:	434734
+[Final 0] Maximum Hit Total:	3477872
+[Final 0] Missed Hit Total:	1984488
+[Final 0] Connected Hit Total:	1493384
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	16766604
+[Timer] Ray Creation:	0.87568
+[Timer] Ray Trimming:	0.280064
+[Timer] Ray Compression:	0.368896
+[Timer] Ray Sorting:	0.536128
+[Timer] Ray Decompression:	1.33619
+[Timer] Hierarchy Creation:	3.19795
+[Timer] Hierarchy Traversal:	9.99878
+[Timer] Intersection:	12.126
+[Timer] Shading:	1.31312
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	8187596
+[Accumulated] Missed Hit Total:	5546211
+[Accumulated] Connected Hit Total:	2641385
+[Final 1] Maximum Hit Total:	1396212
+[Final 1] Missed Hit Total:	547289
+[Final 1] Connected Hit Total:	848923
+[Final 0] Maximum Hit Total:	6791384
+[Final 0] Missed Hit Total:	4998922
+[Final 0] Connected Hit Total:	1792462
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	22527292
+[Timer] Ray Creation:	0.87568
+[Timer] Ray Trimming:	0.386016
+[Timer] Ray Compression:	0.602432
+[Timer] Ray Sorting:	0.673152
+[Timer] Ray Decompression:	1.0559
+[Timer] Hierarchy Creation:	2.48666
+[Timer] Hierarchy Traversal:	14.5377
+[Timer] Intersection:	12.5702
+[Timer] Shading:	1.05939

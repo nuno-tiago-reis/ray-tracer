@@ -27,19 +27,7 @@ int TestManager::shadingTimerID = 8;
 
 TestManager::TestManager() {
 
-	// Initialize the Accumulated Maximum Hit Total
-	this->accumulatedMaximumHitTotal = 0;
-	// Initialize the Accumulated Missed Hit Total
-	this->accumulatedMissedHitTotal = 0;
-	// Initialize the Accumulated Connected Hit Total
-	this->accumulatedConnectedHitTotal = 0;
-
-	// Initialize the Final Maximum Hit Total
-	this->finalMaximumHitTotal = 0;
-	// Initialize the Final Missed Hit Total
-	this->finalMissedHitTotal = 0;
-	// Initialize the Final Connected Hit Total
-	this->finalConnectedHitTotal = 0;
+	this->initialize();
 }
 
 TestManager::~TestManager() {
@@ -59,6 +47,28 @@ void TestManager::destroyInstance() {
 	delete instance;
 
 	instance = NULL;
+}
+
+void TestManager::initialize() {
+	
+	// Initialize the Accumulated Maximum Hit Total
+	this->accumulatedMaximumHitTotal = 0;
+	// Initialize the Accumulated Missed Hit Total
+	this->accumulatedMissedHitTotal = 0;
+	// Initialize the Accumulated Connected Hit Total
+	this->accumulatedConnectedHitTotal = 0;
+
+	// Initialize the Final Maximum Hit Total
+	for(int i=0; i<HIERARCHY_MAXIMUM_DEPTH;i++)
+		this->finalMaximumHitTotal[i] = 0;
+
+	// Initialize the Final Missed Hit Total
+	for(int i=0; i<HIERARCHY_MAXIMUM_DEPTH;i++)
+
+		this->finalMissedHitTotal[i] = 0;
+	// Initialize the Final Connected Hit Total
+	for(int i=0; i<HIERARCHY_MAXIMUM_DEPTH;i++)
+		this->finalConnectedHitTotal[i] = 0;
 }
 
 void TestManager::startTimer(int timerID) {
@@ -126,19 +136,19 @@ void TestManager::incrementAccumulatedConnectedHitTotal(int connectedHitTotal) {
 	filestream.close();*/
 }
 
-void TestManager::incrementFinalMaximumHitTotal(int maximumHitTotal) {
+void TestManager::incrementFinalMaximumHitTotal(int maximumHitTotal, int hierarchyLevel) {
 
-	this->finalMaximumHitTotal += maximumHitTotal;
+	this->finalMaximumHitTotal[hierarchyLevel] += maximumHitTotal;
 }
 
-void TestManager::incrementFinalMissedHitTotal(int missedHitTotal) {
+void TestManager::incrementFinalMissedHitTotal(int missedHitTotal, int hierarchyLevel) {
 	
-	this->finalMissedHitTotal += missedHitTotal;
+	this->finalMissedHitTotal[hierarchyLevel] += missedHitTotal;
 }
 
-void TestManager::incrementFinalConnectedHitTotal(int connectedHitTotal) {
+void TestManager::incrementFinalConnectedHitTotal(int connectedHitTotal, int hierarchyLevel) {
 	
-	this->finalConnectedHitTotal += connectedHitTotal;
+	this->finalConnectedHitTotal[hierarchyLevel] += connectedHitTotal;
 }
 
 GpuTimer* TestManager::getTimer(int timerID) {
@@ -161,19 +171,19 @@ int TestManager::getAccumulatedConnectedHitTotal() {
 	return this->accumulatedConnectedHitTotal;
 }
 
-int TestManager::getFinalMaximumHitTotal() {
+int TestManager::getFinalMaximumHitTotal(int hierarchyLevel) {
 
-	return this->finalMaximumHitTotal;
+	return this->finalMaximumHitTotal[hierarchyLevel];
 }
 
-int TestManager::getFinalMissedHitTotal() {
+int TestManager::getFinalMissedHitTotal(int hierarchyLevel) {
 
-	return this->finalMissedHitTotal;
+	return this->finalMissedHitTotal[hierarchyLevel];
 }
 
-int TestManager::getFinalConnectedHitTotal() {
+int TestManager::getFinalConnectedHitTotal(int hierarchyLevel) {
 
-	return this->finalConnectedHitTotal;
+	return this->finalConnectedHitTotal[hierarchyLevel];
 }
 
 void TestManager::setTimer(GpuTimer* timer, int timerID) {
@@ -196,19 +206,19 @@ void TestManager::setAccumulatedConnectedHitTotal(int accumulatedConnectedHitTot
 	this->accumulatedConnectedHitTotal = accumulatedConnectedHitTotal;
 }
 
-void TestManager::setFinalMaximumHitTotal(int finalMaximumHitTotal) {
+void TestManager::setFinalMaximumHitTotal(int finalMaximumHitTotal, int hierarchyLevel) {
 
-	this->finalMaximumHitTotal = finalMaximumHitTotal;
+	this->finalMaximumHitTotal[hierarchyLevel] = finalMaximumHitTotal;
 }
 
-void TestManager::setFinalMissedHitTotal(int finalMissedHitTotal) {
+void TestManager::setFinalMissedHitTotal(int finalMissedHitTotal, int hierarchyLevel) {
 
-	this->finalMissedHitTotal = finalMissedHitTotal;
+	this->finalMissedHitTotal[hierarchyLevel] = finalMissedHitTotal;
 }
 
-void TestManager::setFinalConnectedHitTotal(int finalConnectedHitTotal) {
+void TestManager::setFinalConnectedHitTotal(int finalConnectedHitTotal, int hierarchyLevel) {
 
-	this->finalConnectedHitTotal = finalConnectedHitTotal;
+	this->finalConnectedHitTotal[hierarchyLevel] = finalConnectedHitTotal;
 }
 
 void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTotal, int triangleTotal) {
@@ -248,13 +258,16 @@ void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTot
 	filestream << "[Accumulated] Connected Hit Total:\t" << this->accumulatedConnectedHitTotal << endl;
 
 	// Final Intersection Results
-	filestream << "[Final] Maximum Hit Total:\t" << this->finalMaximumHitTotal << endl;
-	filestream << "[Final] Missed Hit Total:\t" << this->finalMissedHitTotal << endl;
-	filestream << "[Final] Connected Hit Total:\t" << this->finalConnectedHitTotal << endl;
+	for(int i=HIERARCHY_MAXIMUM_DEPTH-1; i>=0; i--) {
+
+		filestream << "[Final " << i << "] Maximum Hit Total:\t" << this->finalMaximumHitTotal[i] << endl;
+		filestream << "[Final " << i << "] Missed Hit Total:\t" << this->finalMissedHitTotal[i] << endl;
+		filestream << "[Final " << i << "] Connected Hit Total:\t" << this->finalConnectedHitTotal[i] << endl;
+	}
 
 	// Algorithm Intersection Results
 	filestream << "[Algorithm] Brute Force Total:\t" << rayTotal * triangleTotal << endl;
-	filestream << "[Algorithm] Algorithm Total:\t" << this->accumulatedMaximumHitTotal + this->finalConnectedHitTotal * HIERARCHY_SUBDIVISION << endl;
+	filestream << "[Algorithm] Algorithm Total:\t" << this->accumulatedMaximumHitTotal + this->finalConnectedHitTotal[0] * HIERARCHY_SUBDIVISION << endl;
 
 	// Timer Results
 	filestream << "[Timer] Ray Creation:\t" << this->timerMap[rayCreationTimerID]->ElapsedMillis() << endl; 

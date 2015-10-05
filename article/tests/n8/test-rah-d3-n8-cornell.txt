@@ -1,0 +1,73 @@
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	8149472
+[Accumulated] Missed Hit Total:	5626812
+[Accumulated] Connected Hit Total:	2522660
+[Final 2] Maximum Hit Total:	374616
+[Final 2] Missed Hit Total:	47369
+[Final 2] Connected Hit Total:	327247
+[Final 1] Maximum Hit Total:	2617976
+[Final 1] Missed Hit Total:	1973366
+[Final 1] Connected Hit Total:	644610
+[Final 0] Maximum Hit Total:	5156880
+[Final 0] Missed Hit Total:	3606077
+[Final 0] Connected Hit Total:	1550803
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	20555896
+[Timer] Ray Creation:	0.591904
+[Timer] Ray Trimming:	0.27408
+[Timer] Hierarchy Creation:	2.32563
+[Timer] Hierarchy Traversal:	11.2748
+[Timer] Intersection:	35.8728
+[Timer] Shading:	0.587552
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	9988336
+[Accumulated] Missed Hit Total:	7277882
+[Accumulated] Connected Hit Total:	2710454
+[Final 2] Maximum Hit Total:	405504
+[Final 2] Missed Hit Total:	1304
+[Final 2] Connected Hit Total:	404200
+[Final 1] Maximum Hit Total:	3233600
+[Final 1] Missed Hit Total:	2439946
+[Final 1] Connected Hit Total:	793654
+[Final 0] Maximum Hit Total:	6349232
+[Final 0] Missed Hit Total:	4836632
+[Final 0] Connected Hit Total:	1512600
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	22089136
+[Timer] Ray Creation:	0.793344
+[Timer] Ray Trimming:	0.33392
+[Timer] Hierarchy Creation:	2.29014
+[Timer] Hierarchy Traversal:	12.6997
+[Timer] Intersection:	31.556
+[Timer] Shading:	1.19296
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	15102600
+[Accumulated] Missed Hit Total:	11287579
+[Accumulated] Connected Hit Total:	3815021
+[Final 2] Maximum Hit Total:	405504
+[Final 2] Missed Hit Total:	0
+[Final 2] Connected Hit Total:	405504
+[Final 1] Maximum Hit Total:	3244032
+[Final 1] Missed Hit Total:	1812399
+[Final 1] Connected Hit Total:	1431633
+[Final 0] Maximum Hit Total:	11453064
+[Final 0] Missed Hit Total:	9475180
+[Final 0] Connected Hit Total:	1977884
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	30925672
+[Timer] Ray Creation:	0.793344
+[Timer] Ray Trimming:	0.365216
+[Timer] Hierarchy Creation:	2.29216
+[Timer] Hierarchy Traversal:	18.9959
+[Timer] Intersection:	34.4486
+[Timer] Shading:	0.85696

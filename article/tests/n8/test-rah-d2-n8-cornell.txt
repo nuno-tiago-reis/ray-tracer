@@ -1,0 +1,64 @@
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	8162976
+[Accumulated] Missed Hit Total:	5955467
+[Accumulated] Connected Hit Total:	2207509
+[Final 1] Maximum Hit Total:	2995344
+[Final 1] Missed Hit Total:	2349390
+[Final 1] Connected Hit Total:	645954
+[Final 0] Maximum Hit Total:	5167632
+[Final 0] Missed Hit Total:	3606077
+[Final 0] Connected Hit Total:	1561555
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	20655416
+[Timer] Ray Creation:	0.625408
+[Timer] Ray Trimming:	0.27488
+[Timer] Hierarchy Creation:	2.05549
+[Timer] Hierarchy Traversal:	12.3254
+[Timer] Intersection:	13.5256
+[Timer] Shading:	0.724896
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	9593264
+[Accumulated] Missed Hit Total:	7287010
+[Accumulated] Connected Hit Total:	2306254
+[Final 1] Maximum Hit Total:	3244032
+[Final 1] Missed Hit Total:	2450378
+[Final 1] Connected Hit Total:	793654
+[Final 0] Maximum Hit Total:	6349232
+[Final 0] Missed Hit Total:	4836632
+[Final 0] Connected Hit Total:	1512600
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	21694064
+[Timer] Ray Creation:	0.804064
+[Timer] Ray Trimming:	0.347168
+[Timer] Hierarchy Creation:	2.23434
+[Timer] Hierarchy Traversal:	14.4768
+[Timer] Intersection:	11.5093
+[Timer] Shading:	1.91082
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	14697096
+[Accumulated] Missed Hit Total:	11287579
+[Accumulated] Connected Hit Total:	3409517
+[Final 1] Maximum Hit Total:	3244032
+[Final 1] Missed Hit Total:	1812399
+[Final 1] Connected Hit Total:	1431633
+[Final 0] Maximum Hit Total:	11453064
+[Final 0] Missed Hit Total:	9475180
+[Final 0] Connected Hit Total:	1977884
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	30520168
+[Timer] Ray Creation:	0.804064
+[Timer] Ray Trimming:	0.520416
+[Timer] Hierarchy Creation:	2.44454
+[Timer] Hierarchy Traversal:	20.5218
+[Timer] Intersection:	12.7131
+[Timer] Shading:	1.02045

@@ -1,0 +1,73 @@
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	2915824
+[Accumulated] Missed Hit Total:	2029488
+[Accumulated] Connected Hit Total:	886336
+[Final 1] Maximum Hit Total:	343872
+[Final 1] Missed Hit Total:	183125
+[Final 1] Connected Hit Total:	160747
+[Final 0] Maximum Hit Total:	2571952
+[Final 0] Missed Hit Total:	1846363
+[Final 0] Connected Hit Total:	725589
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	14525248
+[Timer] Ray Creation:	0.628992
+[Timer] Ray Trimming:	0.351456
+[Timer] Ray Compression:	0.494528
+[Timer] Ray Sorting:	0.597152
+[Timer] Ray Decompression:	2.30963
+[Timer] Hierarchy Creation:	2.44819
+[Timer] Hierarchy Traversal:	5.46768
+[Timer] Intersection:	21.7568
+[Timer] Shading:	0.720544
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	4727396
+[Accumulated] Missed Hit Total:	3589884
+[Accumulated] Connected Hit Total:	1137512
+[Final 1] Maximum Hit Total:	455508
+[Final 1] Missed Hit Total:	188515
+[Final 1] Connected Hit Total:	266993
+[Final 0] Maximum Hit Total:	4271888
+[Final 0] Missed Hit Total:	3401369
+[Final 0] Connected Hit Total:	870519
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	18655700
+[Timer] Ray Creation:	0.7576
+[Timer] Ray Trimming:	0.375392
+[Timer] Ray Compression:	0.484064
+[Timer] Ray Sorting:	0.610048
+[Timer] Ray Decompression:	1.38474
+[Timer] Hierarchy Creation:	2.81254
+[Timer] Hierarchy Traversal:	8.3399
+[Timer] Intersection:	21.6333
+[Timer] Shading:	1.16646
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	7717124
+[Accumulated] Missed Hit Total:	6046271
+[Accumulated] Connected Hit Total:	1670853
+[Final 1] Maximum Hit Total:	528420
+[Final 1] Missed Hit Total:	79126
+[Final 1] Connected Hit Total:	449294
+[Final 0] Maximum Hit Total:	7188704
+[Final 0] Missed Hit Total:	5967145
+[Final 0] Connected Hit Total:	1221559
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	27262068
+[Timer] Ray Creation:	0.7576
+[Timer] Ray Trimming:	0.27888
+[Timer] Ray Compression:	0.355168
+[Timer] Ray Sorting:	0.668928
+[Timer] Ray Decompression:	1.03382
+[Timer] Hierarchy Creation:	2.74122
+[Timer] Hierarchy Traversal:	12.4916
+[Timer] Intersection:	23.7211
+[Timer] Shading:	0.948192

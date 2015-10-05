@@ -98,11 +98,11 @@ class TestManager {
 		int accumulatedConnectedHitTotal;
 
 		// Final Maximum Hit Total
-		int finalMaximumHitTotal;
+		int finalMaximumHitTotal[HIERARCHY_MAXIMUM_DEPTH];
 		// Final Missed Hit Total
-		int finalMissedHitTotal;
+		int finalMissedHitTotal[HIERARCHY_MAXIMUM_DEPTH];
 		// Final Connected Hit Total
-		int finalConnectedHitTotal;
+		int finalConnectedHitTotal[HIERARCHY_MAXIMUM_DEPTH];
 
 		/* Constructors & Destructors - Private due to Singleton */
 		TestManager();
@@ -114,6 +114,9 @@ class TestManager {
 		static TestManager* getInstance();
 		static void destroyInstance();
 
+		// Methods
+		void initialize();
+
 		// Timers
 		void startTimer(int timerID);
 		void stopTimer(int timerID);
@@ -123,9 +126,9 @@ class TestManager {
 		void incrementAccumulatedMissedHitTotal(int missedHitTotal);
 		void incrementAccumulatedConnectedHitTotal(int connectedHitTotal);
 
-		void incrementFinalMaximumHitTotal(int maximumHitTotal);
-		void incrementFinalMissedHitTotal(int missedHitTotal);
-		void incrementFinalConnectedHitTotal(int connectedHitTotal);
+		void incrementFinalMaximumHitTotal(int maximumHitTotal, int hierarchyLevel);
+		void incrementFinalMissedHitTotal(int missedHitTotal, int hierarchyLevel);
+		void incrementFinalConnectedHitTotal(int connectedHitTotal, int hierarchyLevel);
 
 		// Getters
 		GpuTimer* getTimer(int timerID);
@@ -134,9 +137,9 @@ class TestManager {
 		int getAccumulatedMissedHitTotal();
 		int getAccumulatedConnectedHitTotal();
 
-		int getFinalMaximumHitTotal();
-		int getFinalMissedHitTotal();
-		int getFinalConnectedHitTotal();
+		int getFinalMaximumHitTotal(int hierarchyLevel);
+		int getFinalMissedHitTotal(int hierarchyLevel);
+		int getFinalConnectedHitTotal(int hierarchyLevel);
 
 		// Setters
 		void setTimer(GpuTimer* timer, int timerID);
@@ -145,9 +148,9 @@ class TestManager {
 		void setAccumulatedMissedHitTotal(int accumulatedMissedHitTotal);
 		void setAccumulatedConnectedHitTotal(int accumulatedConnectedHitTotal);
 
-		void setFinalMaximumHitTotal(int finalMaximumHitTotal);
-		void setFinalMissedHitTotal(int finalMissedHitTotal);
-		void setFinalConnectedHitTotal(int finalConnectedHitTotal);
+		void setFinalMaximumHitTotal(int finalMaximumHitTotal, int hierarchyLevel);
+		void setFinalMissedHitTotal(int finalMissedHitTotal, int hierarchyLevel);
+		void setFinalConnectedHitTotal(int finalConnectedHitTotal, int hierarchyLevel);
 
 		// Dump
 		void dump(int algorithmID, int sceneID, int iterationID, int rayTotal, int triangleTotal);

@@ -1231,6 +1231,10 @@ void display() {
 		// Cast the Shadow Ray Batch
 		if(i == 0) {
 
+			// Initialie the Instance
+			TestManager* testManager = TestManager::getInstance();
+			testManager->initialize();
+
 			bool result = true;
 
 			// Calculate the Shadow Rays based on the Rasterizer Input for the first Iteration.
@@ -1244,12 +1248,39 @@ void display() {
 				result = colorShadowRays(true, cameraEye, pixelBufferObject);
 
 			// Debug
-			TestManager* testManager = TestManager::getInstance();
 			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
+
+			/*ostringstream filename;
+	
+			// Append the Algorithm Name
+			if(algorithmID == 0)
+				filename << "tests/test-crsh" << "-d" << HIERARCHY_MAXIMUM_DEPTH << "-n" << HIERARCHY_SUBDIVISION;
+			else
+				filename << "tests/test-rah" << "-d" << HIERARCHY_MAXIMUM_DEPTH << "-n" << HIERARCHY_SUBDIVISION;
+	
+			// Append the Scene Name
+			if(sceneID == 0)
+				filename << "-office.txt";
+			else if(sceneID == 1)
+				filename << "-cornell.txt";
+			else if(sceneID == 2)
+				filename << "-sponza.txt";
+
+			ofstream filestream;
+			filestream.open(filename.str(), ofstream::out | ofstream::app);
+
+			filestream << "Ray Total >> " << rayTotal << endl;
+
+			filestream.close();
+			cout << rayTotal << endl;*/
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
 		if(i == 1 && (sceneID == 1 || sceneID == 3)) {
+
+			// Initialize the Instance
+			TestManager* testManager = TestManager::getInstance();
+			testManager->initialize();
 
 			bool result = true;
 
@@ -1264,12 +1295,15 @@ void display() {
 				result = colorReflectionRays(true, true, cameraEye, pixelBufferObject);
 
 			// Debug
-			TestManager* testManager = TestManager::getInstance();
 			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
 		}
 
 		// Cast the Reflection and Refraction Ray Batches
 		if(i == 2 && (sceneID == 1 || sceneID == 3)) {
+
+			// Initialie the Instance
+			TestManager* testManager = TestManager::getInstance();
+			testManager->initialize();
 
 			bool result = true;
 
@@ -1281,7 +1315,6 @@ void display() {
 				result = colorReflectionRays(true, false, cameraEye, pixelBufferObject);
 
 			// Debug
-			TestManager* testManager = TestManager::getInstance();
 			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
 		}
 	}
@@ -1344,7 +1377,7 @@ void display() {
 
 	cout << "[Callback] Display Successfull" << endl;
 
-	if(sceneExitor > 0)
+	if(sceneExitor > 0 && frameCount > 1)
 		exit(0);
 }
 
@@ -1398,7 +1431,7 @@ void reshape(int weight, int height) {
 	}
 
 	// Heuristic Modification
-	hierarchyNodeMaximum[0] = (unsigned int)(hierarchyNodeMaximum[0] / 4);
+	hierarchyNodeMaximum[0] = (unsigned int)(hierarchyNodeMaximum[0] / 2);
 
 	// Store the Memory Total
 	hierarchyHitMemoryTotal = hierarchyNodeMaximum[0] * HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM;
@@ -2115,7 +2148,7 @@ void initializeObjects() {
 	
 		sceneManager->addSceneNode(sphere0ObjectNode);
 
-		Object* sphere1Object = new Object("Sphere 1");
+		/*Object* sphere1Object = new Object("Sphere 1");
 
 			// Create the Objects Transform
 			Transform* sphere1Transform = new Transform("Sphere");
@@ -2171,7 +2204,7 @@ void initializeObjects() {
 			SceneNode* sphere2ObjectNode = new SceneNode("Sphere 2");
 			sphere2ObjectNode->setObject(sphere2Object);
 	
-		sceneManager->addSceneNode(sphere2ObjectNode);
+		sceneManager->addSceneNode(sphere2ObjectNode);*/
 	}
 	// Sponza
 	else if(sceneID == 2) {
@@ -2655,7 +2688,7 @@ int main(int argc, char* argv[]) {
 
 		int scene = atoi(argv[1]);
 
-		cout << "Scene Selected = " << endl;
+		/*cout << "Scene Selected = " << endl;
 
 		switch(scene) {
 		
@@ -2670,7 +2703,7 @@ int main(int argc, char* argv[]) {
 
 			default:	cout << " Invalid (going default)" << endl;
 						break;
-		}
+		}*/
 
 		sceneID = min(scene, 3);
 	}
@@ -2679,8 +2712,6 @@ int main(int argc, char* argv[]) {
 	if (argc >= 3) {
 
 		string algorithm(argv[2]);
-
-		cout << "Scene Selected = " << endl;
 
 		if(algorithm.compare("CRSH") == 0)
 			algorithmID = 0;

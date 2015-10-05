@@ -1,0 +1,130 @@
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	8481232
+[Accumulated] Missed Hit Total:	7074328
+[Accumulated] Connected Hit Total:	1406904
+[Final 1] Maximum Hit Total:	749232
+[Final 1] Missed Hit Total:	265982
+[Final 1] Connected Hit Total:	483250
+[Final 0] Maximum Hit Total:	7732000
+[Final 0] Missed Hit Total:	6808346
+[Final 0] Connected Hit Total:	923654
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	23259696
+[Timer] Ray Creation:	0.62272
+[Timer] Ray Trimming:	0.291808
+[Timer] Hierarchy Creation:	2.51117
+[Timer] Hierarchy Traversal:	12.7324
+[Timer] Intersection:	22.9324
+[Timer] Shading:	0.67424
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	11210688
+[Accumulated] Missed Hit Total:	9624700
+[Accumulated] Connected Hit Total:	1585988
+[Final 1] Maximum Hit Total:	811008
+[Final 1] Missed Hit Total:	161028
+[Final 1] Connected Hit Total:	649980
+[Final 0] Maximum Hit Total:	10399680
+[Final 0] Missed Hit Total:	9463672
+[Final 0] Connected Hit Total:	936008
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	26186816
+[Timer] Ray Creation:	0.721024
+[Timer] Ray Trimming:	0.31648
+[Timer] Hierarchy Creation:	3.03437
+[Timer] Hierarchy Traversal:	16.2124
+[Timer] Intersection:	20.1739
+[Timer] Shading:	1.2529
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	13465008
+[Accumulated] Missed Hit Total:	11170968
+[Accumulated] Connected Hit Total:	2294040
+[Final 1] Maximum Hit Total:	811008
+[Final 1] Missed Hit Total:	20133
+[Final 1] Connected Hit Total:	790875
+[Final 0] Maximum Hit Total:	12654000
+[Final 0] Missed Hit Total:	11150835
+[Final 0] Connected Hit Total:	1503165
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	37515648
+[Timer] Ray Creation:	0.721024
+[Timer] Ray Trimming:	0.462688
+[Timer] Hierarchy Creation:	3.07546
+[Timer] Hierarchy Traversal:	20.1088
+[Timer] Intersection:	24.9519
+[Timer] Shading:	0.993632
+
+Shadow Ray Iteration
+Ray Total:	242015
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	8469408
+[Accumulated] Missed Hit Total:	7063829
+[Accumulated] Connected Hit Total:	1405579
+[Final 1] Maximum Hit Total:	749232
+[Final 1] Missed Hit Total:	266721
+[Final 1] Connected Hit Total:	482511
+[Final 0] Maximum Hit Total:	7720176
+[Final 0] Missed Hit Total:	6797108
+[Final 0] Connected Hit Total:	923068
+[Algorithm] Brute Force Total:	191675880
+[Algorithm] Algorithm Total:	23238496
+[Timer] Ray Creation:	0.61968
+[Timer] Ray Trimming:	0.314272
+[Timer] Hierarchy Creation:	2.5208
+[Timer] Hierarchy Traversal:	12.801
+[Timer] Intersection:	22.4107
+[Timer] Shading:	0.83856
+
+Reflection Ray Iteration 1
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	11210688
+[Accumulated] Missed Hit Total:	9624700
+[Accumulated] Connected Hit Total:	1585988
+[Final 1] Maximum Hit Total:	811008
+[Final 1] Missed Hit Total:	161028
+[Final 1] Connected Hit Total:	649980
+[Final 0] Maximum Hit Total:	10399680
+[Final 0] Missed Hit Total:	9463672
+[Final 0] Connected Hit Total:	936008
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	26186816
+[Timer] Ray Creation:	0.830528
+[Timer] Ray Trimming:	0.442176
+[Timer] Hierarchy Creation:	3.31462
+[Timer] Hierarchy Traversal:	16.7008
+[Timer] Intersection:	20.0159
+[Timer] Shading:	1.33498
+
+Reflection Ray Iteration 2
+
+Ray Total:	262144
+TriangleTotal:	792
+[Accumulated] Maximum Hit Total:	13465008
+[Accumulated] Missed Hit Total:	11170968
+[Accumulated] Connected Hit Total:	2294040
+[Final 1] Maximum Hit Total:	811008
+[Final 1] Missed Hit Total:	20133
+[Final 1] Connected Hit Total:	790875
+[Final 0] Maximum Hit Total:	12654000
+[Final 0] Missed Hit Total:	11150835
+[Final 0] Connected Hit Total:	1503165
+[Algorithm] Brute Force Total:	207618048
+[Algorithm] Algorithm Total:	37515648
+[Timer] Ray Creation:	0.830528
+[Timer] Ray Trimming:	0.446944
+[Timer] Hierarchy Creation:	3.15245
+[Timer] Hierarchy Traversal:	20.1991
+[Timer] Intersection:	24.2912
+[Timer] Shading:	1.27965
+

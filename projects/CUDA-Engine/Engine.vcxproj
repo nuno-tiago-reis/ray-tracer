@@ -227,6 +227,8 @@
       <CodeGeneration>compute_30,sm_30</CodeGeneration>
       <HostDebugInfo>false</HostDebugInfo>
       <FastMath>false</FastMath>
+      <NvccCompilation>compile</NvccCompilation>
+      <CudaRuntime>Shared</CudaRuntime>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Static Release|Win32'">
