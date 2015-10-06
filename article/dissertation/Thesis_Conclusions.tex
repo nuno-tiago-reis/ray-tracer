@@ -13,13 +13,21 @@
 
 Our paper introduced a new algorithm that creates an efficient Ray-Space Hierarchy which greatly reduces the number of intersection tests necessary to ray-trace a scene due to its improved coherency and shallow bounding volume hierarchy.
 
+\medskip
+
 We achieved our goal of reducing the number of intersection tests using a Ray-Space Hierarchy. This technique is orthogonal to the use of both Object and Space Hierarchies. They can all be be used together in the same application to obtain even better results.
-Our results show that we can expect a reduction in computed intersections of ~54\% for shadow rays and ~28\% for reflection rays compared to previous state of the art RSHs.
+Our results show that we can expect a reduction in computed intersections of ~50\% for shadow rays and ~25\% for reflection rays compared to previous state of the art ray-space hierarchies.
 
 % ----------------------------------------------------------------------
 \section{Future Work}
 \label{section:future-work}
 
-However there is still room for improvement, namely in two areas: The first area of improvement concerns the ray hashing functions. Since the hash determines how rays are sorted, the hierarchy will improve if we manage to enhance the ray classification accuracy (i.e. ray spatial coherency).
+However there is still room for improvement, namely in three areas: The first area of improvement concerns the ray hashing functions. Since the hash determines how rays are sorted, the hierarchy will improve if we manage to enhance the ray classification accuracy (i.e. ray spatial coherency).
+
+\medskip
 
 The second area of improvement relates to the object bounding-volumes. We used spherical bounding volumes in this paper and a shallow object hierarchy. In the future we aim to also combine our coherent ray hierarchy with a deeper object hierarchy that will further reduce the number of ray-primitive intersections (e.g. \cite{Bradshaw04}).
+
+\medskip
+
+The final area of improvement relates to the memory necessary to run the algorith. The arrays that are necessary to store the hierarchy traversal hits are very large therefore any reductions in the size of these arrays would allow for more triangles to be processed per batch.

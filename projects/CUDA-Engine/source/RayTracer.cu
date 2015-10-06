@@ -282,6 +282,7 @@ __device__ static inline float RayTriangleIntersection(const Ray &ray, const flo
 // Ray - Node Intersection Code
 __device__ static inline bool SphereNodeIntersection(const float4 &sphere, const float4 &cone, const float4 &triangle, const float &cosine, const float &tangent) {
 
+	// intersection with hte reverse cone
 	if(cone.w == HALF_PI)
 		return true;
 
