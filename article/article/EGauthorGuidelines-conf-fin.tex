@@ -65,15 +65,15 @@
 
 % for anonymous conference submission please enter your SUBMISSION ID
 % instead of the author's name (and leave the affiliation blank) !!
-\author[paper1114]{paper1114}
-%\author[Nuno T. Reis \& Vasco Costa \& Jo\~{a}o M. Pereira]
-%       {Nuno T. Reis$^{1}$
-%        and Vasco Costa$^{1}$
-%        and Jo\~{a}o M. Pereira$^{1}$
-%        \\
-% For Computer Graphics Forum: Please use the abbreviation of your first name.
-%$^1$Instituto Superior T\'{e}cnico, University of Lisbon\\
-%       }
+%\author[paper1114]{paper1114}
+\author[Nuno T. Reis \& Vasco Costa \& Jo\~{a}o M. Pereira]
+       {Nuno T. Reis$^{1}$
+        and Vasco Costa$^{1}$
+        and Jo\~{a}o M. Pereira$^{1}$
+        \\
+ For Computer Graphics Forum: Please use the abbreviation of your first name.
+$^1$Instituto Superior T\'{e}cnico, University of Lisbon\\
+       }
 
 % ------------------------------------------------------------------------
 
@@ -153,11 +153,11 @@ Garanzha and Loop \cite{Garanzha10} introduced an algorithm using various parall
 
 \subsection{Overview}
 
-Our algorithm is performed in eight steps (see Figure~\ref{fig:crsh}). In each frame steps 1 and 2 are executed just once while steps 3 through 6 are executed once per ray batch. Batches can consist of any combination of shadow rays, reflection rays or refraction rays.
+Our algorithm is performed in seven steps (see Figure~\ref{fig:crsh}). In each frame steps 1 and 2 are executed just once while steps 3 through 7 are executed once per ray batch. Batches can consist of any combination of shadow rays, reflection rays or refraction rays.
 
 \begin{figure}
     \centering
-    \includegraphics[scale=0.50]{images/overview.jpg}
+    \includegraphics[scale=0.50]{Images/Overview.jpg}
     \caption{\label{fig:crsh}Coherent Ray-Space Hierarchy Overview.}
 \end{figure}
 
@@ -182,7 +182,7 @@ After the Rasterization step we need to generate the secondary rays. We create a
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.50]{images/hash-shadow-ray.jpg}
+    \includegraphics[scale=0.50]{Images/Shadow_Hash.jpg}
     \caption{\label{fig:sr}Shadow Ray Hash.}
 \end{figure}
 
@@ -190,7 +190,7 @@ The Reflection and Refraction rays are also converted to spherical coordinates. 
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.50]{images/hash-ordinary-ray.jpg}
+    \includegraphics[scale=0.50]{Images/Reflection_Hash.jpg}
     \caption{\label{fig:rr}Reflection and Refraction Ray Hash.}
 \end{figure}
 
@@ -199,7 +199,7 @@ Using the information from the head flags array we then run a trimming operator 
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.50]{images/array-trimming.jpg}
+    \includegraphics[scale=0.50]{Images/Array_Trimming.jpg}
     \caption{\label{fig:at}Array Trimming}
 \end{figure}
 
@@ -209,7 +209,7 @@ Here we use a compression-sorting-decompression scheme, expanding on prior work 
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.50]{images/ray-compression.jpg}
+    \includegraphics[scale=0.50]{Images/Ray_Compression.jpg}
     \caption{\label{fig:rcc}Ray Compression into Chunks}
 \end{figure}
 
@@ -223,7 +223,7 @@ Decompression works by creating a skeleton array. This skeleton array is similar
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.50]{images/ray-decompression.jpg}
+    \includegraphics[scale=0.50]{Images/Ray_Decompression.jpg}
     \caption{Ray Decompression from Chunks}
 \end{figure}
 
@@ -235,12 +235,12 @@ Each node in the hierarchy is represented by a sphere and a cone (see Figures~\r
 \begin{figure}[!htb]
     \centering
     
-    \includegraphics[scale=0.30]{images/bounding-cone-2d.jpg}
+    \includegraphics[scale=0.30]{Images/Bounding_Cone.jpg}
     \caption{\label{fig:bc}Bounding Cone - 2D View}
 
     \vspace{2.5pt}
 
-    \includegraphics[scale=0.30]{images/bounding-sphere-2d.jpg}
+    \includegraphics[scale=0.30]{Images/Bounding_Sphere.jpg}
     \caption{\label{fig:bs}Bounding Sphere - 2D View}
 \end{figure}
 
@@ -248,7 +248,7 @@ The sphere contains all the nodes ray origins while the cone contain the rays th
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.30]{images/cone-union.png}
+    \includegraphics[scale=0.30]{Images/Cone_Union.png}
     \caption{\label{fig:cru}Cone-Ray Union - 2D View. \small{courtesy of \cite{Szecsi06}}.}
 \end{figure}
 
@@ -306,7 +306,7 @@ For the top level of the hierarchy we intersect the hierarchy nodes with the bou
 
 \begin{figure}[!htb]
     \centering
-    \includegraphics[scale=0.50]{images/node-sphere-intersection.jpg}
+    \includegraphics[scale=0.50]{Images/Node_Sphere_Intersection.jpg}
     \caption{\label{fig:crud2}Cone-Ray Union - 2D View. \small courtesy of \cite{Roger07}.}
 \end{figure}
 
@@ -329,7 +329,7 @@ After traversing the hierarchy we have an array of node id and triangle id pairs
 
 We implemented our CRSH algorithm in OpenGL/C++ and CUDA/C++ then compared it with our implementation of RAH \cite{Roger07} over the same architecture. We map our algorithm onto the GPU, parallelizing it there fully. We achieve this mainly by the use of parallel primitives, like prefix sums \cite{Blelloch90}. We used the CUB \cite{Merrill09}  \cite{Merrill11} library to perform parallel radix sorts and prefix sums.
 
-We measure the amount of intersections, including misses and hits, to evaluate ray hierarchy algorithms proficiency at reducing the amount of ray-primitive intersection tests required to render an image. All scenes were rendered at $512\times512$ resolution.
+We measure the amount of intersections, including misses and hits, to evaluate ray hierarchy algorithms proficiency at reducing the amount of ray-primitive intersection tests required to render an image. All scenes were rendered at $512\times512$ resolution using an hierarchy depth of 2 and a node subdivision of 8 (each upper level node in the hierarchy consists of the combination of 8 nodes from the level directly below).
 
 The test information was collected using a NVIDIA GeForce GTX TITAN GPU with 6 GB of RAM. Our algorithm is completely executed on the GPU (including hierarchy construction and traversal) so the CPU has no impact on the test results.
 
@@ -355,30 +355,27 @@ We hypothesised that our more coherent RSH hierarchy needs to compute fewer inte
 \fontsize{7}{9}
 \selectfont
 \begin{tabular}{l|rrr}
-    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{images/office}} & & \\
-    \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Level 1} & \textsc{Level 2} & \textsc{Level 3}\\
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{Images/Office_Preview}} & & \\
+    \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Level 2} & \textsc{Level 1}\\
     \hline
     \emph{RAH Algorithm} & & \\
     \hline
-    \quad \# Sh Intersections  & 17863536	 & 131228368    & 202134400  \\
-    \quad Sh Misses            & 1459990	 & 105961568    & 186536226	 \\
-    \quad Sh Hits              & 16403546	 & 25266800	    & 15598174	 \\
-
-    & & \\
-
+    \quad \# Sh Intersections  & 142726748  & 202025920 \\
+    \quad \# Sh Misses            & 117473508  & 186409563 \\
+    \quad \# Sh Hits              & 25253240   & 15616357  \\
     \hline
     \emph{Our Algorithm} & & \\
     \hline
-    \quad \# Sh Intersections   & 4108164	     & 31863128	    & 75095808	 \\
-    \quad Sh Misses    & 125148		 & 21144630	    & 57127535	 \\
-    \quad Sh Hits & 3983016		 & 10718498	    & 17968273	 \\
+    \quad \# Sh Intersections  & 11559388   & 85572416	\\
+    \quad \# Sh Misses         & 862836     & 76455023  \\
+    \quad \# Sh Hits           & 10696552   & 9117393   \\
 \end{tabular}
 \end{center}
 \caption{\label{table:office-results}
 \textsc{Office} rendering performance (251546 shadow rays).}
 \end{table}
 
-Our initial expectations for Office were to get a much lower number of intersection tests with our algorithm than with RAH. The scene is a good fit to our bounding volume scheme and our highly coherent shadow ray hierarchy. Results confirm (see Table~\ref{table:office-results}) our initial expectations: we compute 46\% less intersections than RAH on this scene. 97,21\% less than a brute force approach.
+Our initial expectations for Office were to get a much lower number of intersection tests with our algorithm than with RAH. The scene is a good fit to our bounding volume scheme and our highly coherent shadow ray hierarchy. Results confirm (see Table~\ref{table:office-results}) our initial expectations: we compute 63,79\% less intersections than RAH on this scene. 98,14\% less than a brute force approach.
 
 \begin{table}[!htb]
 \begin{center}
@@ -388,38 +385,35 @@ Our initial expectations for Office were to get a much lower number of intersect
 \fontsize{7}{9}
 \selectfont
 \begin{tabular}{l|rrr}
-    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{images/cornell}} & & \\
-    \multicolumn{1}{c|}{\textsc{Cornell}} & \textsc{Level 1} & \textsc{Level 2} & \textsc{Level 3}\\
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{Images/Cornell_Preview}} & & \\
+    \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Level 2} & \textsc{Level 1}\\
     \hline
     \emph{RAH Algorithm} & & \\
     \hline
-    \quad \# Sh Intersections   & 805752	 & 5556560		& 10814328	 \\
-    \quad Sh Misses             & 111182	 & 4204769	    & 9227709	 \\
-    \quad Sh Hits               & 694570	 & 1351791		& 1586619	 \\
+    \quad \# Sh Intersections   & 2995344   & 5167632		  \\
+    \quad \# Sh Misses             & 2349390   & 3606077		  \\
+    \quad \# Sh Hits               & 645954    & 1561555		  \\
     & & \\
-    \quad \# Re Intersections   & 2285568	 & 18143152	    & 54373424	 \\
-    \quad Re Misses             & 17674		 & 11346474	    & 48340898	 \\
-    \quad Re Hits               & 2267894	 & 6796678	    & 6032526    \\
-
-    & & \\
-
+    \quad \# Re Intersections   & 6488064   & 17802296		  \\
+    \quad \# Re Misses             & 4262777   & 14311812		  \\
+    \quad \# Re Hits               & 2225287   & 3490484		  \\
     \hline
     \emph{Our Algorithm} & & \\
     \hline
-    \quad \# Sh Intersections   & 370152		 & 1768864	    & 4130048	 \\
-    \quad Sh Misses             & 149044		 & 1252608		& 2891984	 \\
-    \quad Sh Hits               & 221108		 & 516256	    & 1238064	 \\
+    \quad \# Sh Intersections   & 750384    & 2375896		  \\
+    \quad \# Sh Misses          & 453397    & 981144		  \\
+    \quad \# Sh Hits            & 296987	& 1394752  	      \\
     & & \\
-    \quad \# Re Intersections   & 1787712	     & 12600640	    & 30460504	 \\
-    \quad Re Misses             & 212632		 & 8793077	    & 24908902   \\
-    \quad Re Hits               & 1575080		 & 3807563	    & 5551602	 \\
+    \quad \# Re Intersections   & 2737872   & 10269256		  \\
+    \quad \# Re Misses             & 1454215   & 6983410		  \\
+    \quad \# Re Hits               & 1283657   & 3285846   	  \\     
 \end{tabular}
 \end{center}
 \caption{\label{table:cornell-results}
 \textsc{Cornell} rendering performance (184717 shadow \& 524288 reflection rays).}
 \end{table}
 
-For the Cornell scene we focused primarily on the reflection rays which are much more incoherent than shadow rays so we expected results to be less positive than with the Office scene. We compute 32\% less intersections overall (shadow and reflection rays combined) than the RAH algorithm and 93,15\% less than the brute force approach (see Table~\ref{table:cornell-results}).
+For the Cornell scene we focused primarily on the reflection rays which are much more incoherent than shadow rays so we expected results to be less positive than with the Office scene. We compute 26,47\% less intersections overall (shadow and reflection rays combined) than the RAH algorithm and 91,17\% less than the brute force approach (see Table~\ref{table:cornell-results}).
 
 \begin{table}[!htb]
 \begin{center}
@@ -429,23 +423,21 @@ For the Cornell scene we focused primarily on the reflection rays which are much
 \fontsize{7}{9}
 \selectfont
 \begin{tabular}{l|rrr}
-    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{images/sponza}} & & \\
-    \multicolumn{1}{c|}{\textsc{Sponza}} & \textsc{Level 1} & \textsc{Level 2} & \textsc{Level 3}\\
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{Images/Sponza_Preview}} & & \\
+    \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Level 2} & \textsc{Level 1}\\
     \hline
     \emph{RAH Algorithm} & & \\
     \hline
-    \quad \# Sh Intersections  & 33357900	 & 200061944    & 261267720  \\
-    \quad Sh Misses            & 6487857	 & 182303479    & 248568705	 \\
-    \quad Sh Hits              & 26870043	 & 17758465	    & 12699015	 \\
-
+    \quad \# Sh Intersections  & 266597400	& 261494752	  \\
+    \quad \# Sh Misses            & 233910556  & 248455163	  \\
+    \quad \# Sh Hits              & 32686844	& 13039589	  \\
     & & \\
-
     \hline
     \emph{Our Algorithm} & & \\
-    \hline    
-    \quad \# Sh Intersections  & 33357900	& 23359968	& 61887672	 \\
-    \quad Sh Misses            & 30437904	& 15624009	& 53120871	 \\
-    \quad Sh Hits              & 2919996	& 7735959	& 8766801	 \\
+    \hline
+    \quad \# Sh Intersections   & 266597400 & 62665496	  \\
+    \quad \# Sh Misses          & 258764213 & 53120871	  \\
+    \quad \# Sh Hits            & 7833187	& 9544625	  \\
 \end{tabular}
 \end{center}
 \caption{\label{table:sponza-results}
@@ -454,7 +446,7 @@ For the Cornell scene we focused primarily on the reflection rays which are much
 
 \begin{table*}[!htb]
 \begin{center}
-\includegraphics[width=0.45\textwidth]{images/chart}
+\includegraphics[width=0.45\textwidth]{Images/Chart_N8_D2}
 \vskip 1em
 \fontencoding{T1}
 \fontseries{m}
@@ -465,18 +457,18 @@ For the Cornell scene we focused primarily on the reflection rays which are much
 & \multicolumn{2}{c}{\textsc{Office}} & \multicolumn{2}{c}{\textsc{Cornell}} & \multicolumn{2}{c}{\textsc{Sponza}} \\
 \textsc{Algorithm} & \textsc{Total \# isect} & \textsc{Relative \%} & \textsc{Total \# isect} & \textsc{Relative \%} & \textsc{Total \# isect} & \textsc{Relative \%} \\
     \hline
-    \emph{Brute Force}     & 9133132168        & 100\% & 153995886          & 100\% & 17058578850 & 100\% \\
-    \emph{RAH Algorithm}   & 476011696         & 5.12\% & 152931944			& 9.93\% & 596279684 & 3.50\% \\
-    \emph{Our Algorithm}   & \textbf{254813284} & \textbf{2.79\%} & \textbf{105435248} & \textbf{6.85\%} & \textbf{188739948} & \textbf{1.11\%} \\
+    \emph{Brute Force}     & 9133132168         & 100\%           & 606911976         & 100\%           & 17058578850        & 100\% \\
+    \emph{RAH Algorithm}   & 469683524		    & 5.14\%          & 72869648		  & 12.01\%         & 632408864			 & 3.71\% \\
+    \emph{Our Algorithm}   & \textbf{170070948} & \textbf{1.86\%} & \textbf{53578192} & \textbf{8.83\%} & \textbf{405619896} & \textbf{2.38\%} \\
 \end{tabular}
 \end{center}
 \caption{\label{tab:results}
 \small\textsc{Office} (251546 shadow rays), \textsc{Cornell} (184717 shadow \& 524288 reflection rays), \textsc{Sponza} (256713 shadow rays)  rendering performance.}
 \end{table*}
 
-The final scene, Sponza, is a whole mesh. We did not employ object subdivision in this scene. Hence we expected worse results than with Office since we would only get the benefit of the shadow ray hierarchy and none from the bounding volume scheme. To our surprise, however, our CRSH algorithm actually manages to outperform RAH in Sponza by a bigger margin than in the Office scene.
+The final scene, Sponza, is a whole mesh. We did not employ object subdivision in this scene. Hence we expected worse results than with Office since we would only get the benefit of the shadow ray hierarchy and none from the bounding volume scheme.
 
-We compute 69\% less intersection tests than RAH and 98,89\% than the brute force approach. These results are due to the number of potential hits culled in the first level of the hierarchy (see Table~\ref{table:sponza-results}). Since our CRSH is more coherent, our algorithm culls 91\% of those hits at the first level while RAH only culls 19\%.
+We compute 35,86\% less intersection tests than RAH and 97,62\% than the brute force approach. Since there is no object mesh culling for this scene the results are not as good as they were with the Office scene but we still manage to outperform RAH even without using an integral part of our algorithm (see Table~\ref{table:sponza-results}).
 
 %-------------------------------------------------------------------------
 
@@ -485,7 +477,7 @@ We compute 69\% less intersection tests than RAH and 98,89\% than the brute forc
 Our paper introduced a new algorithm that creates an efficient Ray-Space Hierarchy which greatly reduces the number of intersection tests necessary to ray-trace a scene due to its improved coherency and shallow bounding volume hierarchy.
 
 We achieved our goal of reducing the number of intersection tests using a Ray-Space Hierarchy. This technique is orthogonal to the use of both Object and Space Hierarchies. They can all be be used together in the same application to obtain even better results.
-Our results show that we can expect a reduction in computed intersections of ~54\% for shadow rays and ~28\% for reflection rays compared to previous state of the art RSHs.
+Our results show that we can expect a reduction in computed intersections of ~50\% for shadow rays and ~25\% for reflection rays compared to previous state of the art RSHs.
 
 However there is still room for improvement, namely in two areas: The first area of improvement concerns the ray hashing functions. Since the hash determines how rays are sorted, the hierarchy will improve if we manage to enhance the ray classification accuracy (i.e. ray spatial coherency).
 
@@ -507,15 +499,15 @@ The second area of improvement relates to the object bounding-volumes. We used s
 \section*{Appendix}
 
 \begin{center}
-    \includegraphics[scale=0.45]{images/office} \\
+    \includegraphics[scale=0.45]{Images/Office_Preview} \\
     \textsc{Office} \\
     \vskip 1em
 
-    \includegraphics[scale=0.45]{images/cornell} \\
+    \includegraphics[scale=0.45]{Images/Cornell_Preview} \\
     \textsc{Cornell} \\
     \vskip 1em
 
-    \includegraphics[scale=0.45]{images/sponza}   \\
+    \includegraphics[scale=0.45]{Images/Sponza_Preview}   \\
     \textsc{Sponza} \\
     \vskip 1em
 \end{center}

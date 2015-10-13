@@ -25,8 +25,8 @@
 #define HIERARCHY_TRIANGLE_ALLOCATION_MAXIMUM 10000
 
 // Ray-Tracing Hierarchy Depth Constants
-#define HIERARCHY_MAXIMUM_DEPTH 4
-#define HIERARCHY_SUBDIVISION 16
+#define HIERARCHY_MAXIMUM_DEPTH 2
+#define HIERARCHY_SUBDIVISION 8
 
 // Mode Constants
 //#define SOFT_SHADOWS
@@ -38,19 +38,21 @@
 
 // Kernel Debug Constants
 #define TIMER_DEBUG
-#define TRAVERSAL_DEBUG
+//#define TRAVERSAL_DEBUG
 
 #ifndef CONSTANTS
 
 	#define CONSTANTS
 
+	// Test ID
+	extern int testID;
 	// Scene ID
 	extern int sceneID;
-	// Scene Exitor
-	extern int sceneExitor;
-
 	// Algorithm ID
 	extern int algorithmID;
+
+	// Elapsed Time
+	extern float elapsedTime;
 
 	// Soft Shadows Indicator
 	extern bool softShadows;

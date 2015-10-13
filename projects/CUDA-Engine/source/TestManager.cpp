@@ -25,6 +25,9 @@ int TestManager::intersectionTimerID = 7;
 // Shading Timer ID
 int TestManager::shadingTimerID = 8;
 
+// Timer Count
+int TestManager::timerCount = 9;
+
 TestManager::TestManager() {
 
 	this->initialize();
@@ -64,11 +67,15 @@ void TestManager::initialize() {
 
 	// Initialize the Final Missed Hit Total
 	for(int i=0; i<HIERARCHY_MAXIMUM_DEPTH;i++)
-
 		this->finalMissedHitTotal[i] = 0;
+
 	// Initialize the Final Connected Hit Total
 	for(int i=0; i<HIERARCHY_MAXIMUM_DEPTH;i++)
 		this->finalConnectedHitTotal[i] = 0;
+
+	// Initialize the Elapsed Times
+	this->hierarchyTraversalElapsedTimes = 0.0f;
+	this->intersectionElapsedTimes = 0.0f;
 }
 
 void TestManager::startTimer(int timerID) {
@@ -80,24 +87,22 @@ void TestManager::startTimer(int timerID) {
 	// Create the Timer
 	timerMap[timerID] = new GpuTimer();
 
-	// Make sure there isn't a Kernel Running
-	Utility::checkCUDAError("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-
+	// Start the Timer
 	this->timerMap[timerID]->Start();
-
-	Utility::checkCUDAError("TestManager::GpuTimer::Start()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("TestManager::GpuTimer::Start()", cudaGetLastError());
 }
 
 void TestManager::stopTimer(int timerID) {
 
-	// Make sure there isn't a Kernel Running
-	Utility::checkCUDAError("cudaDeviceSynchronize()", cudaDeviceSynchronize());
-
+	// Stop the Timer
 	this->timerMap[timerID]->Stop();
 
-	Utility::checkCUDAError("TestManager::GpuTimer::Stop()", cudaDeviceSynchronize());
-	Utility::checkCUDAError("TestManager::GpuTimer::Stop()", cudaGetLastError());
+	// Check if its the Traversal Timers
+	if(timerID == hierarchyTraversalTimerID)
+		this->hierarchyTraversalElapsedTimes += this->timerMap[timerID]->ElapsedMillis();
+
+	// Check if its the Intersection Timers
+	if(timerID == intersectionTimerID)
+		this->intersectionElapsedTimes += this->timerMap[timerID]->ElapsedMillis();
 }
 
 void TestManager::incrementAccumulatedMaximumHitTotal(int maximumHitTotal) {
@@ -242,6 +247,10 @@ void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTot
 	ofstream filestream;
 	filestream.open(filename.str(), ofstream::out | ofstream::app);
 
+	// Elapsed Time
+	if(iterationID == 0)
+		filestream << "Elapsed Time:\t" << elapsedTime << endl;
+
 	// Initial Line
 	if(iterationID == 0)
 		filestream << "Shadow Ray Iteration" << endl;
@@ -252,40 +261,52 @@ void TestManager::dump(int algorithmID, int sceneID, int iterationID, int rayTot
 	filestream << "Ray Total:\t" << rayTotal << endl;
 	filestream << "TriangleTotal:\t" << triangleTotal << endl;
 
-	// Intersection Results
-	filestream << "[Accumulated] Maximum Hit Total:\t" << this->accumulatedMaximumHitTotal << endl;
-	filestream << "[Accumulated] Missed Hit Total:\t" << this->accumulatedMissedHitTotal << endl;
-	filestream << "[Accumulated] Connected Hit Total:\t" << this->accumulatedConnectedHitTotal << endl;
+	#ifdef TRAVERSAL_DEBUG
 
-	// Final Intersection Results
-	for(int i=HIERARCHY_MAXIMUM_DEPTH-1; i>=0; i--) {
+		// Intersection Results
+		filestream << "[Accumulated] Maximum Hit Total:\t" << this->accumulatedMaximumHitTotal << endl;
+		filestream << "[Accumulated] Missed Hit Total:\t" << this->accumulatedMissedHitTotal << endl;
+		filestream << "[Accumulated] Connected Hit Total:\t" << this->accumulatedConnectedHitTotal << endl;
 
-		filestream << "[Final " << i << "] Maximum Hit Total:\t" << this->finalMaximumHitTotal[i] << endl;
-		filestream << "[Final " << i << "] Missed Hit Total:\t" << this->finalMissedHitTotal[i] << endl;
-		filestream << "[Final " << i << "] Connected Hit Total:\t" << this->finalConnectedHitTotal[i] << endl;
-	}
+		// Final Intersection Results
+		for(int i=HIERARCHY_MAXIMUM_DEPTH-1; i>=0; i--) {
 
-	// Algorithm Intersection Results
-	filestream << "[Algorithm] Brute Force Total:\t" << rayTotal * triangleTotal << endl;
-	filestream << "[Algorithm] Algorithm Total:\t" << this->accumulatedMaximumHitTotal + this->finalConnectedHitTotal[0] * HIERARCHY_SUBDIVISION << endl;
+			filestream << "[Final " << i << "] Maximum Hit Total:\t" << this->finalMaximumHitTotal[i] << endl;
+			filestream << "[Final " << i << "] Missed Hit Total:\t" << this->finalMissedHitTotal[i] << endl;
+			filestream << "[Final " << i << "] Connected Hit Total:\t" << this->finalConnectedHitTotal[i] << endl;
+		}
 
-	// Timer Results
-	filestream << "[Timer] Ray Creation:\t" << this->timerMap[rayCreationTimerID]->ElapsedMillis() << endl; 
-	filestream << "[Timer] Ray Trimming:\t" << this->timerMap[rayTrimmingTimerID]->ElapsedMillis() << endl;
+		// Algorithm Intersection Results
+		filestream << "[Algorithm] Brute Force Total:\t" << rayTotal * triangleTotal << endl;
+		filestream << "[Algorithm] Algorithm Total:\t" << this->accumulatedMaximumHitTotal + this->finalConnectedHitTotal[0] * HIERARCHY_SUBDIVISION << endl;
+	#endif
 
-	// If we're using CRSH Algorithm
-	if(algorithmID == 0) {
+	#ifdef TIMER_DEBUG
 
-		filestream << "[Timer] Ray Compression:\t" << this->timerMap[rayCompressionTimerID]->ElapsedMillis() << endl;
-		filestream << "[Timer] Ray Sorting:\t" << this->timerMap[raySortingTimerID]->ElapsedMillis() << endl;
-		filestream << "[Timer] Ray Decompression:\t" << this->timerMap[rayDecompressionTimerID]->ElapsedMillis() << endl;
-	}
+		// Timer Results
+		filestream << "[Timer] Ray Creation:\t" << this->timerMap[rayCreationTimerID]->ElapsedMillis() << endl; 
+		filestream << "[Timer] Ray Trimming:\t" << this->timerMap[rayTrimmingTimerID]->ElapsedMillis() << endl;
 
-	filestream << "[Timer] Hierarchy Creation:\t" << this->timerMap[hierarchyCreationTimerID]->ElapsedMillis() << endl;
-	filestream << "[Timer] Hierarchy Traversal:\t" << this->timerMap[hierarchyTraversalTimerID]->ElapsedMillis() << endl;
+		// If we're using CRSH Algorithm
+		if(algorithmID == 0) {
 
-	filestream << "[Timer] Intersection:\t" << this->timerMap[intersectionTimerID]->ElapsedMillis() << endl;
-	filestream << "[Timer] Shading:\t" << this->timerMap[shadingTimerID]->ElapsedMillis() << endl;
+			filestream << "[Timer] Ray Compression:\t" << this->timerMap[rayCompressionTimerID]->ElapsedMillis() << endl;
+			filestream << "[Timer] Ray Sorting:\t" << this->timerMap[raySortingTimerID]->ElapsedMillis() << endl;
+			filestream << "[Timer] Ray Decompression:\t" << this->timerMap[rayDecompressionTimerID]->ElapsedMillis() << endl;
+		}
+		else {
+
+			filestream << "[Timer] Ray Compression:\t" << 0.0f << endl;
+			filestream << "[Timer] Ray Sorting:\t" << 0.0f << endl;
+			filestream << "[Timer] Ray Decompression:\t" << 0.0f << endl;
+		}
+
+		filestream << "[Timer] Hierarchy Creation:\t" << this->timerMap[hierarchyCreationTimerID]->ElapsedMillis() << endl;
+		filestream << "[Timer] Hierarchy Traversal:\t" << this->hierarchyTraversalElapsedTimes << endl;
+
+		filestream << "[Timer] Intersection:\t" << this->intersectionElapsedTimes << endl;
+		filestream << "[Timer] Shading:\t" << this->timerMap[shadingTimerID]->ElapsedMillis() << endl;
+	#endif
 
 	filestream << endl;
 

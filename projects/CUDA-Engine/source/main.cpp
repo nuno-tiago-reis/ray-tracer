@@ -69,6 +69,7 @@
 
 // Frame Count Global Variable
 int frameCount = 0;
+int frameTotal = 0;
 
 // Window Handling Global Variables
 int windowHandle = 0;
@@ -77,9 +78,9 @@ unsigned int windowWidth = WIDTH;
 unsigned int windowHeight = HEIGHT;
 
 // Clock Handling Global Variables
-GLint startTime = 0;
-GLfloat currentTime = 0;
-GLfloat elapsedTime = 0;
+int startTime = 0;
+float currentTime = 0;
+float elapsedTime = 0;
 
 // Scene Manager
 SceneManager* sceneManager = SceneManager::getInstance();
@@ -89,13 +90,12 @@ map<int, Object*> objectMap;
 // Light Map
 map<int, Light*> lightMap;
 
-// Algorithm ID
-int algorithmID = 0;
-
+// Test ID
+int testID = 0;
 // Scene ID
 int sceneID = 0;
-// Scene Exitor
-int sceneExitor = 0;
+// Algorithm ID
+int algorithmID = 0;
 
 // Soft Shadows
 bool softShadows = false;
@@ -1077,7 +1077,8 @@ void update(int value) {
 void display() {
 
 	++frameCount;
-	
+	++frameTotal;
+
 	// Bind the FrameBuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer->getFrameBufferHandler());
 
@@ -1231,7 +1232,7 @@ void display() {
 		// Cast the Shadow Ray Batch
 		if(i == 0) {
 
-			// Initialie the Instance
+			// Initialize the Instance
 			TestManager* testManager = TestManager::getInstance();
 			testManager->initialize();
 
@@ -1249,30 +1250,6 @@ void display() {
 
 			// Debug
 			testManager->dump(algorithmID, sceneID, i, rayTotal, triangleTotal);
-
-			/*ostringstream filename;
-	
-			// Append the Algorithm Name
-			if(algorithmID == 0)
-				filename << "tests/test-crsh" << "-d" << HIERARCHY_MAXIMUM_DEPTH << "-n" << HIERARCHY_SUBDIVISION;
-			else
-				filename << "tests/test-rah" << "-d" << HIERARCHY_MAXIMUM_DEPTH << "-n" << HIERARCHY_SUBDIVISION;
-	
-			// Append the Scene Name
-			if(sceneID == 0)
-				filename << "-office.txt";
-			else if(sceneID == 1)
-				filename << "-cornell.txt";
-			else if(sceneID == 2)
-				filename << "-sponza.txt";
-
-			ofstream filestream;
-			filestream.open(filename.str(), ofstream::out | ofstream::app);
-
-			filestream << "Ray Total >> " << rayTotal << endl;
-
-			filestream.close();
-			cout << rayTotal << endl;*/
 		}
 		
 		// Cast the Reflection and Refraction Ray Batches
@@ -1301,7 +1278,7 @@ void display() {
 		// Cast the Reflection and Refraction Ray Batches
 		if(i == 2 && (sceneID == 1 || sceneID == 3)) {
 
-			// Initialie the Instance
+			// Initialize the Instance
 			TestManager* testManager = TestManager::getInstance();
 			testManager->initialize();
 
@@ -1375,9 +1352,12 @@ void display() {
 	// Swap the Buffers
 	glutSwapBuffers();
 
-	cout << "[Callback] Display Successfull" << endl;
+	//cout << "[Callback] Display Successfull" << endl;
 
-	if(sceneExitor > 0 && frameCount > 1)
+	if(testID == 1 && frameTotal == 2)
+		exit(0);
+
+	if(testID == 2 && frameTotal == 61)
 		exit(0);
 }
 
@@ -2680,7 +2660,7 @@ int main(int argc, char* argv[]) {
 		cout << "No Scene Selected." << endl;
 		cout << "[USAGE] Parameter 1: 0 to 2 (Office: 0, Cornell: 1, Sponza: 2)" << endl;
 		cout << "[USAGE] Parameter 2: 0 or 1 (CRSH Algorithm: 0, RAH Algorith: 1)" << endl;
-		cout << "[USAGE] Parameter 3: 0 or 1 (Exit after the first frame: 0, Continue after the first frame: 1)" << endl;
+		cout << "[USAGE] Parameter 3: 0 or 1 or 2 (No Tests: 0, Intersection Tests: 1, Frame Rate Tests: 2)" << endl;
 	}
 
 	// Scene selected
@@ -2720,12 +2700,10 @@ int main(int argc, char* argv[]) {
 			algorithmID = 1;
 	}
 
-	// Exitor defined
+	// Test ID defined
 	if (argc >= 4) {
 
-		int exitor = atoi(argv[3]);
-
-		sceneExitor = exitor;
+		testID = atoi(argv[3]);
 	}
 
 	// Initialize the Soft Shadows

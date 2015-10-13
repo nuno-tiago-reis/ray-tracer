@@ -19,32 +19,37 @@ struct GpuTimer {
 	cudaEvent_t start;
 	cudaEvent_t stop;
 
+	float elapsedTime;
+
 	GpuTimer() {
+
 		cudaEventCreate(&start);
 		cudaEventCreate(&stop);
 	}
 
 	~GpuTimer() {
+
 		cudaEventDestroy(start);
 		cudaEventDestroy(stop);
 	}
 
 	void Start() {
+
 		cudaEventRecord(start, 0);
 	}
 
 	void Stop() {
+
 		cudaEventRecord(stop, 0);
+
+		cudaEventSynchronize(stop);
+
+		cudaEventElapsedTime(&elapsedTime, start, stop);
 	}
 
 	float ElapsedMillis() {
 
-		float elapsed;
-
-		cudaEventSynchronize(stop);
-		cudaEventElapsedTime(&elapsed, start, stop);
-
-		return elapsed;
+		return elapsedTime;
 	}
 };
 
@@ -82,6 +87,9 @@ class TestManager {
 		// Shading Timer ID
 		static int shadingTimerID;
 
+		// Timer Count
+		static int timerCount;
+
 	private:
 
 		// Singleton Instance
@@ -104,7 +112,12 @@ class TestManager {
 		// Final Connected Hit Total
 		int finalConnectedHitTotal[HIERARCHY_MAXIMUM_DEPTH];
 
-		/* Constructors & Destructors - Private due to Singleton */
+		// Hierarchy Traversal Elapsed Times
+		float hierarchyTraversalElapsedTimes;
+		// Intersection Elapsed Times
+		float intersectionElapsedTimes;
+
+		// Constructors & Destructors - Private due to Singleton
 		TestManager();
 		~TestManager();
 

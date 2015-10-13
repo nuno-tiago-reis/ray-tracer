@@ -1,0 +1,812 @@
+Elapsed Time:	0.62
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.520544
+[Timer] Ray Trimming:	0.187264
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11936
+[Timer] Hierarchy Traversal:	523.118
+[Timer] Intersection:	76.8587
+[Timer] Shading:	0.379168
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.523232
+[Timer] Ray Trimming:	0.178304
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.13219
+[Timer] Hierarchy Traversal:	527.096
+[Timer] Intersection:	76.8305
+[Timer] Shading:	0.388192
+
+Elapsed Time:	0.624
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.497856
+[Timer] Ray Trimming:	0.20016
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09078
+[Timer] Hierarchy Traversal:	525.852
+[Timer] Intersection:	75.9391
+[Timer] Shading:	0.378368
+
+Elapsed Time:	0.618
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.505088
+[Timer] Ray Trimming:	0.176512
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.12029
+[Timer] Hierarchy Traversal:	523.324
+[Timer] Intersection:	76.491
+[Timer] Shading:	0.386304
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.50096
+[Timer] Ray Trimming:	0.177056
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09021
+[Timer] Hierarchy Traversal:	525.572
+[Timer] Intersection:	76.7504
+[Timer] Shading:	0.387168
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.500864
+[Timer] Ray Trimming:	0.188224
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09274
+[Timer] Hierarchy Traversal:	522.149
+[Timer] Intersection:	74.8332
+[Timer] Shading:	0.3776
+
+Elapsed Time:	0.609
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.512608
+[Timer] Ray Trimming:	0.18624
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09078
+[Timer] Hierarchy Traversal:	521.735
+[Timer] Intersection:	75.1951
+[Timer] Shading:	0.38464
+
+Elapsed Time:	0.614
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49248
+[Timer] Ray Trimming:	0.191712
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.104
+[Timer] Hierarchy Traversal:	524.128
+[Timer] Intersection:	76.0991
+[Timer] Shading:	0.384416
+
+Elapsed Time:	0.622
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.509152
+[Timer] Ray Trimming:	0.179808
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09178
+[Timer] Hierarchy Traversal:	525.095
+[Timer] Intersection:	76.4529
+[Timer] Shading:	0.390816
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.51104
+[Timer] Ray Trimming:	0.188352
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.07958
+[Timer] Hierarchy Traversal:	521.434
+[Timer] Intersection:	75.6928
+[Timer] Shading:	0.3816
+
+Elapsed Time:	0.612
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.480992
+[Timer] Ray Trimming:	0.188608
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09117
+[Timer] Hierarchy Traversal:	522.803
+[Timer] Intersection:	75.2811
+[Timer] Shading:	0.378592
+
+Elapsed Time:	0.619
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.499168
+[Timer] Ray Trimming:	0.195776
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09664
+[Timer] Hierarchy Traversal:	522.601
+[Timer] Intersection:	75.5651
+[Timer] Shading:	0.37472
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.497216
+[Timer] Ray Trimming:	0.191776
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08278
+[Timer] Hierarchy Traversal:	523.041
+[Timer] Intersection:	75.6089
+[Timer] Shading:	0.38096
+
+Elapsed Time:	0.615
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.488896
+[Timer] Ray Trimming:	0.187904
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08874
+[Timer] Hierarchy Traversal:	523.96
+[Timer] Intersection:	75.4401
+[Timer] Shading:	0.381952
+
+Elapsed Time:	0.618
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.498944
+[Timer] Ray Trimming:	0.287136
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.1113
+[Timer] Hierarchy Traversal:	525.352
+[Timer] Intersection:	76.5063
+[Timer] Shading:	0.382688
+
+Elapsed Time:	0.62
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.501536
+[Timer] Ray Trimming:	0.184832
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09382
+[Timer] Hierarchy Traversal:	525.061
+[Timer] Intersection:	76.4854
+[Timer] Shading:	0.385728
+
+Elapsed Time:	0.615
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.502624
+[Timer] Ray Trimming:	0.192224
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08544
+[Timer] Hierarchy Traversal:	526.535
+[Timer] Intersection:	76.1038
+[Timer] Shading:	0.380928
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.498912
+[Timer] Ray Trimming:	0.192544
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09712
+[Timer] Hierarchy Traversal:	522.417
+[Timer] Intersection:	74.622
+[Timer] Shading:	0.37968
+
+Elapsed Time:	0.611
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49264
+[Timer] Ray Trimming:	0.193824
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09216
+[Timer] Hierarchy Traversal:	522.25
+[Timer] Intersection:	75.7152
+[Timer] Shading:	0.380736
+
+Elapsed Time:	0.618
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.509856
+[Timer] Ray Trimming:	0.169344
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09328
+[Timer] Hierarchy Traversal:	527.036
+[Timer] Intersection:	76.072
+[Timer] Shading:	0.39056
+
+Elapsed Time:	0.622
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.510848
+[Timer] Ray Trimming:	0.188992
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.14298
+[Timer] Hierarchy Traversal:	523.631
+[Timer] Intersection:	75.9603
+[Timer] Shading:	0.383488
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.529088
+[Timer] Ray Trimming:	0.213664
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.14234
+[Timer] Hierarchy Traversal:	523.895
+[Timer] Intersection:	76.2549
+[Timer] Shading:	0.386624
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.526048
+[Timer] Ray Trimming:	0.19792
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.14998
+[Timer] Hierarchy Traversal:	524.69
+[Timer] Intersection:	76.3005
+[Timer] Shading:	0.385792
+
+Elapsed Time:	0.619
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.51264
+[Timer] Ray Trimming:	0.18784
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09139
+[Timer] Hierarchy Traversal:	526.427
+[Timer] Intersection:	76.231
+[Timer] Shading:	0.384832
+
+Elapsed Time:	0.647
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.516096
+[Timer] Ray Trimming:	0.219968
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09494
+[Timer] Hierarchy Traversal:	524.4
+[Timer] Intersection:	75.2771
+[Timer] Shading:	0.378176
+
+Elapsed Time:	0.618
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.54528
+[Timer] Ray Trimming:	0.186336
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.18192
+[Timer] Hierarchy Traversal:	526.238
+[Timer] Intersection:	77.3541
+[Timer] Shading:	0.382176
+
+Elapsed Time:	0.621
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.526176
+[Timer] Ray Trimming:	0.175616
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.15638
+[Timer] Hierarchy Traversal:	526.36
+[Timer] Intersection:	77.3555
+[Timer] Shading:	0.379776
+
+Elapsed Time:	0.659
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.507232
+[Timer] Ray Trimming:	0.169248
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10794
+[Timer] Hierarchy Traversal:	524.329
+[Timer] Intersection:	75.9796
+[Timer] Shading:	0.3696
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.514816
+[Timer] Ray Trimming:	0.180416
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10982
+[Timer] Hierarchy Traversal:	523.344
+[Timer] Intersection:	75.9155
+[Timer] Shading:	0.386944
+
+Elapsed Time:	0.612
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.496576
+[Timer] Ray Trimming:	0.181536
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08602
+[Timer] Hierarchy Traversal:	522.879
+[Timer] Intersection:	76.6565
+[Timer] Shading:	0.366304
+
+Elapsed Time:	0.615
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.492864
+[Timer] Ray Trimming:	0.193664
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11904
+[Timer] Hierarchy Traversal:	523.336
+[Timer] Intersection:	75.2133
+[Timer] Shading:	0.389344
+
+Elapsed Time:	0.619
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.525344
+[Timer] Ray Trimming:	0.171328
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11523
+[Timer] Hierarchy Traversal:	524.692
+[Timer] Intersection:	78.0169
+[Timer] Shading:	0.374048
+
+Elapsed Time:	0.62
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.571296
+[Timer] Ray Trimming:	0.197024
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.12931
+[Timer] Hierarchy Traversal:	526.293
+[Timer] Intersection:	76.208
+[Timer] Shading:	0.385888
+
+Elapsed Time:	0.62
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.497344
+[Timer] Ray Trimming:	0.193472
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10368
+[Timer] Hierarchy Traversal:	523.383
+[Timer] Intersection:	76.6507
+[Timer] Shading:	0.378592
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.522272
+[Timer] Ray Trimming:	0.191968
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10704
+[Timer] Hierarchy Traversal:	525.153
+[Timer] Intersection:	75.5474
+[Timer] Shading:	0.387328
+
+Elapsed Time:	0.62
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.487168
+[Timer] Ray Trimming:	0.181728
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.1072
+[Timer] Hierarchy Traversal:	525.993
+[Timer] Intersection:	76.2194
+[Timer] Shading:	0.386848
+
+Elapsed Time:	0.623
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.524352
+[Timer] Ray Trimming:	0.188672
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10662
+[Timer] Hierarchy Traversal:	527.464
+[Timer] Intersection:	78.4346
+[Timer] Shading:	0.377856
+
+Elapsed Time:	0.626
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.514784
+[Timer] Ray Trimming:	0.198528
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09686
+[Timer] Hierarchy Traversal:	525.407
+[Timer] Intersection:	77.3498
+[Timer] Shading:	0.380608
+
+Elapsed Time:	0.624
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49824
+[Timer] Ray Trimming:	0.168768
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09194
+[Timer] Hierarchy Traversal:	527.491
+[Timer] Intersection:	76.4479
+[Timer] Shading:	0.383968
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49392
+[Timer] Ray Trimming:	0.184512
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.13267
+[Timer] Hierarchy Traversal:	524.638
+[Timer] Intersection:	77.2853
+[Timer] Shading:	0.383552
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49104
+[Timer] Ray Trimming:	0.182944
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.13222
+[Timer] Hierarchy Traversal:	524.359
+[Timer] Intersection:	77.4843
+[Timer] Shading:	0.3832
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.503424
+[Timer] Ray Trimming:	0.176864
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.17466
+[Timer] Hierarchy Traversal:	523.674
+[Timer] Intersection:	75.4086
+[Timer] Shading:	0.375968
+
+Elapsed Time:	0.614
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49536
+[Timer] Ray Trimming:	0.181056
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.0815
+[Timer] Hierarchy Traversal:	521.758
+[Timer] Intersection:	74.7764
+[Timer] Shading:	0.378656
+
+Elapsed Time:	0.609
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.495264
+[Timer] Ray Trimming:	0.184608
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08784
+[Timer] Hierarchy Traversal:	521.493
+[Timer] Intersection:	74.9406
+[Timer] Shading:	0.376768
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.50432
+[Timer] Ray Trimming:	0.190176
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10422
+[Timer] Hierarchy Traversal:	522.206
+[Timer] Intersection:	75.2534
+[Timer] Shading:	0.376192
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.495584
+[Timer] Ray Trimming:	0.178432
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08634
+[Timer] Hierarchy Traversal:	522.278
+[Timer] Intersection:	75.0062
+[Timer] Shading:	0.38432
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.50528
+[Timer] Ray Trimming:	0.190048
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09117
+[Timer] Hierarchy Traversal:	521.125
+[Timer] Intersection:	74.9966
+[Timer] Shading:	0.374592
+
+Elapsed Time:	0.614
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.4952
+[Timer] Ray Trimming:	0.172736
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11101
+[Timer] Hierarchy Traversal:	526.57
+[Timer] Intersection:	75.9631
+[Timer] Shading:	0.382592
+
+Elapsed Time:	0.624
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.501696
+[Timer] Ray Trimming:	0.195232
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08749
+[Timer] Hierarchy Traversal:	522.564
+[Timer] Intersection:	74.5715
+[Timer] Shading:	0.372736
+
+Elapsed Time:	0.611
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.495264
+[Timer] Ray Trimming:	0.172896
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.10352
+[Timer] Hierarchy Traversal:	523.901
+[Timer] Intersection:	75.1213
+[Timer] Shading:	0.372416
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49328
+[Timer] Ray Trimming:	0.186752
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09005
+[Timer] Hierarchy Traversal:	522.598
+[Timer] Intersection:	75.6206
+[Timer] Shading:	0.379488
+
+Elapsed Time:	0.617
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.495264
+[Timer] Ray Trimming:	0.197152
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.09085
+[Timer] Hierarchy Traversal:	522.929
+[Timer] Intersection:	74.6672
+[Timer] Shading:	0.375744
+
+Elapsed Time:	0.616
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.489952
+[Timer] Ray Trimming:	0.198816
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11584
+[Timer] Hierarchy Traversal:	524.326
+[Timer] Intersection:	76.5686
+[Timer] Shading:	0.381536
+
+Elapsed Time:	0.62
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.493344
+[Timer] Ray Trimming:	0.184768
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.0903
+[Timer] Hierarchy Traversal:	522.414
+[Timer] Intersection:	75.3088
+[Timer] Shading:	0.379104
+
+Elapsed Time:	0.612
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.492256
+[Timer] Ray Trimming:	0.175136
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08813
+[Timer] Hierarchy Traversal:	522.109
+[Timer] Intersection:	74.7102
+[Timer] Shading:	0.371552
+
+Elapsed Time:	0.612
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.507072
+[Timer] Ray Trimming:	0.178048
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11318
+[Timer] Hierarchy Traversal:	521.03
+[Timer] Intersection:	74.6433
+[Timer] Shading:	0.383552
+
+Elapsed Time:	0.611
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.49392
+[Timer] Ray Trimming:	0.194112
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.11139
+[Timer] Hierarchy Traversal:	523.492
+[Timer] Intersection:	76.2251
+[Timer] Shading:	0.38576
+
+Elapsed Time:	0.612
+Shadow Ray Iteration
+Ray Total:	251546
+TriangleTotal:	36308
+[Timer] Ray Creation:	0.491136
+[Timer] Ray Trimming:	0.196416
+[Timer] Ray Compression:	0
+[Timer] Ray Sorting:	0
+[Timer] Ray Decompression:	0
+[Timer] Hierarchy Creation:	2.08768
+[Timer] Hierarchy Traversal:	524.741
+[Timer] Intersection:	75.6124
+[Timer] Shading:	0.384832
+
