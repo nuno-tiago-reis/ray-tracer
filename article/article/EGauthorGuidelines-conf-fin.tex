@@ -345,6 +345,8 @@ We selected \textsc{Cornell} (790 triangles). as it is representative of highly 
 
 \subsection{Test Results and Discussion}
 
+\subsubsection{Intersection Results}
+
 We hypothesised that our more coherent RSH hierarchy needs to compute fewer intersection results to render a scene. We expect more expressive results for shadow rays. As shadow rays have low divergence the sorting step should create a more coherent RSH than for reflection rays. In addition our hierarchy should also be more coherent with reflection rays than one based on the RAH algorithm due to the hashing we use. However by the very nature of reflection rays they will never be as coherent as shadow rays resulting in a lower quality hierarchy.
 
 \begin{table}[!htb]
@@ -469,6 +471,127 @@ For the Cornell scene we focused primarily on the reflection rays which are much
 The final scene, Sponza, is a whole mesh. We did not employ object subdivision in this scene. Hence we expected worse results than with Office since we would only get the benefit of the shadow ray hierarchy and none from the bounding volume scheme.
 
 We compute 35,86\% less intersection tests than RAH and 97,62\% than the brute force approach. Since there is no object mesh culling for this scene the results are not as good as they were with the Office scene but we still manage to outperform RAH even without using an integral part of our algorithm (see Table~\ref{table:sponza-results}).
+
+\subsubsection{Intersection Results}
+
+These tests were run over the course of 58 frames and the results for each phase are the average of these 58 frames. 
+
+\begin{table}[!htb]
+\begin{center}
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rr}
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{Images/Office_Preview}} & & \\
+    \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Total Time (ms)} & \textsc{Relative Time (\%)}\\
+    \hline
+    \emph{RAH Algorithm (618 ms per Frame)} & & \\
+    \hline
+    \quad \# Ray Creation               & 40,240	& 0,11\%	\\
+    \quad \# Ray Compression            & 0,000     & 0,00\%	\\
+    \quad \# Ray Sorting                & 0,000	    & 0,00\%    \\
+    \quad \# Ray Decompression          & 0,000	    & 0,00\%    \\
+    \quad \# Hierarchy Creation         & 122,165	& 0,34\%    \\
+    \quad \# Hierarchy Traversal        & 30394,169	& 84,77\%   \\
+    \quad \# Final Intersection Tests   & 4428,185	& 12,35\%	\\
+    & & \\
+    \hline
+    \emph{Our Algorithm (316 ms per Frame)} & & \\
+    \hline
+    \quad \# Ray Creation               & 40,433	& 0,22\%	\\
+    \quad \# Ray Compression            & 16,651    & 0,09\%	\\
+    \quad \# Ray Sorting                & 11,822	& 0,06\%    \\
+    \quad \# Ray Decompression          & 99,721	& 0,54\%    \\
+    \quad \# Hierarchy Creation         & 130,626	& 0,71\%    \\
+    \quad \# Hierarchy Traversal        & 13918,797	& 75,76\%   \\
+    \quad \# Final Intersection Tests   & 3355,308	& 18,26\%	\\
+\end{tabular}
+\end{center}
+\caption{\label{table:office-time-results}
+\textsc{Office} rendering time.}
+\end{table}
+
+For this scene we can see that the major time consuming steps are in fact the hierarchy traversal and the final intersection tests. The biggest difference between our algorithm and the RAH algorithm resides in the time spent traversing the hierarchy. While our algorithm only needs 13918 milliseconds, the RAH algorithm requires 30394 milliseconds, which is about 215\% more. This increased time traversing the hierarchy amounts to about 100\% more time to render each frame (see Table~\ref{table:office-time-results}).
+
+\begin{table}[!htb]
+\begin{center}
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rr}
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{Images/Cornell_Preview}} & & \\
+    \multicolumn{1}{c|}{\textsc{Cornell}} & \textsc{Total Time (ms)} & \textsc{Relative Time (\%)}\\
+    \hline
+    \emph{RAH Algorithm (93 ms per Frame)} & & \\
+    \hline
+    \quad \# Ray Creation               & 125,731	& 2,16\%	\\
+    \quad \# Ray Compression            & 0,000     & 0,00\%	\\
+    \quad \# Ray Sorting                & 0,000	    & 0,00\%    \\
+    \quad \# Ray Decompression          & 0,000	    & 0,00\%    \\
+    \quad \# Hierarchy Creation         & 366,984	& 6,29\%    \\
+    \quad \# Hierarchy Traversal        & 2717,309	& 46,59\%   \\
+    \quad \# Final Intersection Tests   & 2208,936	& 37,88\%	\\
+    & & \\
+    \hline
+    \emph{Our Algorithm (100 ms per Frame)} & & \\
+    \hline
+    \quad \# Ray Creation               & 128,134	& 2,38\%	\\
+    \quad \# Ray Compression            & 53,916    & 1,00\%	\\
+    \quad \# Ray Sorting                & 50,970    & 0,95\%    \\
+    \quad \# Ray Decompression          & 251,946   & 4,68\%    \\
+    \quad \# Hierarchy Creation         & 407,090   & 7,57\%    \\
+    \quad \# Hierarchy Traversal        & 1776,750  & 33,03\%   \\
+    \quad \# Final Intersection Tests   & 2175,057  & 40,43\%	\\
+\end{tabular}
+\end{center}
+\caption{\label{table:cornell-time-results}
+\textsc{Cornell} rendering time.}
+\end{table}
+
+Much like Office, the Cornell scene takes most of its rendering time traversing the hierarchy and calculating the final intersection tests. However due to the lower geometric complexity of the scene the absolute values aren't as high. The traversal takes 2717 milliseconds for the RAH algorithm and 1700 for our algorithm, which is a significant reduction (see Table~\ref{table:cornell-time-results}).
+
+\begin{table}[!htb]
+\begin{center}
+\fontencoding{T1}
+\fontseries{m}
+\fontshape{sc}
+\fontsize{7}{9}
+\selectfont
+\begin{tabular}{l|rr}
+    \multicolumn{1}{c}{\includegraphics[width=1.5cm]{Images/Sponza_Preview}} & & \\
+    \multicolumn{1}{c|}{\textsc{Sponza}} & \textsc{Total Time (ms)} & \textsc{Relative Time (\%)}\\
+    \hline
+    \emph{RAH Algorithm} & & \\
+    \hline
+    \quad \# Ray Creation               & 41,215	& 0,07\%	\\
+    \quad \# Ray Compression            & 0,000     & 0,00\%	\\
+    \quad \# Ray Sorting                & 0,000	    & 0,00\%    \\
+    \quad \# Ray Decompression          & 0,000	    & 0,00\%    \\
+    \quad \# Hierarchy Creation         & 126,499	& 0,23\%    \\
+    \quad \# Hierarchy Traversal        & 49537,627	& 89,25\%   \\
+    \quad \# Final Intersection Tests   & 4995,089	& 9,00\%	\\
+    & & \\
+    \hline
+    \emph{Our Algorithm} & & \\
+    \hline
+    \quad \# Ray Creation               & 41,500	& 0,08\%	\\
+    \quad \# Ray Compression            & 17,151    & 0,03\%	\\
+    \quad \# Ray Sorting                & 12,696	& 0,02\%    \\
+    \quad \# Ray Decompression          & 98,617	& 0,19\%    \\
+    \quad \# Hierarchy Creation         & 137,835	& 0,26\%    \\
+    \quad \# Hierarchy Traversal        & 46867,912	& 89,65\%   \\
+    \quad \# Final Intersection Tests   & 4367,193	& 8,35\%	\\
+\end{tabular}
+\end{center}
+\caption{\label{table:sponza-time-results}
+\textsc{Sponza} rendering time.}
+\end{table}
+
+Finally for the Sponza scene we still see a similar relative time being spent in the traversal of the hierarchy as in the previous scenes. Even though the Sponza scene isn't subdivided into separate object meshes, we still manage to outperform RAH while traversing the hierarchy (see Table~\ref{table:sponza-time-results}). 
 
 %-------------------------------------------------------------------------
 

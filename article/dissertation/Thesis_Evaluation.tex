@@ -19,11 +19,11 @@ We implemented our CRSH algorithm in OpenGL/C++ and CUDA/C++ then compared it wi
 
 \medskip
 
-We measure the amount of intersections, including misses and hits, to evaluate ray hierarchy algorithms proficiency at reducing the amount of ray-primitive intersection tests required to render an image. All scenes were rendered at $512\times512$ resolution. We also vary the depth of the hierarchy and the number of nodes we combine to create the upper levels of the hierarchy. We also measured the frame rate of each scene using a baseline configuration as well as the individual steps in each algorithm relatively to the overall frame rate.
+We measure the amount of intersections, including misses and hits, to evaluate ray hierarchy algorithms proficiency at reducing the amount of ray-primitive intersection tests required to render an image. All scenes were rendered at $512\times512$ resolution. We also vary the depth of the hierarchy and the number of nodes we combine to create the upper levels of the hierarchy. We also measured the rendering time of each scene using a baseline configuration as well as the individual steps in each algorithm relatively to the overall rendering time.
 
 \medskip
 
-The test information was collected using a NVIDIA GeForce GTX TITAN GPU with 6 GB of RAM. Our algorithm is completely executed on the GPU (including hierarchy construction and traversal) so the CPU has no impact on the test results.
+The test information was collected using a NVIDIA GeForce GTX 770M GPU with 3 GB of RAM. Our algorithm is completely executed on the GPU (including hierarchy construction and traversal) so the CPU has no impact on the test results.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Test Scenes}
@@ -1172,20 +1172,176 @@ For the final test using the Sponza scene we computed 72,14\% less intersection 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Frame Rate Results}
+\subsection{Rendering Time Results}
+
+For this set of tests we used a node subdivision of 8 and a hierarchy depth of 2. This means that every node in the upper levels of the hierarchy consists of 16 nodes in the level directly below. The tests were run over the course of 58 frames and the results for each phase are the average of these 58 frames. 
 
 \subsubsection{Office}
 
+\begin{figure}[!htb]
+    \begin{minipage}{0.25\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Office_Preview}
+        \captionof{figure}{\textsc{Office}}
+    \end{minipage}
+    \begin{minipage}{0.725\linewidth}
+        \centering
+        \fontencoding{T1}
+        \fontseries{m}
+        \fontshape{sc}
+        \fontsize{8}{10}
+        \selectfont
+        \begin{tabular}[h]{l|rrrr}
+            \multicolumn{1}{c|}{\textsc{Office}} & \textsc{Total Time (ms)} & \textsc{Relative Time (\%)}\\
+            \hline
+            \emph{RAH Algorithm (618 ms per Frame)} & & \\
+            \hline
+            \quad \# Ray Creation               & 40,240	& 0,11\%	\\
+            \quad \# Ray Compression            & 0,000     & 0,00\%	\\
+            \quad \# Ray Sorting                & 0,000	    & 0,00\%    \\
+            \quad \# Ray Decompression          & 0,000	    & 0,00\%    \\
+            \quad \# Hierarchy Creation         & 122,165	& 0,34\%    \\
+            \quad \# Hierarchy Traversal        & 30394,169	& 84,77\%   \\
+            \quad \# Final Intersection Tests   & 4428,185	& 12,35\%	\\
+            & & \\
+            \hline
+            \emph{Our Algorithm (316 ms per Frame)} & & \\
+            \hline
+            \quad \# Ray Creation               & 40,433	& 0,22\%	\\
+            \quad \# Ray Compression            & 16,651    & 0,09\%	\\
+            \quad \# Ray Sorting                & 11,822	& 0,06\%    \\
+            \quad \# Ray Decompression          & 99,721	& 0,54\%    \\
+            \quad \# Hierarchy Creation         & 130,626	& 0,71\%    \\
+            \quad \# Hierarchy Traversal        & 13918,797	& 75,76\%   \\
+            \quad \# Final Intersection Tests   & 3355,308	& 18,26\%	\\
+        \end{tabular}
+        \label{table:office-time-results}
+        \captionof{table}{\textsc{Office} Rendering Time Results.}
+    \end{minipage}
+\end{figure}
+
+For this scene we can see that the major time consuming steps are in fact the hierarchy traversal and the final intersection tests. The biggest difference between our algorithm and the RAH algorithm resides in the time spent traversing the hierarchy. While our algorithm only needs 13918 milliseconds, the RAH algorithm requires 30394 milliseconds, which is about 215\% more. This increased time traversing the hierarchy amounts to about 100\% more time to render each frame (see Table~\ref{table:office-time-results}).
+
+\vfill
+
+\pagebreak
+
 \subsubsection{Cornell}
 
+\begin{figure}[!htb]
+    \begin{minipage}{0.25\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Cornell_Preview}
+        \captionof{figure}{\textsc{Cornell}}
+    \end{minipage}
+    \begin{minipage}{0.725\linewidth}
+        \centering
+        \fontencoding{T1}
+        \fontseries{m}
+        \fontshape{sc}
+        \fontsize{8}{10}
+        \selectfont
+        \begin{tabular}[h]{l|rrrr}
+            \multicolumn{1}{c|}{\textsc{Cornell}} & \textsc{Total Time (ms)} & \textsc{Relative Time (\%)}\\
+            \hline
+            \emph{RAH Algorithm (93 ms per Frame)} & & \\
+            \hline
+            \quad \# Ray Creation               & 125,731	& 2,16\%	\\
+            \quad \# Ray Compression            & 0,000     & 0,00\%	\\
+            \quad \# Ray Sorting                & 0,000	    & 0,00\%    \\
+            \quad \# Ray Decompression          & 0,000	    & 0,00\%    \\
+            \quad \# Hierarchy Creation         & 366,984	& 6,29\%    \\
+            \quad \# Hierarchy Traversal        & 2717,309	& 46,59\%   \\
+            \quad \# Final Intersection Tests   & 2208,936	& 37,88\%	\\
+            & & \\
+            \hline
+            \emph{Our Algorithm (100 ms per Frame)} & & \\
+            \hline
+            \quad \# Ray Creation               & 128,134	& 2,38\%	\\
+            \quad \# Ray Compression            & 53,916    & 1,00\%	\\
+            \quad \# Ray Sorting                & 50,970    & 0,95\%    \\
+            \quad \# Ray Decompression          & 251,946   & 4,68\%    \\
+            \quad \# Hierarchy Creation         & 407,090   & 7,57\%    \\
+            \quad \# Hierarchy Traversal        & 1776,750  & 33,03\%   \\
+            \quad \# Final Intersection Tests   & 2175,057  & 40,43\%	\\
+        \end{tabular}
+        \label{table:cornell-time-results}
+        \captionof{table}{\textsc{Cornell} Rendering Time Results.}
+    \end{minipage}
+\end{figure}
+
+Much like Office, the Cornell scene takes most of its rendering time traversing the hierarchy and calculating the final intersection tests. However due to the lower geometric complexity of the scene the absolute values aren't as high. The traversal takes 2717 milliseconds for the RAH algorithm and 1700 for our algorithm, which is a significant reduction (see Table~\ref{table:cornell-time-results}).
+
+\vfill
+
+\pagebreak
+
 \subsubsection{Sponza}
+
+\begin{figure}[!htb]
+    \begin{minipage}{0.25\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Sponza_Preview}
+        \captionof{figure}{\textsc{Sponza}}
+    \end{minipage}
+    \begin{minipage}{0.725\linewidth}
+        \centering
+        \fontencoding{T1}
+        \fontseries{m}
+        \fontshape{sc}
+        \fontsize{8}{10}
+        \selectfont
+        \begin{tabular}[h]{l|rrrr}
+            \multicolumn{1}{c|}{\textsc{Sponza}} & \textsc{Total Time (ms)} & \textsc{Relative Time (\%)}\\
+            \hline
+            \emph{RAH Algorithm} & & \\
+            \hline
+            \quad \# Ray Creation               & 41,215	& 0,07\%	\\
+            \quad \# Ray Compression            & 0,000     & 0,00\%	\\
+            \quad \# Ray Sorting                & 0,000	    & 0,00\%    \\
+            \quad \# Ray Decompression          & 0,000	    & 0,00\%    \\
+            \quad \# Hierarchy Creation         & 126,499	& 0,23\%    \\
+            \quad \# Hierarchy Traversal        & 49537,627	& 89,25\%   \\
+            \quad \# Final Intersection Tests   & 4995,089	& 9,00\%	\\
+            & & \\
+            \hline
+            \emph{Our Algorithm} & & \\
+            \hline
+            \quad \# Ray Creation               & 41,500	& 0,08\%	\\
+            \quad \# Ray Compression            & 17,151    & 0,03\%	\\
+            \quad \# Ray Sorting                & 12,696	& 0,02\%    \\
+            \quad \# Ray Decompression          & 98,617	& 0,19\%    \\
+            \quad \# Hierarchy Creation         & 137,835	& 0,26\%    \\
+            \quad \# Hierarchy Traversal        & 46867,912	& 89,65\%   \\
+            \quad \# Final Intersection Tests   & 4367,193	& 8,35\%	\\
+        \end{tabular}
+        \label{table:sponza-time-results}
+        \captionof{table}{\textsc{Sponza} Rendering Time Results.}
+    \end{minipage}
+\end{figure}
+
+Finally for the Sponza scene we still see a similar relative time being spent in the traversal of the hierarchy as in the previous scenes. Even though the Sponza scene isn't subdivided into separate object meshes, we still manage to outperform RAH while traversing the hierarchy (see Table~\ref{table:sponza-time-results}). 
+
+\vfill
+
+\pagebreak
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Test Results Global Discussion}
 
-For the Office scene the tests indicated that the optimal configuration is in fact the baseline configuration used, using node subdivision of 8 and hierarchy depth of 2. However this is reliant on the hashing function used, which means that if a better hashing function is used the optimal configuration may be different. 
+\subsubsection{Configuration Tests}
+
+For the Office scene the configuration tests indicated that the optimal configuration is in fact the baseline configuration used, using node subdivision of 8 and hierarchy depth of 2. However this is reliant on the hashing function used, which means that if a better hashing function is used the optimal configuration may be different. 
+
+\medskip
 
 For the Cornell scene there was always an increase for every configuration when compared with the baseline configuration. However this increase was more significant for the reflection rays. This is due to the fact that reflection rays are much less coherent than shadow rays, which leads to bigger nodes when combining such rays. Much like the shadow rays however using better hashing functions can mitigate this effect.
 
-Finally for the Sponza scene we noticed a reverse trend compared to the remaining scenes. This is due to the fact that the scene itself isn't subdivided into several objects, making the use of bounding spheres useless. As such, only the higher levels of the hierarchy were culling the number of potential intersection tests, which means that as we increased the hierarchy's depth this mitigation effect would be increased until we reached a certain break point, like it was noted before. Since this scene is an outlier however it is safe to assume if it was subdivided into several objects, much like the Office scene, the optimal configuration would be the baseline configuration used for the tests. 
+\medskip
+
+Finally for the Sponza scene we noticed a reverse trend compared to the remaining scenes. This is due to the fact that the scene itself isn't subdivided into several objects, making the use of bounding spheres useless. As such, only the higher levels of the hierarchy were culling the number of potential intersection tests, which means that as we increased the hierarchy's depth this mitigation effect would be increased until we reached a certain break point, like it was noted before. Since this scene is an outlier however it is safe to assume if it was subdivided into several objects, much like the Office scene, the optimal configuration would be the baseline configuration used for the tests.
+
+\subsubsection{Rendering Time Tests}
+
+Regarding the rendering time tests, it is notable that even though we managed to significantly reduce the total number of intersection tests the hierarchy traversal still takes up most of the rendering time. This leads us to believe that if we can optimize the traversal step, either by culling more intersection tests at the early stages or by making the implementation more efficient we can get a significant reduction in the time necessary for the two final phases of our algorithm.
