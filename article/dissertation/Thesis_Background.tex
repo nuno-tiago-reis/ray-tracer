@@ -17,14 +17,52 @@
 
 Ray-tracing \cite{Whitted80} is a global illumination \cite{Ritschel12} technique that is used for the synthesis of realistic images which employs recursive ray-casting \cite{Appel68}.
 
+\medskip
+
 The ray tracing algorithm casts primary rays from the eye but does not stop there. 
 When the rays intersect geometry they can generate extra secondary rays: e.g. shadow, reflection and refraction rays.
 
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.65]{Images/Secondary_Rays}
+    \caption{\label{fig:bscr}Secondary Rays}
+\end{figure}
+
 These rays differentiate ray-tracing from the more traditional rasterization algorithm since they naturally allow realistic and complex effects like reflections, refractions and shadows without any need for additional techniques. However this comes with at price. Ray-tracing is computationally expensive. There is extensive research and ongoing to try and optimize it. Much of this research involves creating hierarchies in either the Object or Spatial domains to decrease the number of intersection tests in a divide and conquer fashion.
 
-Object and Spatial Hierarchies help reduce the amount of intersections by reducing the amount of scene geometry required to test by culling many polygons and objects away from the ray paths at once.
+\medskip
+
+Object and Spatial Hierarchies (like Octrees and Bounding Volume Hierarchies) help reduce the amount of intersections by reducing the amount of scene geometry required to test by culling many polygons and objects away from the ray paths at once (see Figure~\ref{fig:octree} and Figure~\ref{fig:bvh}).
+
+\begin{figure}[!htb]
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=6.0cm]{Images/BVH_Render}
+        \captionof{figure}{\label{fig:octree}Octree}
+    \end{minipage}
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=6.0cm]{Images/Octree_Render}
+        \captionof{figure}{\label{fig:bvh}Bounding Volume Hierarchy}    
+    \end{minipage}
+\end{figure}
 
 Ray-Space Hierarchies, use ray bundles or ray caching mechanisms to achieve the same goal, reduce the number of intersections. Instead of creating hierarchies based on the scenes geometry, they are based on the rays being cast in each frame. This is the approach we decided to take is based on ray bundling but also uses a feature of ray caching, which is ray hashing \cite{Arvo87} \cite{Aila10}.
+
+\begin{figure}[!htb]
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=6.0cm]{Images/Bounding_Cone}
+        \captionof{figure}{\label{fig:bbc}Bounding Cone}
+    \end{minipage}
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=6.0cm]{Images/Bounding_Sphere}
+        \captionof{figure}{\label{fig:bbs}Bounding Sphere}    
+    \end{minipage}
+\end{figure}
+
+\pagebreak
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Fast Ray Tracing by Ray Classification}
@@ -38,32 +76,33 @@ Since this algorithm works in a 5-dimensional space, the first thing we need to 
 
 \medskip
 
-The algorithm was broken into these 5 steps that I will now describe. It is also important to note that the first step is only carried out once while the second and third steps are consistently carried out in order to refine the hierarchy.
+The algorithm was broken into 5 steps that I will now describe. It is also important to note that the first step is only carried out once while the second and third steps are consistently carried out in order to refine the hierarchy.
 
-\subsubsection{Bounding Volume Creation}
+\subsubsection{1. Bounding Volume Creation}
 
 The first step is to find the 5-dimensional bounding volume that contains the equivalent of each ray that can interact with the environment in said space. Since it's important to use volumes that don't take up too much space they chose to store 5 ordered pairs that represent intervals in the 5 orthogonal axes, which they labeled x,y,z,u and v. These 5 ordered pairs represent a bounding volume. Each of these bounding volumes, denominated hypercubes, have a representation in 3-dimensional space which they call a beam. This is vital to the algorithm because this beam comprises the points in 3-dimensional space that the set of rays contained in the hypercube can reach. One of the issues however is that the beams associated with the hypercubes are not generally polyhedra. To account for this fact, they used 6 different mappings that have the desired properties locally and together contain the whole ray-space. Each of the 6 mappings correspond to a dominant axis, x+,x-,y+,y-,z+ or z-, and one sixth of the direction space. The bounding volume is then created by creating six copies of the bounding volume created from the bounding box containing all the geometry. The rays are then mapped onto these bounding volumes.
 
-\subsubsection{Space Subdivision}
+\subsubsection{2. Space Subdivision}
 
 The second step is to subdivide the 5-dimensional space into equivalence classes. The smaller each hypercube is, the more likely rays are to behave coherently. However, the smaller each hypercube is, the more classes we will have. The goal is to have hypercubes sufficiently small so that the rays of the corresponding beams intersect approximately the same objects, allowing the rays in that beam to share a set of candidate objects. Starting with the 6 bounding volumes created earlier, the hierarchy is created by subdividing each hypercube in half at each level, cycling each of the 5 axis. This continues until either the hypercubes size or the sets number of candidate objects fall below a fixed threshold. It is important to note that hypercubes are only subdivided if they contain rays generated during the ray-tracing process.
 
-\subsubsection{Candidate set Creation}
+\subsubsection{3. Candidate set Creation}
 
 For the third step each objects bounding box is intersected with the beam associated with the hypercube being tested. If there is an intersection then the object is added to that hypercubes candidate set. As the space is subdivided the candidate sets for the child hypercubes must be updated. Since there is an overlap between parent and child hypercubes they found that re-evaluating the candidate sets should only be done only after the hypercubes have been divided on all of the 5 axis, meaning a re-evaluation only after 5 subdivisions have occurred.
 
-\subsubsection{Ray Classification}
+\subsubsection{4. Ray Classification}
 
 The fourth step consists of finding the 5-dimensional hypercube that each ray corresponds to. This is done by mapping the ray to the 5-dimensional space and then traversing the ray-space hierarchy, beginning with the hypercube that is indexed by the rays dominant axis (this hypercube is one of the 6 copies created at the start of the algorithm) until the leaf containing the ray is reached. If the candidate set corresponding to this leaf is empty then the ray intersects nothing. Otherwise, we proceed to the next step.
 
-\subsubsection{Intersection Tests}	
+\subsubsection{5. Intersection Tests}	
 
 Finally the ray is tested with each object for intersections. Initially a coarse intersection test is carried out by using the objects bounding volume instead of the actual object, in order to reject rays that don't intersect the object.
 
-\subsubsection{Considerations}
+\subsection{Considerations}
 
-This algorithm works similarly to a Hash Tree, in the sense that each ray is converted to a key (in this case the corresponding 5-dimensional point) and after finding out which class it belong to (the classes can be associated with the equivalence classes) it is then mapped to a value (in this case the candidate object set). For dynamic scenes it would be necessary to recalculate the candidate sets each time the objects moved, which would be very costly. This means that the ray-space hierarchy is tightly connected to the objects and their positioning in the scene. This suggests that the algorithm is not a very good fit for ray-tracing of dynamic scenes, which is my goal.
+This algorithm works similarly to a Hash Tree, in the sense that each ray is converted to a key (in this case the corresponding 5-dimensional point) and after finding out which class it belong to (the classes can be associated with the equivalence classes) it is then mapped to a value (in this case the candidate object set). For dynamic scenes it would be necessary to recalculate the candidate sets each time the objects moved, which would be very costly. This means that the ray-space hierarchy is tightly connected to the objects and their positioning in the scene. This suggests that the algorithm is not a very good fit for ray-tracing of dynamic scenes, which is my goal. The ray caching scheme is interesting however if used differently, i.e. for the sorting of secondary rays.
 
+\vfill
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Five-dimensional Adaptive Subdivision for Ray Tracing}
@@ -108,6 +147,8 @@ Finally after traversing the hierarchy we have a texture with the triangle and  
 \subsubsection{Considerations}
 
 This algorithm works as a bounding volume hierarchy of sorts, adapted to the rays, using cones and spheres to enclose the ray bundles. It is also very well adapted to GPGPU since each pass has a fixed number of operations and has the same execution path. The stream-pass reduction method is vital since it helps prune the textures of empty elements, allowing the threads processing the textures to execute the same operations. Finally it leaves the possibility of combining the ray-space hierarchy with a object-space hierarchy, possibly reducing the number of intersections even more. It is also an example of hybrid rendering since it uses the GPUs rasterizer to compute the initial rays and the initial set of secondary rays.
+
+\vfill
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Fast Ray Sorting and Breadth-First Packet Traversal for GPU Ray Tracing}

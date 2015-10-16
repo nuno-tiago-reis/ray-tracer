@@ -603,7 +603,7 @@ __global__ void PrepareArray2(
 	preparedArray[x + y * windowWidth] = value;
 }
 
-__global__ void Debug2(	
+__global__ void TextureDebug(	
 							// Auxiliary Variables containing the Screen Dimensions.
 							const unsigned int windowWidth, const unsigned int windowHeight,
 							// Output Array containing the Screen Buffer.
@@ -615,7 +615,18 @@ __global__ void Debug2(
 	if(x >= windowWidth || y >= windowHeight)
 		return;
 
-	pixelBufferObject[x + y * windowWidth] = RgbToInt(0.2f, 0.2f, 0.2f);
+	//float3 fragmentColor = make_float3(tex2D(diffuseTexture, x, y));
+
+	//float3 fragmentColor = make_float3(tex2D(specularTexture, x, y));
+
+	float3 fragmentColor = make_float3(tex2D(fragmentPositionTexture, x, y));
+	fragmentColor = normalize(fragmentColor);
+
+	//float3 fragmentColor = make_float3(tex2D(fragmentNormalTexture, x, y));
+	fragmentColor += make_float3(1.0f);
+	fragmentColor *= 0.5f;
+
+	pixelBufferObject[x + y * windowWidth] = RgbToInt(fragmentColor.x * 255.0f, fragmentColor.y * 255.0f, fragmentColor.z * 255.0f);
 }
 
 __global__ void Debug(	
@@ -2155,7 +2166,7 @@ extern "C" {
 		dim3 block(32,32);
 		dim3 grid(windowWidth/block.x + 1, windowHeight/block.y +1);
 
-		Debug2<<<grid, block>>>(windowWidth, windowHeight, pixelBufferObject);
+		TextureDebug << <grid, block >> >(windowWidth, windowHeight, pixelBufferObject);
 	}
 
 	void ScreenPreparationWrapper(

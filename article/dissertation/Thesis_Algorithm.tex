@@ -37,11 +37,35 @@ In order to combine both techniques the output from the fragment shaders used to
 
 \medskip
 
-The first pair of textures, the diffuse and specular properties textures, are used to calculate the shading of the primary rays. Although the primary rays are computed in the rasterizer, it is also important to note that after every batch of rays (primary or secondary) we need to trace shadow rays to determine the shading of those rays. We could store the triangle ID instead of the diffuse and specular properties but we chose the latter two instead. We store these two values instead of the triangle IDs so that we can prevent memory accesses and calculations. If we chose to output the triangle ID this would require us to calculate the triangle ID in the context of the scene (the rasterizer computes one object at a time therefore an extra step would be necessary). It would also require three different global memory accesses (the triangle IDs texture, the diffuse properties array and the specular properties array) compared to the two accesses if we just access the material values directly. The size of the two textures are also negligible when compared to the total memory requirements of the algorithm, therefore there is no reason not to use these two textures instead of one that contains the triangle IDs.
+The first pair of textures, the diffuse and specular properties textures, are used to calculate the shading of the primary rays (see Figure~\ref{fig:dtr} and Figure~\ref{fig:str}). Although the primary rays are computed in the rasterizer, it is also important to note that after every batch of rays (primary or secondary) we need to trace shadow rays to determine the shading of those rays. We could store the triangle ID instead of the diffuse and specular properties but we chose the latter two instead. We store these two values instead of the triangle IDs so that we can prevent memory accesses and calculations. If we chose to output the triangle ID this would require us to calculate the triangle ID in the context of the scene (the rasterizer computes one object at a time therefore an extra step would be necessary). It would also require three different global memory accesses (the triangle IDs texture, the diffuse properties array and the specular properties array) compared to the two accesses if we just access the material values directly. The size of the two textures are also negligible when compared to the total memory requirements of the algorithm, therefore there is no reason not to use these two textures instead of one that contains the triangle IDs.
 
-\medskip
+\begin{figure}[!htb]
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Diffuse_Texture}
+        \captionof{figure}{\label{fig:dtr}Diffuse Texture Render}
+    \end{minipage}
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Specular_Texture}
+        \captionof{figure}{\label{fig:str}Specular Texture Render}    
+    \end{minipage}
+\end{figure}
 
-The second pair of textures, the fragment position and normal textures, contain the information necessary to calculate the secondary rays. These include the shadow, reflection and refraction rays. However it is important to note that to calculate the shadow rays it is only necessary to output the fragment position, since the shadow ray directions are determined by the light and fragment positions. This means that the fragment normal is only needed for the reflection and refraction rays.
+The second pair of textures, the fragment position and normal textures, contain the information necessary to calculate the secondary rays (see Figure~\ref{fig:fptr} and Figure~\ref{fig:fntr}). These include the shadow, reflection and refraction rays. However it is important to note that to calculate the shadow rays it is only necessary to output the fragment position, since the shadow ray directions are determined by the light and fragment positions. This means that the fragment normal is only needed for the reflection and refraction rays.
+
+\begin{figure}[!htb]
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Position_Texture}
+        \captionof{figure}{\label{fig:fptr}Fragment Position Texture Render}
+    \end{minipage}
+    \begin{minipage}{0.475\linewidth}
+        \centering
+        \includegraphics[width=4.0cm]{Images/Normal_Texture}
+        \captionof{figure}{\label{fig:fntr}Fragment Normal Texture Render}    
+    \end{minipage}
+\end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Ray-Tracing}
@@ -49,13 +73,25 @@ The second pair of textures, the fragment position and normal textures, contain 
 
 \subsection{Bounding Volume Creation}
 
-Although this is a pre-processing step it makes sense to mention it now since in the following step we will update the object-based bounding spheres. We pre-compute the minimal bounding sphere of the object meshes, using an implementation based on \cite{Gartner99}s algorithm. It is important to use the minimal bounding spheres because these spheres will be used later on in the algorithm (in the hierarchy traversal step) to cull potential intersections in an early phase and thus reduced the total number of intersection tests computed. Since these are all pre-processed they have no impact on render time performance.
+Although this is a pre-processing step it makes sense to mention it now since in the following step we will update the object-based bounding spheres. We pre-compute the minimal bounding sphere of the object meshes, using an implementation based on \cite{Gartner99}s algorithm (see Figure~\ref{fig:obs}). It is important to use the minimal bounding spheres because these spheres will be used later on in the algorithm (in the hierarchy traversal step) to cull potential intersections in an early phase and thus reduced the total number of intersection tests computed. Since these are all pre-processed they have no impact on render time performance.
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.20]{Images/Object_Bounding_Sphere}
+    \caption{\label{fig:obs}Object Bounding Sphere}
+\end{figure}
 
 \subsection{Bounding Volume Update}
 
 In this step we update the object bounding spheres according to the transformations being applied to the object they envelop (e.g. translation, rotation, scale). Since we only update the center and the radius there is no need to recalculate the bounding spheres in each frame (the transformations do not invalidate the bounding spheres themselves).
 
 \subsection{Secondary Ray Creation and Indexing}
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[scale=0.65]{Images/Secondary_Rays}
+    \caption{\label{fig:scr}Secondary Rays}
+\end{figure}
 
 After the updating the bounding spheres we need to create the secondary rays. This step includes both the creation and the indexing of said rays. This step can be executed right after the rasterization step or after the final intersections step, depending on the ray-tracing depth being used. The ray index will be used later on in the algorithm in the sorting step. Since this is the first of the repeatable steps in our algorithm we will present both cases, the one where the rays are created right after the rasterization step as well as the one where rays are created after processing a ray batch.
 
@@ -67,7 +103,7 @@ We will now present the formulas used to calculate the secondary rays. After the
 
 For that reason, the formulas are generic enough so that they can be used for both steps without any need for modifications. After this step it is irrelevant if we are processing the first batch of secondary rays or not since they are all processed in the same way, up until the final intersection tests.
 
-\pagebreak
+\medskip
 
 The following formula is used to create the shadow rays:
 
@@ -128,8 +164,6 @@ The following formula is used to create the refraction rays:
 % float k = 1.0f - pow(ior,2) * (1.0f - pow(dot(i, n),2));
 % return i * ior - n * (ior * dot(i, n) + sqrtf(k));       
 
-\pagebreak
-
 \subsubsection{Secondary Ray Indexing}
 
 We create an index for each individual ray in order to sort the secondary rays in the following steps. We use a different hashing function for each type of ray (see Figures~\ref{fig:srh}, ~\ref{fig:rrh}). Since each ray consists of an origin and a direction it would be straightforward to simply use these two parameters to create our hash. However for shadow rays it is sufficient to use the index of the light source to which it belongs and its direction. This is only possible however if we invert the origin of the shadow ray so that it originates at the light source rather than the originating fragment. To further reduce the size of the hash keys we convert the ray direction into spherical coordinates \cite{GraphicGems5} and store both the light index and the spherical coordinates into a 32 bit integer, with the light index having the higher bit-value such that the shadow rays are sorted according to the light source a priori.
@@ -152,11 +186,11 @@ The Reflection and Refraction rays are also converted to spherical coordinates. 
 
 \subsubsection{Secondary Ray Trimming}
 
-Once the secondary rays are created and indexed, we have four arrays, the ray array that contains the generated secondary rays, two arrays that contain the ray keys (the indices's we calculated) and the ray values (the rays position in the ray array) and a final array with head flags which indicate if there is a ray in the corresponding position within the key-value arrays, where we store either a 0 or a 1, indicating if there is a ray or not, respectively.
+Once the secondary rays are created and indexed, we have four arrays, the ray array that contains the generated secondary rays, two arrays that contain the ray keys (the indices's we calculated) and the ray values (the rays position in the ray array) and a final array with head flags which indicate if there is a ray in the corresponding position within the key-value arrays, where we store either a 0 or a 1, indicating if there is a ray or not, respectively. This is an extremely important step for parallel programming since by doing this we can deduce the number of rays (by checking the last position of the scan array) as well as having all the rays that need to be processed in adjacent positions, meaning there will be no threads processing the empty spaces in the arrays.
 
 \medskip
 
-Using the information from the head flags array we then run a trimming operator on the key-value arrays (see Figure~\ref{fig:at}). This is done by first applying an inclusive scan operator \cite{Merrill09} on the head flags array, which gives us the number of positions that each pair needs to be shifted to the left. This is done in order to trim the arrays \cite{GPUGems2}. This is an extremely important step for parallel programming since by doing this we can deduce the number of rays (by checking the last position of the scan array) as well as having all the rays that need to be processed in adjacent positions, meaning there will be no thread processing the empty spaces in the arrays.
+Using the information from the head flags array we then run a trimming operator on the key-value arrays (see Figure~\ref{fig:at}). This is done by first applying an inclusive scan operator \cite{Merrill09} on the head flags array, which gives us the number of positions that each pair needs to be shifted to the left. This is done in order to trim the arrays \cite{GPUGems2}. 
 
 \begin{figure}[!htb]
     \centering

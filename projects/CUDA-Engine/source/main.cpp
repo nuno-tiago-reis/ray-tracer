@@ -1225,6 +1225,12 @@ void display() {
 	/*																*/
 	/****************************************************************/
 
+	;
+	//if (true)
+	//	ScreenCleaningWrapper(windowWidth, windowHeight, pixelBufferObject);
+	//else
+	;
+
 	for(int i=0; i<DEPTH; i++) {
 
 		float3 cameraEye = make_float3(cameraPosition[VX], cameraPosition[VY], cameraPosition[VZ]);
