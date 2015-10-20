@@ -37,7 +37,7 @@
 //#define TRIANGLE_DIVISION_DEBUG
 
 // Kernel Debug Constants
-#define TIMER_DEBUG
+//#define TIMER_DEBUG
 //#define TRAVERSAL_DEBUG
 
 #ifndef CONSTANTS
