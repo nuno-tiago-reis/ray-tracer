@@ -4,14 +4,9 @@ SceneManager* SceneManager::instance = NULL;
 
 SceneManager::SceneManager() {
 
-	value = 0;
-
-	this->rotationAxis = 0;
-	this->currentObject = 0;
-
 	this->objectID = 0;
 
-	activeCamera = NULL;
+	this->activeCamera = NULL;
 
 	/* FMOD Sound System Initialization */
 	FMOD::System_Create(&this->fmodSystem);
@@ -126,6 +121,24 @@ void SceneManager::update(GLfloat elapsedTime) {
 	// Sound System Update
 	this->fmodSystem->update();
 
+	#ifdef CORNELL
+	// Sphere Rotation
+	Object* sphere = this->objectMap["Sphere 0"];
+
+	if (this->objectPosition.magnitude() == 0.0f)
+		this->objectPosition = sphere->getTransform()->getPosition();
+
+	// Update the Rotation
+	this->objectRotation += 90.0f * elapsedTime;
+
+	// Update the Position
+	sphere->getTransform()->setPosition(
+		this->objectPosition +
+		Vector(	15.0f * cos(this->objectRotation * DEGREES_TO_RADIANS) - 15.0f * sin(this->objectRotation * DEGREES_TO_RADIANS), 
+				0.0f, 
+				15.0f * cos(this->objectRotation * DEGREES_TO_RADIANS) + 15.0f * sin(this->objectRotation * DEGREES_TO_RADIANS), 1.0f));
+	#endif
+
 	// Update Scene Graph
 	map<string,SceneNode*>::const_iterator sceneNodeIterator;
 	for(sceneNodeIterator = this->sceneNodeMap.begin(); sceneNodeIterator != this->sceneNodeMap.end(); sceneNodeIterator++)
@@ -183,10 +196,6 @@ void SceneManager::readKeyboard(GLfloat elapsedTime) {
 		
 		cout << "Target = "; this->activeCamera->getTarget().dump();
 	}
-
-	// Debug
-	if(handler->wasKeyPressedThisFrame('w'))
-		value++;
 
 	// Enable the Keyboard after reading
 	handler->enableKeyboard();

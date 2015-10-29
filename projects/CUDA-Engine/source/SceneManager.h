@@ -56,10 +56,13 @@ class SceneManager {
 		// Singleton Instance 
 		static SceneManager *instance;
 
-		int objectID;
+		#ifdef CORNELL
+			Vector objectPosition;
+			float objectRotation;
+		#endif
 
-		int rotationAxis;
-		int currentObject;
+		// Global Object ID
+		int objectID;
 
 		// FMOD Sound System 
 		FMOD::System* fmodSystem;
@@ -87,8 +90,6 @@ class SceneManager {
 		~SceneManager();
 
 	public:
-
-		int value;
 
 		// Singleton Methods 
 		static SceneManager* getInstance();

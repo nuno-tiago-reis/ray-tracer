@@ -2109,7 +2109,7 @@ void initializeObjects() {
 
 			// Create the Objects Transform
 			Transform* sphere0Transform = new Transform("Sphere");
-			sphere0Transform->setPosition(Vector(0.0f,-32.5, 0.0f, 1.0f));
+			sphere0Transform->setPosition(Vector(0.0f,-12.5, 0.0f, 1.0f));
 			sphere0Transform->setScale(Vector(25.0f,25.0f,25.0f,1.0f));
 				
 			// Set the Objects Mesh
