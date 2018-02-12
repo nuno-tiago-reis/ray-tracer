@@ -73,4 +73,6 @@ packages/
 debug
 /output/*.exe
 /output/*.pdb
-/projects/CUDA-Engine/output.txt
+/projects/CUDA-Engine/*.pdb
+/projects/CUDA-Naive-Engine/*.pdb
+/projects/CUDA-Naive-Ray-Tracer/*.pdb
